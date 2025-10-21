@@ -68,11 +68,25 @@ export default function LoginPage() {
 
       if (result?.error) {
         setError("登录失败，请检查邮箱和密码");
+        toast.error("登录失败，请检查邮箱和密码");
+        // 清空密码字段
+        loginForm.setValue("password", "");
+        // 聚焦密码输入框
+        if (loginPasswordRef.current) {
+          loginPasswordRef.current.focus();
+        }
       } else {
         router.push("/");
       }
     } catch (err) {
       setError("登录过程中出现错误");
+      toast.error("登录过程中出现错误");
+      // 清空密码字段
+      loginForm.setValue("password", "");
+      // 聚焦密码输入框
+      if (loginPasswordRef.current) {
+        loginPasswordRef.current.focus();
+      }
     } finally {
       setLoginLoading(false);
     }
