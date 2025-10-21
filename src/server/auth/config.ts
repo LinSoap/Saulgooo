@@ -1,4 +1,3 @@
-import { PrismaAdapter } from "@auth/prisma-adapter";
 import { type DefaultSession, type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
@@ -14,15 +13,8 @@ declare module "next-auth" {
   interface Session extends DefaultSession {
     user: {
       id: string;
-      // ...other properties
-      // role: UserRole;
     } & DefaultSession["user"];
   }
-
-  // interface User {
-  //   // ...other properties
-  //   // role: UserRole;
-  // }
 }
 
 /**
@@ -42,27 +34,20 @@ export const authConfig = {
           return null;
         }
 
-        // 简单的明文密码验证，仅用于演示
-        // 在生产环境中应该使用加密密码
+        // 查找用户
         const user = await db.user.findUnique({
           where: { email: credentials.email as string },
         });
 
-        // Prisma client types used by next-auth adapter may not expose `password` in
-        // certain selections. Cast to include password for local comparison below.
-        const userWithPassword = user as (typeof user & { password?: string } | null);
-
-        if (!user) {
+        if (!user || !user.password) {
           return null;
         }
 
-        // 注意：这里简化了密码验证
-        // 在生产环境中，你应该使用bcrypt等加密库
-        // Use bcryptjs to compare hashed passwords. `bcryptjs` is in dependencies.
+        // 使用 bcrypt 验证密码
         const bcrypt = await import("bcryptjs");
         const isValid = await bcrypt.compare(
           credentials.password as string,
-          userWithPassword?.password ?? ""
+          user.password
         );
 
         if (!isValid) return null;
@@ -76,15 +61,19 @@ export const authConfig = {
       },
     }),
   ],
-  adapter: PrismaAdapter(db),
   callbacks: {
-    session: ({ session, user }) => ({
-      ...session,
-      user: {
-        ...session.user,
-        id: user.id,
-      },
-    }),
+    async session({ session, token }) {
+      if (token.sub && session.user) {
+        session.user.id = token.sub;
+      }
+      return session;
+    },
+    async jwt({ token, user }) {
+      if (user) {
+        token.sub = user.id;
+      }
+      return token;
+    },
   },
   session: {
     strategy: "jwt",
