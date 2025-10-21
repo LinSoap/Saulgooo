@@ -21,12 +21,14 @@ export const authRouter = createTRPCRouter({
         throw new Error("用户已存在");
       }
 
-      // 注意：这里简化了密码处理，仅保存明文密码用于演示
-      // 在生产环境中，你应该使用bcrypt等加密库
+      // 使用 bcrypt 加密密码
+      const bcrypt = await import("bcryptjs");
+      const hashedPassword = await bcrypt.hash(input.password, 10);
+
       const user = await db.user.create({
         data: {
           email: input.email,
-          password: input.password, // 注意：生产环境中应该加密
+          password: hashedPassword,
           name: input.name,
         },
       });
@@ -42,7 +44,6 @@ export const authRouter = createTRPCRouter({
     .input(
       z.object({
         email: z.string().email(),
-        oldPassword: z.string(),
         newPassword: z.string().min(6),
       }),
     )
@@ -51,19 +52,17 @@ export const authRouter = createTRPCRouter({
         where: { email: input.email },
       });
 
-      if (!user || !user.password) {
+      if (!user) {
         throw new Error("用户不存在");
       }
 
-      // 验证旧密码（简单明文比较，仅用于演示）
-      if (input.oldPassword !== user.password) {
-        throw new Error("旧密码错误");
-      }
+      // 直接更新密码（无需验证旧密码）
+      const bcrypt = await import("bcryptjs");
+      const hashedPassword = await bcrypt.hash(input.newPassword, 10);
 
-      // 更新密码（注意：生产环境中应该加密）
       await db.user.update({
         where: { email: input.email },
-        data: { password: input.newPassword },
+        data: { password: hashedPassword },
       });
 
       return { success: true };
