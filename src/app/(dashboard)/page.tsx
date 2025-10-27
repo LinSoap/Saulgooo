@@ -5,31 +5,12 @@ import { CreateWorkspaceDialog } from "~/components/create-workspace-dialog";
 import { useSession } from "next-auth/react";
 import { api } from "~/trpc/react";
 
-interface Workspace {
-  id: string;
-  name: string;
-  description?: string;
-  memberCount: number;
-  role: "owner" | "teacher" | "student";
-  updatedAt: Date;
-}
-
 function DashboardContent() {
   const { data: session } = useSession();
   const { data: workspaces = [], isLoading } =
     api.workspace.getWorkSpaces.useQuery(undefined, {
       enabled: !!session?.user,
     });
-
-  const handleWorkspaceUpdated = (updatedWorkspace: Workspace) => {
-    // 这里可以更新缓存或重新获取数据
-    // 暂时保持简单
-  };
-
-  const handleWorkspaceDeleted = (workspaceId: string) => {
-    // 这里可以更新缓存或重新获取数据
-    // 暂时保持简单
-  };
 
   if (isLoading) {
     return (
@@ -73,12 +54,7 @@ function DashboardContent() {
 
           {/* 工作空间列表 */}
           {workspaces.map((workspace) => (
-            <WorkspaceCard
-              key={workspace.id}
-              {...workspace}
-              onUpdate={handleWorkspaceUpdated}
-              onDelete={handleWorkspaceDeleted}
-            />
+            <WorkspaceCard key={workspace.id} {...workspace} />
           ))}
         </div>
       )}

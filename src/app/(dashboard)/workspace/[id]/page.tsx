@@ -2,10 +2,9 @@
 
 import { Suspense, use } from "react";
 import { Button } from "~/components/ui/button";
-import { ArrowLeft, FolderOpen, Users, Settings } from "lucide-react";
+import { ArrowLeft, FolderOpen } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "~/components/ui/badge";
-import { Avatar, AvatarFallback } from "~/components/ui/avatar";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -35,7 +34,7 @@ function WorkspaceContent({
   return (
     <div className="flex h-full flex-col">
       {/* 工作空间头部 */}
-      <div className="bg-background/95 supports-backdrop-filter:bg-background/60 border-b backdrop-blur">
+      <div className="bg-background/95 supports-backdrop-filter:bg-background/60 h-30 border-b backdrop-blur">
         <div className="p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -65,8 +64,8 @@ function WorkspaceContent({
       <div className="flex-1">
         <ResizablePanelGroup direction="horizontal" className="h-full">
           {/* 文件树 */}
-          <ResizablePanel defaultSize={25} minSize={20} maxSize={40}>
-            <div className="bg-muted/30 h-full border-r p-4">
+          <ResizablePanel defaultSize={15} minSize={15} maxSize={25}>
+            <div className="h-full border-r p-4">
               <div className="mb-4 flex items-center gap-2">
                 <FolderOpen className="text-primary h-5 w-5" />
                 <h3 className="font-semibold">文件浏览器</h3>
