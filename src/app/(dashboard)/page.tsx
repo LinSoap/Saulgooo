@@ -1,26 +1,91 @@
-import { auth } from "~/server/auth";
-import { HydrateClient } from "~/trpc/server";
+"use client";
 
-export default async function Home() {
-  const session = await auth();
+import { WorkspaceCard } from "~/components/workspace-card";
+import { CreateWorkspaceDialog } from "~/components/create-workspace-dialog";
+import { useSession } from "next-auth/react";
+import { api } from "~/trpc/react";
+
+interface Workspace {
+  id: string;
+  name: string;
+  description?: string;
+  memberCount: number;
+  role: "owner" | "teacher" | "student";
+  updatedAt: Date;
+}
+
+function DashboardContent() {
+  const { data: session } = useSession();
+  const { data: workspaces = [], isLoading } =
+    api.workspace.getWorkSpaces.useQuery(undefined, {
+      enabled: !!session?.user,
+    });
+
+  const handleWorkspaceUpdated = (updatedWorkspace: Workspace) => {
+    // 这里可以更新缓存或重新获取数据
+    // 暂时保持简单
+  };
+
+  const handleWorkspaceDeleted = (workspaceId: string) => {
+    // 这里可以更新缓存或重新获取数据
+    // 暂时保持简单
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-6">
+        <div className="animate-pulse">
+          <div className="bg-muted mb-2 h-8 w-48 rounded"></div>
+          <div className="bg-muted mb-8 h-4 w-96 rounded"></div>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-muted h-64 rounded-lg"></div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <HydrateClient>
-      <main className="flex min-h-screen items-center justify-center p-8">
-        <div className="text-center">
-          <h1 className="mb-4 text-4xl font-bold">欢迎来到主页面</h1>
-          <p className="text-muted-foreground text-lg">
-            这是中间内容区域，您可以在这里放置主要内容
+    <div className="p-6">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold tracking-tight">我的工作空间</h1>
+        <p className="text-muted-foreground mt-2">管理和访问您的教研空间</p>
+      </div>
+
+      {workspaces.length === 0 ? (
+        <div className="py-12 text-center">
+          <div className="bg-muted mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full">
+            <span className="text-4xl">📁</span>
+          </div>
+          <h3 className="mb-2 text-xl font-semibold">还没有工作空间</h3>
+          <p className="text-muted-foreground mb-6">
+            创建您的第一个工作空间开始协作
           </p>
-          {session?.user && (
-            <div className="bg-muted/30 mt-8 rounded-lg p-4">
-              <p className="text-sm">
-                当前用户: {session.user.name || session.user.email}
-              </p>
-            </div>
-          )}
+          <CreateWorkspaceDialog></CreateWorkspaceDialog>
         </div>
-      </main>
-    </HydrateClient>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {/* 创建工作空间卡片 */}
+
+          <CreateWorkspaceDialog></CreateWorkspaceDialog>
+
+          {/* 工作空间列表 */}
+          {workspaces.map((workspace) => (
+            <WorkspaceCard
+              key={workspace.id}
+              {...workspace}
+              onUpdate={handleWorkspaceUpdated}
+              onDelete={handleWorkspaceDeleted}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
+}
+
+export default function DashboardPage() {
+  return <DashboardContent />;
 }

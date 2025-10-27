@@ -1,7 +1,8 @@
 "use client";
 
 import { signOut, useSession } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -15,8 +16,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import { LogOut, Settings, User } from "lucide-react";
+import { LogOut, Settings, User, Home, Plus } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { cn } from "~/lib/utils";
 
 interface DashboardSidebarProps {
   children: React.ReactNode;
@@ -25,6 +27,7 @@ interface DashboardSidebarProps {
 export default function DashboardSidebar({ children }: DashboardSidebarProps) {
   const { data: session } = useSession();
   const router = useRouter();
+  const pathname = usePathname();
 
   const handleSignOut = async () => {
     await signOut({ redirect: false });
@@ -41,7 +44,10 @@ export default function DashboardSidebar({ children }: DashboardSidebarProps) {
             <div className="bg-background flex flex-col items-center border-b p-4">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-auto w-auto p-0">
+                  <Button
+                    variant="ghost"
+                    className="relative h-auto w-auto p-0"
+                  >
                     <Avatar className="mb-2 h-12 w-12">
                       <AvatarImage
                         src={session?.user?.image || undefined}
@@ -49,18 +55,18 @@ export default function DashboardSidebar({ children }: DashboardSidebarProps) {
                       />
                       <AvatarFallback className="bg-primary text-primary-foreground">
                         {session?.user?.name?.[0]?.toUpperCase() ||
-                         session?.user?.email?.[0]?.toUpperCase() ||
-                         "U"}
+                          session?.user?.email?.[0]?.toUpperCase() ||
+                          "U"}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">
                   <div className="px-2 py-1.5 text-sm">
-                    <div className="font-medium text-foreground">
+                    <div className="text-foreground font-medium">
                       {session?.user?.name || "未知用户"}
                     </div>
-                    <div className="text-muted-foreground text-xs truncate">
+                    <div className="text-muted-foreground truncate text-xs">
                       {session?.user?.email}
                     </div>
                   </div>
@@ -89,36 +95,30 @@ export default function DashboardSidebar({ children }: DashboardSidebarProps) {
             </div>
 
             {/* 导航区域 */}
-            <div className="flex flex-1 items-center justify-center p-4">
-              <div className="text-center">
-                <h2 className="text-card-foreground mb-2 text-lg font-semibold">
-                  导航面板
-                </h2>
-                <p className="text-muted-foreground text-sm">菜单或侧边栏</p>
+            <nav className="flex flex-1 flex-col p-4">
+              <div className="space-y-2">
+                <Link href="/">
+                  <Button
+                    variant={pathname === "/" ? "secondary" : "ghost"}
+                    className={cn(
+                      "w-full justify-start",
+                      pathname === "/" && "bg-secondary",
+                    )}
+                  >
+                    <Home className="mr-2 h-4 w-4" />
+                    主页
+                  </Button>
+                </Link>
               </div>
-            </div>
+            </nav>
           </div>
         </ResizablePanel>
 
         <ResizableHandle withHandle />
 
-        {/* 中间内容区域 */}
-        <ResizablePanel defaultSize={60}>
+        {/* 内容区域 */}
+        <ResizablePanel defaultSize={80}>
           <div className="bg-background h-full overflow-auto">{children}</div>
-        </ResizablePanel>
-
-        <ResizableHandle withHandle />
-
-        {/* 右侧面板 */}
-        <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
-          <div className="bg-card flex h-full items-center justify-center border-l p-4">
-            <div className="text-center">
-              <h2 className="text-card-foreground mb-2 text-lg font-semibold">
-                信息面板
-              </h2>
-              <p className="text-muted-foreground text-sm">工具或详情</p>
-            </div>
-          </div>
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>
