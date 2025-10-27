@@ -1,9 +1,23 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { mkdir, rmdir } from "fs/promises";
+import { mkdir, rmdir, readdir, stat, writeFile, readFile } from "fs/promises";
 import { join } from "path";
 import { homedir } from "os";
+import type { FileTreeItem } from "../types/file";
 
+// 简单的 MIME 类型检测
+function getMimeType(filePath: string): string {
+  const ext = filePath.split('.').pop()?.toLowerCase();
+  const commonTypes: Record<string, string> = {
+    'md': 'text/markdown',
+    'js': 'text/javascript',
+    'ts': 'text/typescript',
+    'json': 'application/json',
+    'png': 'image/png',
+    'jpg': 'image/jpeg'
+  };
+  return commonTypes[ext || ''] || 'text/plain';
+}
 
 export const workSpaceRouter = createTRPCRouter({
     getWorkSpaces: protectedProcedure
@@ -164,6 +178,144 @@ export const workSpaceRouter = createTRPCRouter({
                 },
             });
             return workspace;
-        }
-        )
+        }),
+
+    // 获取工作区文件树
+    getFileTree: protectedProcedure
+        .input(z.object({
+            workspaceId: z.string().cuid(),
+        }))
+        .query(async ({ ctx, input }) => {
+            const workspace = await ctx.db.workspace.findUnique({
+                where: { id: input.workspaceId, ownerId: ctx.session.user.id },
+            });
+
+            if (!workspace) throw new Error("Workspace not found");
+
+            const basePath = join(homedir(), workspace.path.replace("~/workspaces/", ""));
+            const ignoreItems = ['.git', 'node_modules', '.next', 'dist'];
+
+            const buildTree = async (dirPath: string, relativePath = ""): Promise<FileTreeItem[]> => {
+                const items = await readdir(dirPath);
+                const result: FileTreeItem[] = [];
+
+                for (const item of items) {
+                    if (ignoreItems.includes(item) || item.startsWith('.')) continue;
+
+                    const fullPath = join(dirPath, item);
+                    const itemRelativePath = join(relativePath, item);
+                    const stats = await stat(fullPath);
+
+                    if (stats.isDirectory()) {
+                        const children = await buildTree(fullPath, itemRelativePath);
+                        result.push({
+                            id: itemRelativePath,
+                            name: item,
+                            path: itemRelativePath,
+                            type: 'directory',
+                            size: 0,
+                            modifiedAt: stats.mtime,
+                            createdAt: stats.birthtime,
+                            children: children.length > 0 ? children : undefined,
+                            hasChildren: children.length > 0
+                        });
+                    } else {
+                        result.push({
+                            id: itemRelativePath,
+                            name: item,
+                            path: itemRelativePath,
+                            type: 'file',
+                            size: stats.size,
+                            modifiedAt: stats.mtime,
+                            createdAt: stats.birthtime,
+                            extension: item.includes('.') ? item.split('.').pop()?.toLowerCase() : undefined
+                        });
+                    }
+                }
+
+                return result.sort((a, b) => {
+                    if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+                    return a.name.localeCompare(b.name);
+                });
+            };
+
+            return {
+                workspaceId: workspace.id,
+                workspaceName: workspace.name,
+                tree: await buildTree(basePath),
+                rootPath: basePath
+            };
+        }),
+
+    // 获取文件内容
+    getFileContent: protectedProcedure
+        .input(z.object({
+            workspaceId: z.string().cuid(),
+            filePath: z.string(),
+        }))
+        .query(async ({ ctx, input }) => {
+            const workspace = await ctx.db.workspace.findUnique({
+                where: { id: input.workspaceId, ownerId: ctx.session.user.id },
+            });
+
+            if (!workspace) throw new Error("Workspace not found");
+
+            const basePath = join(homedir(), workspace.path.replace("~/workspaces/", ""));
+            const fullPath = join(basePath, input.filePath);
+
+            if (!fullPath.startsWith(basePath)) throw new Error("Invalid path");
+
+            const stats = await stat(fullPath);
+            if (!stats.isFile()) throw new Error("Not a file");
+            if (stats.size > 5 * 1024 * 1024) throw new Error("File too large");
+
+            return {
+                content: await readFile(fullPath, 'utf-8'),
+                size: stats.size,
+                modifiedAt: stats.mtime,
+                mimeType: getMimeType(input.filePath)
+            };
+        }),
+
+    // 创建 Markdown 文件
+    createMarkdownFile: protectedProcedure
+        .input(z.object({
+            workspaceId: z.string().cuid(),
+            fileName: z.string().min(1).max(255),
+            directoryPath: z.string().optional().default(""),
+            initialContent: z.string().optional().default("# Untitled\n\n"),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const workspace = await ctx.db.workspace.findUnique({
+                where: { id: input.workspaceId, ownerId: ctx.session.user.id },
+            });
+
+            if (!workspace) throw new Error("Workspace not found");
+
+            const fileName = input.fileName.endsWith('.md') ? input.fileName : `${input.fileName}.md`;
+            const basePath = join(homedir(), workspace.path.replace("~/workspaces/", ""));
+            const directoryPath = join(basePath, input.directoryPath);
+            const filePath = join(directoryPath, fileName);
+
+            if (!filePath.startsWith(basePath)) throw new Error("Invalid path");
+
+            try {
+                await stat(filePath);
+                throw new Error("File exists");
+            } catch {
+                // File doesn't exist, continue
+            }
+
+            await mkdir(directoryPath, { recursive: true });
+            await writeFile(filePath, input.initialContent, 'utf-8');
+            const stats = await stat(filePath);
+
+            return {
+                success: true,
+                fileName,
+                filePath: input.directoryPath ? join(input.directoryPath, fileName) : fileName,
+                size: stats.size,
+                createdAt: stats.birthtime
+            };
+        }),
 })
