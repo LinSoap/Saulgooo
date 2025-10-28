@@ -15,26 +15,45 @@ interface Message {
 
 interface AgentChatProps {
   workspaceId?: string;
+  onAgentComplete?: () => Promise<void>;
 }
 
-export function AgentChat({ workspaceId }: AgentChatProps) {
+export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
 
   const agentQuery = api.agent.query.useMutation({
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       // 直接添加AI回复
       setMessages((prev) => [...prev, {
         role: "assistant",
         content: data.content,
       }]);
+
+      // Agent操作完成后，调用刷新回调
+      if (onAgentComplete) {
+        try {
+          await onAgentComplete();
+        } catch (error) {
+          console.error("Failed to refresh after agent completion:", error);
+        }
+      }
     },
-    onError: (error) => {
+    onError: async (error) => {
       // 添加错误消息
       setMessages((prev) => [...prev, {
         role: "assistant",
         content: "抱歉，处理您的请求时出现了错误。请稍后再试。",
       }]);
+
+      // 即使出错也尝试刷新
+      if (onAgentComplete) {
+        try {
+          await onAgentComplete();
+        } catch (refreshError) {
+          console.error("Failed to refresh after agent error:", refreshError);
+        }
+      }
     },
   });
 

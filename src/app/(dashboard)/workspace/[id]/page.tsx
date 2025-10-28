@@ -52,6 +52,9 @@ function WorkspaceContent({
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newFileName, setNewFileName] = useState("");
 
+  // 获取 tRPC utils 用于手动获取数据
+  const utils = api.useUtils();
+
   const {
     data: fileTreeData,
     isLoading: isFileTreeLoading,
@@ -124,6 +127,58 @@ function WorkspaceContent({
     });
   };
 
+  // 智能刷新函数 - Agent操作完成后调用
+  const handleAgentComplete = async () => {
+    const currentFilePath = selectedFile?.path;
+    const oldModifiedTime = selectedFile?.modifiedAt;
+
+    try {
+      // 1. 刷新文件树并获取最新数据
+      const fileTreeResult = await refetchFileTree();
+
+      // 2. 如果没有打开的文件，只刷新文件树即可
+      if (!currentFilePath) return;
+
+      // 3. 从新的文件树中查找该文件
+      const findFileInTree = (items: any[], path: string): any => {
+        for (const item of items) {
+          if (item.path === path) return item;
+          if (item.children) {
+            const found = findFileInTree(item.children, path);
+            if (found) return found;
+          }
+        }
+        return null;
+      };
+
+      const updatedFile = findFileInTree(fileTreeResult.data?.tree || [], currentFilePath);
+
+      // 4. 处理不同情况
+      if (!updatedFile) {
+        // 文件被删除了 - 清空选择
+        setSelectedFile(null);
+        setFileContent(null);
+        console.log(`File ${currentFilePath} was deleted by agent`);
+      } else if (oldModifiedTime && updatedFile.modifiedAt !== oldModifiedTime) {
+        // 文件被修改了 - 需要刷新内容
+        // 使用 tRPC utils 获取最新文件内容
+        const result = await utils.workspace.getFileContent.fetch({
+          workspaceId,
+          filePath: currentFilePath,
+        });
+
+        if (result?.content) {
+          setFileContent(result.content);
+          // 更新 selectedFile 的引用，保持同步
+          setSelectedFile(updatedFile);
+          console.log(`File ${currentFilePath} was refreshed`);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to refresh after agent operation:", error);
+    }
+  };
+
   return (
     <div className="flex h-full flex-col overflow-hidden">
       {/* 工作空间头部 */}
@@ -193,7 +248,7 @@ function WorkspaceContent({
           {/* 文件树 */}
           <ResizablePanel defaultSize={15} minSize={15} maxSize={25}>
             <div className="flex h-full flex-col border-r p-4">
-              <div className="mb-4 flex flex-shrink-0 items-center justify-between">
+              <div className="mb-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <FolderOpen className="text-primary h-5 w-5" />
                   <h3 className="font-semibold">文件浏览器</h3>
@@ -385,7 +440,7 @@ function WorkspaceContent({
 
               {/* 对话框区域 */}
               <ResizablePanel defaultSize={35} minSize={25} maxSize={50}>
-                <AgentChat workspaceId={workspaceId} />
+                <AgentChat workspaceId={workspaceId} onAgentComplete={handleAgentComplete} />
               </ResizablePanel>
             </ResizablePanelGroup>
           </ResizablePanel>
