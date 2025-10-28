@@ -105,11 +105,10 @@ model WorkspaceMember {
 
 // Agent 对话会话相关表
 model AgentSession {
-  id          String   @id @default(cuid())
+  sessionId   String   @id  // 使用 Claude SDK 的 session ID 作为主键
   workspaceId String
   userId      String
   title       String
-  sessionId   String   // Claude SDK 的 session ID
 
   // 对话历史存储为 JSON
   messages    Json     // 存储 [{role: "user", content: "...", timestamp: "..."}, ...]
