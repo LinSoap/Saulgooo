@@ -49,20 +49,20 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
   // 获取 sessions 列表
   const { data: sessionsData, refetch: refetchSessions } =
     api.agent.getSessions.useQuery(
-      { workspaceId: workspaceId || "" },
+      { workspaceId: workspaceId ?? "" },
       { enabled: !!workspaceId },
     );
 
   // 获取特定 session
   const { data: sessionData } = api.agent.getSession.useQuery(
-    { sessionId: currentSessionId || "" },
+    { sessionId: currentSessionId ?? "" },
     { enabled: !!currentSessionId },
   );
 
   // 删除 session
   const deleteSessionMutation = api.agent.deleteSession.useMutation({
     onSuccess: () => {
-      refetchSessions();
+      void refetchSessions();
       if (currentSessionId) {
         // 如果删除的是当前会话，重置到新对话状态
         setCurrentSessionId(null);
@@ -86,7 +86,7 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
 
   // 加载 session 的消息
   useEffect(() => {
-    if (sessionData && sessionData.messages) {
+    if (sessionData?.messages) {
       // 将 JsonValue 类型转换为 Message 数组
       const messagesData = sessionData.messages as unknown;
       if (Array.isArray(messagesData)) {
@@ -119,7 +119,7 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
         setCurrentSessionId(data.sessionId);
 
         // 为新对话生成标题
-        const userMessage = messages[messages.length - 1]?.content || "新对话";
+        const userMessage = messages[messages.length - 1]?.content ?? "新对话";
         const title =
           userMessage.length > 20
             ? userMessage.substring(0, 20) + "..."
@@ -127,7 +127,7 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
 
         // 这里可以调用API更新会话标题，暂时使用本地生成的标题
         setTimeout(() => {
-          refetchSessions();
+          void refetchSessions();
         }, 500);
       }
 
@@ -141,9 +141,9 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
       }
 
       // 刷新 sessions 列表
-      refetchSessions();
+      void refetchSessions();
     },
-    onError: async (error) => {
+    onError: async () => {
       // 添加错误消息
       setMessages((prev) => [
         ...prev,
@@ -173,10 +173,10 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
     setInputMessage("");
 
     // 调用 tRPC query
-    await agentQuery.mutate({
+    void agentQuery.mutate({
       query: userMessage,
       workspaceId,
-      sessionId: currentSessionId || undefined,
+      sessionId: currentSessionId ?? undefined,
     });
   };
 
@@ -198,7 +198,7 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
   ) => {
     e.stopPropagation();
     if (confirm("确定要删除这个对话吗？")) {
-      await deleteSessionMutation.mutateAsync({ sessionId });
+      void deleteSessionMutation.mutateAsync({ sessionId });
     }
   };
 
