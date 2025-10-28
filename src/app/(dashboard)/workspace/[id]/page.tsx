@@ -14,6 +14,7 @@ import { api } from "~/trpc/react";
 import { useSession } from "next-auth/react";
 import { FileTreeItem } from "~/components/FileTreeItem";
 import { MarkdownPreview } from "~/components/MarkdownPreview";
+import { AgentChat } from "~/components/AgentChat";
 import {
   Dialog,
   DialogContent,
@@ -283,88 +284,100 @@ function WorkspaceContent({
 
           <ResizableHandle withHandle />
 
-          {/* 文件内容预览 */}
-          <ResizablePanel defaultSize={75}>
-            <div className="h-full overflow-auto">
-              {selectedFile ? (
-                <div className="h-full">
-                  {selectedFile.type === "file" ? (
-                    <>
-                      {selectedFile.extension === "md" ? (
-                        <div className="p-6">
-                          {isFileLoading ? (
-                            <div className="flex h-64 items-center justify-center">
-                              <p className="text-muted-foreground">加载中...</p>
+          {/* 右侧区域：文件内容和对话框 */}
+          <ResizablePanel defaultSize={85}>
+            <ResizablePanelGroup direction="horizontal" className="h-full">
+              {/* 文件内容预览 */}
+              <ResizablePanel defaultSize={65} minSize={40}>
+                <div className="h-full overflow-auto">
+                  {selectedFile ? (
+                    <div className="h-full">
+                      {selectedFile.type === "file" ? (
+                        <>
+                          {selectedFile.extension === "md" ? (
+                            <div className="p-6">
+                              {isFileLoading ? (
+                                <div className="flex h-64 items-center justify-center">
+                                  <p className="text-muted-foreground">加载中...</p>
+                                </div>
+                              ) : fileError ? (
+                                <div className="flex h-64 items-center justify-center">
+                                  <p className="text-destructive">加载文件失败</p>
+                                </div>
+                              ) : fileContent !== null ? (
+                                <MarkdownPreview
+                                  content={fileContent}
+                                  className="max-w-none"
+                                />
+                              ) : (
+                                <div className="flex h-64 items-center justify-center">
+                                  <div className="text-center">
+                                    <File className="text-muted-foreground mx-auto mb-4 h-16 w-16" />
+                                    <h3 className="mb-2 text-xl font-semibold">
+                                      {selectedFile.name}
+                                    </h3>
+                                    <p className="text-muted-foreground">
+                                      无法预览此文件类型
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          ) : fileError ? (
-                            <div className="flex h-64 items-center justify-center">
-                              <p className="text-destructive">加载文件失败</p>
-                            </div>
-                          ) : fileContent !== null ? (
-                            <MarkdownPreview
-                              content={fileContent}
-                              className="max-w-none"
-                            />
                           ) : (
-                            <div className="flex h-64 items-center justify-center">
+                            <div className="flex h-full items-center justify-center">
                               <div className="text-center">
                                 <File className="text-muted-foreground mx-auto mb-4 h-16 w-16" />
                                 <h3 className="mb-2 text-xl font-semibold">
                                   {selectedFile.name}
                                 </h3>
                                 <p className="text-muted-foreground">
-                                  无法预览此文件类型
+                                  暂不支持预览此文件类型
+                                </p>
+                                <p className="text-muted-foreground mt-2 text-sm">
+                                  目前仅支持 Markdown (.md) 文件预览
                                 </p>
                               </div>
                             </div>
                           )}
-                        </div>
+                        </>
                       ) : (
                         <div className="flex h-full items-center justify-center">
                           <div className="text-center">
-                            <File className="text-muted-foreground mx-auto mb-4 h-16 w-16" />
+                            <FolderOpen className="text-muted-foreground mx-auto mb-4 h-16 w-16" />
                             <h3 className="mb-2 text-xl font-semibold">
                               {selectedFile.name}
                             </h3>
-                            <p className="text-muted-foreground">
-                              暂不支持预览此文件类型
-                            </p>
-                            <p className="text-muted-foreground mt-2 text-sm">
-                              目前仅支持 Markdown (.md) 文件预览
-                            </p>
+                            <p className="text-muted-foreground">这是一个文件夹</p>
                           </div>
                         </div>
                       )}
-                    </>
+                    </div>
                   ) : (
-                    <div className="flex h-full items-center justify-center">
+                    <div className="flex h-full items-center justify-center rounded-lg border-2 border-dashed">
                       <div className="text-center">
-                        <FolderOpen className="text-muted-foreground mx-auto mb-4 h-16 w-16" />
-                        <h3 className="mb-2 text-xl font-semibold">
-                          {selectedFile.name}
+                        <FolderOpen className="text-muted-foreground mx-auto h-16 w-16" />
+                        <h3 className="mt-4 text-lg font-semibold">
+                          选择一个文件查看
                         </h3>
-                        <p className="text-muted-foreground">这是一个文件夹</p>
+                        <p className="text-muted-foreground mt-2">
+                          从左侧文件浏览器中选择文件以查看内容
+                        </p>
+                        <p className="text-muted-foreground mt-2 text-sm">
+                          支持 Markdown (.md) 文件预览
+                        </p>
                       </div>
                     </div>
                   )}
                 </div>
-              ) : (
-                <div className="flex h-full items-center justify-center rounded-lg border-2 border-dashed">
-                  <div className="text-center">
-                    <FolderOpen className="text-muted-foreground mx-auto h-16 w-16" />
-                    <h3 className="mt-4 text-lg font-semibold">
-                      选择一个文件查看
-                    </h3>
-                    <p className="text-muted-foreground mt-2">
-                      从左侧文件浏览器中选择文件以查看内容
-                    </p>
-                    <p className="text-muted-foreground mt-2 text-sm">
-                      支持 Markdown (.md) 文件预览
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
+              </ResizablePanel>
+
+              <ResizableHandle withHandle />
+
+              {/* 对话框区域 */}
+              <ResizablePanel defaultSize={35} minSize={25} maxSize={50}>
+                <AgentChat />
+              </ResizablePanel>
+            </ResizablePanelGroup>
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
