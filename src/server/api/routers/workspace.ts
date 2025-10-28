@@ -71,49 +71,32 @@ export const workSpaceRouter = createTRPCRouter({
             }),
         )
         .mutation(async ({ ctx, input }) => {
-            // 生成唯一的workspace名称：用户ID + workspace名称 + 时间戳
-            const timestamp = Date.now();
-            const sanitized_name = input.name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-            const uniqueWorkspaceName = `${ctx.session.user.id}-${sanitized_name}-${timestamp}`;
-            const path = "~/workspaces/" + uniqueWorkspaceName;
+            // 生成简单的工作区路径：用户ID-工作区名称
+            const sanitizedName = input.name
+                .toLowerCase()
+                .replace(/\s+/g, '-')
+                .replace(/[^a-z0-9-]/g, '');
+            const path = `${ctx.session.user.id}-${sanitizedName}`;
+            const workspacePath = join(homedir(), 'workspaces', path);
             const groupName = ctx.session.user.name + "-" + input.name;
 
-            // 先创建文件夹，如果失败就不会创建数据库记录
-            try {
-                const homeDir = homedir();
-                const workspacePath = join(homeDir, 'workspaces', uniqueWorkspaceName);
-                await mkdir(workspacePath, { recursive: true });
-            } catch (fsError) {
-                throw new Error(`Failed to create workspace directory: ${fsError instanceof Error ? fsError.message : 'Unknown error'}`);
-            }
+            // 创建文件夹
+            await mkdir(workspacePath, { recursive: true });
 
-            // 文件夹创建成功后，创建数据库记录
-            try {
-                const workspace = await ctx.db.workspace.create({
-                    data: {
-                        name: input.name,
-                        description: input.description,
-                        ownerId: ctx.session.user.id,
-                        path: path,
-                        teacherGroup: groupName + "-teachers",
-                        studentGroup: groupName + "-students",
-                        members: {}
-                    },
-                });
+            // 创建数据库记录
+            const workspace = await ctx.db.workspace.create({
+                data: {
+                    name: input.name,
+                    description: input.description,
+                    ownerId: ctx.session.user.id,
+                    path: path,
+                    teacherGroup: groupName + "-teachers",
+                    studentGroup: groupName + "-students",
+                    members: {}
+                },
+            });
 
-                return workspace;
-            } catch (dbError) {
-                // 如果数据库创建失败，清理已创建的文件夹
-                try {
-                    const homeDir = homedir();
-                    const workspacePath = join(homeDir, 'workspaces', uniqueWorkspaceName);
-                    await rmdir(workspacePath, { recursive: true });
-                } catch (cleanupError) {
-                    console.error('Failed to cleanup workspace directory:', cleanupError);
-                }
-
-                throw new Error(`Failed to create workspace record: ${dbError instanceof Error ? dbError.message : 'Unknown error'}`);
-            }
+            return workspace;
         }),
     deleteWorkSpace: protectedProcedure
         .input(
@@ -143,12 +126,8 @@ export const workSpaceRouter = createTRPCRouter({
 
             // 删除对应的文件夹
             try {
-                if (workspace.path && workspace.path.startsWith("~/workspaces/")) {
-                    // 提取文件夹名称
-                    const folderName = workspace.path.replace("~/workspaces/", "");
-                    const homeDir = homedir();
-                    const workspacePath = join(homeDir, 'workspaces', folderName);
-
+                if (workspace.path) {
+                    const workspacePath = join(homedir(), 'workspaces', workspace.path);
                     await rmdir(workspacePath, { recursive: true });
                     console.log(`Workspace directory deleted: ${workspacePath}`);
                 }
@@ -192,7 +171,7 @@ export const workSpaceRouter = createTRPCRouter({
 
             if (!workspace) throw new Error("Workspace not found");
 
-            const basePath = join(homedir(), workspace.path.replace("~/workspaces/", ""));
+            const basePath = join(homedir(), 'workspaces', workspace.path);
             const ignoreItems = ['.git', 'node_modules', '.next', 'dist'];
 
             const buildTree = async (dirPath: string, relativePath = ""): Promise<FileTreeItem[]> => {
@@ -260,10 +239,13 @@ export const workSpaceRouter = createTRPCRouter({
 
             if (!workspace) throw new Error("Workspace not found");
 
-            const basePath = join(homedir(), workspace.path.replace("~/workspaces/", ""));
+            const basePath = join(homedir(), 'workspaces', workspace.path);
             const fullPath = join(basePath, input.filePath);
 
-            if (!fullPath.startsWith(basePath)) throw new Error("Invalid path");
+            // 简单的路径验证
+            if (!fullPath.startsWith(basePath)) {
+                throw new Error("Invalid path");
+            }
 
             const stats = await stat(fullPath);
             if (!stats.isFile()) throw new Error("Not a file");
@@ -293,11 +275,14 @@ export const workSpaceRouter = createTRPCRouter({
             if (!workspace) throw new Error("Workspace not found");
 
             const fileName = input.fileName.endsWith('.md') ? input.fileName : `${input.fileName}.md`;
-            const basePath = join(homedir(), workspace.path.replace("~/workspaces/", ""));
+            const basePath = join(homedir(), 'workspaces', workspace.path);
             const directoryPath = join(basePath, input.directoryPath);
             const filePath = join(directoryPath, fileName);
 
-            if (!filePath.startsWith(basePath)) throw new Error("Invalid path");
+            // 简单的路径验证
+            if (!filePath.startsWith(basePath)) {
+                throw new Error("Invalid path");
+            }
 
             try {
                 await stat(filePath);
