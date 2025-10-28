@@ -1,9 +1,9 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { query } from "@anthropic-ai/claude-agent-sdk";
-import type { AgentQueryResponse, AgentSession } from "../types/agent";
-
-// Agent SDK - 需要安装 @anthropic-ai/claude-agent-sdk-typescript
+import { join } from "node:path";
+import { homedir } from "node:os";
+import { db } from "~/server/db";
 
 export const agentRouter = createTRPCRouter({
   // 执行 Agent 查询
@@ -11,65 +11,49 @@ export const agentRouter = createTRPCRouter({
     .input(
       z.object({
         query: z.string().min(1, "查询内容不能为空"),
-        sessionId: z.string().optional(),
+        workspaceId: z.string().optional(),
       })
     )
-    .mutation(async ({ ctx, input }): Promise<AgentQueryResponse> => {
+    .mutation(async ({ input }): Promise<{ content: string }> => {
       try {
-        const startTime = new Date().toISOString();
-        let result: any = null;
+        // 获取工作路径
+        let cwd = process.cwd();
+        if (input.workspaceId) {
+          const workspace = await db.workspace.findUnique({
+            where: { id: input.workspaceId },
+            select: { path: true },
+          });
+
+          if (workspace?.path) {
+            cwd = join(homedir(), 'workspaces', workspace.path);
+          }
+        }
+
+        let result: unknown = null;
 
         // 使用 Agent SDK 的 query 方法
         for await (const message of query({
           prompt: input.query,
           options: {
             maxTurns: 10,
-            allowedTools: ["Read", "Grep"]
+            permissionMode: 'bypassPermissions',
+            continue: true,
+            cwd, // 设置工作目录
           }
         })) {
           // 只获取结果
-          if (message.type === "result") {
-            // @ts-ignore
+          if (message.type === "result" && message.subtype === "success" && message.result) {
             result = message.result;
           }
         }
 
-        const endTime = new Date().toISOString();
-
+        // 返回简单的内容字符串
         return {
-          id: `query_${Date.now()}`,
-          type: "query",
-          status: "completed",
-          started_at: startTime,
-          completed_at: endTime,
-          messages: [
-            {
-              type: "text",
-              content: typeof result === 'string' ? result : JSON.stringify(result)
-            }
-          ]
+          content: typeof result === 'string' ? result : JSON.stringify(result)
         };
       } catch (error) {
         console.error("Agent query error:", error);
         throw new Error(error instanceof Error ? error.message : "查询失败");
       }
-    }),
-
-  // 获取 Agent 会话历史
-  getSession: protectedProcedure
-    .input(
-      z.object({
-        sessionId: z.string(),
-      })
-    )
-    .query(async ({ ctx, input }): Promise<AgentSession> => {
-      // TODO: 实现获取会话历史的逻辑
-      return {
-        id: input.sessionId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        status: "active",
-        messages: [],
-      };
     }),
 });
