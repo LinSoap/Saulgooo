@@ -1,8 +1,29 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { query } from "@anthropic-ai/claude-agent-sdk";
+import type { ContentBlock } from "@anthropic-ai/sdk/resources/messages";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { Prisma } from "@prisma/client";
+
+// 使用 Anthropic SDK 的类型
+type ContentItem = ContentBlock;
+
+interface StoredMessage {
+  role: "user" | "assistant";
+  content: string | ContentItem[];
+  timestamp: string;
+}
+
+// 将消息转换为 Prisma JsonValue 格式
+const toPrismaJson = (messages: StoredMessage[]): Prisma.InputJsonValue => {
+  return messages.map(msg => ({
+    role: msg.role,
+    content: msg.content,
+    timestamp: msg.timestamp
+  })) as Prisma.InputJsonValue;
+};
+
 
 export const agentRouter = createTRPCRouter({
 
@@ -102,6 +123,7 @@ export const agentRouter = createTRPCRouter({
 
         let result: unknown = null;
         let claudeSessionId: string | undefined;
+        const messageContents: ContentItem[] = []; // 收集所有助手消息内容
 
         // 使用 Agent SDK 的 query 方法
         try {
@@ -110,21 +132,26 @@ export const agentRouter = createTRPCRouter({
             options: {
               maxTurns: 10,
               permissionMode: 'bypassPermissions',
-              // continue: true,
               resume: input.sessionId ?? undefined,
               cwd, // 设置工作目录
             }
-
           })) {
-            // 记录所有消息类型用于调试
-
-            // 初始化时获取 session ID
+            // 获取 session ID
             if (message.type === 'system' && message.subtype === 'init' && message.session_id) {
               claudeSessionId = message.session_id;
-              console.log("Got Claude session ID:", claudeSessionId);
             }
 
-            // 获取结果
+            // 收集助手消息内容
+            if (message.type === 'assistant' && message.message?.content) {
+              if (Array.isArray(message.message.content)) {
+                // 将 Beta 类型转换为标准类型
+                messageContents.push(...(message.message.content as ContentItem[]));
+              } else {
+                messageContents.push(message.message.content as ContentItem);
+              }
+            }
+
+            // 获取最终结果
             if (message.type === "result" && message.subtype === "success" && message.result) {
               result = message.result;
             }
@@ -134,89 +161,100 @@ export const agentRouter = createTRPCRouter({
           throw sdkError;
         }
 
-        // 转换结果
+        // 转换结果为字符串
         const content = typeof result === 'string' ? result : JSON.stringify(result);
 
-        // 如果是新 session（没有传入 sessionId），保存到数据库
-        if (!input.sessionId && claudeSessionId) {
-          console.log("Creating new session with Claude session ID:", claudeSessionId);
-          try {
-            // 生成会话标题（取查询的前20个字符）
-            const title = input.query.length > 20 ? input.query.substring(0, 20) + "..." : input.query;
+        // 准备保存的消息
+        const messagesToSave: StoredMessage[] = [
+          {
+            role: "user",
+            content: input.query,
+            timestamp: new Date().toISOString()
+          }
+        ];
 
-            const newSession = await ctx.db.agentSession.create({
+        // 如果有助手消息内容，保存它们
+        if (messageContents.length > 0) {
+          // 如果有最终结果，添加到内容末尾
+          if (content && content.trim()) {
+            messageContents.push({
+              type: 'text',
+              text: content,
+              citations: null
+            } as ContentItem);
+          }
+
+          messagesToSave.push({
+            role: "assistant",
+            content: messageContents,
+            timestamp: new Date().toISOString()
+          });
+        } else if (content && content.trim()) {
+          // 如果没有收集到消息内容，只保存最终结果
+          messagesToSave.push({
+            role: "assistant",
+            content: content,
+            timestamp: new Date().toISOString()
+          });
+        }
+
+        // 保存或更新会话
+        if (!input.sessionId && claudeSessionId) {
+          // 创建新会话
+          const title = input.query.length > 20 ? input.query.substring(0, 20) + "..." : input.query;
+
+          await ctx.db.agentSession.create({
+            data: {
+              workspaceId: input.workspaceId,
+              userId: ctx.session.user.id,
+              title,
+              sessionId: claudeSessionId,
+              messages: toPrismaJson(messagesToSave),
+            }
+          });
+        } else if (input.sessionId) {
+          // 更新现有会话
+          const existingSession = await ctx.db.agentSession.findUnique({
+            where: { sessionId: input.sessionId },
+            select: { messages: true }
+          });
+
+          if (existingSession) {
+            const existingMessages: StoredMessage[] = Array.isArray(existingSession.messages)
+              ? (existingSession.messages as Prisma.JsonArray)
+                .filter((msg): msg is Prisma.JsonObject => {
+                  if (!msg || typeof msg !== 'object') return false;
+                  const messageObj = msg as Record<string, unknown>;
+                  return (
+                    'role' in messageObj &&
+                    'content' in messageObj &&
+                    'timestamp' in messageObj &&
+                    (messageObj.role === 'user' || messageObj.role === 'assistant')
+                  );
+                })
+                .map((msg) => {
+                  const messageObj = msg as Record<string, unknown>;
+                  return {
+                    role: messageObj.role as "user" | "assistant",
+                    content: messageObj.content as string | ContentItem[],
+                    timestamp: messageObj.timestamp as string
+                  };
+                })
+              : [];
+
+            await ctx.db.agentSession.update({
+              where: { sessionId: input.sessionId },
               data: {
-                workspaceId: input.workspaceId,
-                userId: ctx.session.user.id,
-                title: title,
-                sessionId: claudeSessionId,
-                messages: [{
-                  role: "user",
-                  content: input.query,
-                  timestamp: new Date().toISOString()
-                }, {
-                  role: "assistant",
-                  content: content,
-                  timestamp: new Date().toISOString()
-                }],
+                messages: toPrismaJson([...existingMessages, ...messagesToSave]),
+                updatedAt: new Date()
               }
             });
-            console.log("Session created successfully with sessionId:", newSession.sessionId);
-          } catch (error) {
-            console.error("Failed to save session:", error);
-          }
-        } else if (input.sessionId) {
-          // 继续现有会话，需要更新数据库中的消息
-          console.log("Continuing existing session. input.sessionId:", input.sessionId);
-          try {
-            // 先获取现有会话
-            const existingSession = await ctx.db.agentSession.findUnique({
-              where: { sessionId: input.sessionId },
-              select: { messages: true }
-            });
-
-            if (existingSession) {
-              // 获取现有消息数组
-              const existingMessages = existingSession.messages as Array<{
-                role: string;
-                content: string;
-                timestamp: string;
-              }> || [];
-
-              // 添加新的用户消息和AI回复
-              const updatedMessages = [
-                ...existingMessages,
-                {
-                  role: "user",
-                  content: input.query,
-                  timestamp: new Date().toISOString()
-                },
-                {
-                  role: "assistant",
-                  content: content,
-                  timestamp: new Date().toISOString()
-                }
-              ];
-
-              // 更新数据库
-              await ctx.db.agentSession.update({
-                where: { sessionId: input.sessionId },
-                data: {
-                  messages: updatedMessages,
-                  updatedAt: new Date()
-                }
-              });
-
-              console.log("Session messages updated successfully for sessionId:", input.sessionId);
-            }
-          } catch (error) {
-            console.error("Failed to update session messages:", error);
           }
         }
 
         return {
           content,
-          sessionId: claudeSessionId  // 返回 Claude 的 session ID
+          sessionId: claudeSessionId
         };
       } catch (error) {
         console.error("Agent query error:", error);
