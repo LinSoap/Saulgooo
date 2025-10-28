@@ -1,16 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import { Bot, User, Send, Loader2 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "~/components/ui/dropdown-menu";
+import { Bot, User, Send, Loader2, MessageSquarePlus, History, Trash2 } from "lucide-react";
 import { api } from "~/trpc/react";
 import { MarkdownPreview } from "~/components/MarkdownPreview";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+}
+
+interface Session {
+  sessionId: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface AgentChatProps {
@@ -21,6 +29,46 @@ interface AgentChatProps {
 export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<Session[]>([]);
+
+  // 获取 sessions 列表
+  const { data: sessionsData, refetch: refetchSessions } = api.agent.getSessions.useQuery(
+    { workspaceId: workspaceId || "" },
+    { enabled: !!workspaceId }
+  );
+
+  // 获取特定 session
+  const { data: sessionData } = api.agent.getSession.useQuery(
+    { sessionId: currentSessionId || "" },
+    { enabled: !!currentSessionId }
+  );
+
+  // 删除 session
+  const deleteSessionMutation = api.agent.deleteSession.useMutation({
+    onSuccess: () => {
+      refetchSessions();
+      if (currentSessionId) {
+        // 如果删除的是当前会话，重置到新对话状态
+        setCurrentSessionId(null);
+        setMessages([]);
+      }
+    },
+  });
+
+  // 更新 sessions 列表
+  useEffect(() => {
+    if (sessionsData) {
+      setSessions(sessionsData);
+    }
+  }, [sessionsData]);
+
+  // 加载 session 的消息
+  useEffect(() => {
+    if (sessionData && sessionData.messages) {
+      setMessages(sessionData.messages);
+    }
+  }, [sessionData]);
 
   const agentQuery = api.agent.query.useMutation({
     onSuccess: async (data) => {
@@ -30,6 +78,20 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
         content: data.content,
       }]);
 
+      // 如果是新会话，更新当前会话ID
+      if (data.sessionId && !currentSessionId) {
+        setCurrentSessionId(data.sessionId);
+
+        // 为新对话生成标题
+        const userMessage = messages[messages.length - 1]?.content || "新对话";
+        const title = userMessage.length > 20 ? userMessage.substring(0, 20) + "..." : userMessage;
+
+        // 这里可以调用API更新会话标题，暂时使用本地生成的标题
+        setTimeout(() => {
+          refetchSessions();
+        }, 500);
+      }
+
       // Agent操作完成后，调用刷新回调
       if (onAgentComplete) {
         try {
@@ -38,6 +100,9 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
           console.error("Failed to refresh after agent completion:", error);
         }
       }
+
+      // 刷新 sessions 列表
+      refetchSessions();
     },
     onError: async (error) => {
       // 添加错误消息
@@ -69,16 +134,110 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
     await agentQuery.mutate({
       query: userMessage,
       workspaceId,
+      sessionId: currentSessionId || undefined,
     });
+  };
+
+  // 开始新对话
+  const handleNewConversation = () => {
+    setCurrentSessionId(null);
+    setMessages([]);
+  };
+
+  // 切换到指定会话
+  const handleSelectSession = (sessionId: string) => {
+    setCurrentSessionId(sessionId);
+  };
+
+  // 删除会话
+  const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm("确定要删除这个对话吗？")) {
+      await deleteSessionMutation.mutateAsync({ sessionId });
+    }
+  };
+
+  // 格式化时间
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffDays > 0) {
+      return `${diffDays}天前`;
+    } else if (diffHours > 0) {
+      return `${diffHours}小时前`;
+    } else {
+      const diffMinutes = Math.floor(diffMs / (1000 * 60));
+      return diffMinutes > 0 ? `${diffMinutes}分钟前` : "刚刚";
+    }
   };
 
   return (
     <div className="flex h-full flex-col border-l">
       {/* 对话框头部 */}
       <div className="border-b p-4">
-        <div className="flex items-center gap-2">
-          <Bot className="text-primary h-5 w-5" />
-          <h3 className="font-semibold">工作区助手</h3>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Bot className="text-primary h-5 w-5" />
+            <h3 className="font-semibold">工作区助手</h3>
+          </div>
+
+          {/* 会话管理下拉菜单 */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <History className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80">
+              <DropdownMenuItem onClick={handleNewConversation} className="cursor-pointer">
+                <MessageSquarePlus className="mr-2 h-4 w-4" />
+                发起新对话
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+
+              {sessions.length > 0 ? (
+                <>
+                  <div className="px-2 py-1.5 text-sm font-medium text-muted-foreground">
+                    历史对话
+                  </div>
+                  {sessions.map((session) => (
+                    <DropdownMenuItem
+                      key={session.sessionId}
+                      onClick={() => handleSelectSession(session.sessionId)}
+                      className={`cursor-pointer flex items-center justify-between group ${
+                        currentSessionId === session.sessionId ? "bg-accent" : ""
+                      }`}
+                    >
+                      <div className="flex flex-col items-start min-w-0 flex-1">
+                        <span className="truncate text-sm font-medium">
+                          {session.title}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {formatDate(session.updatedAt)}
+                        </span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => handleDeleteSession(session.sessionId, e)}
+                      >
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </Button>
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              ) : (
+                <div className="px-2 py-4 text-sm text-muted-foreground text-center">
+                  暂无历史对话
+                </div>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <p className="text-muted-foreground mt-1 text-sm">
           与 AI 助手对话，获取帮助和建议
