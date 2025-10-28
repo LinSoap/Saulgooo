@@ -4,33 +4,53 @@ import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import { Bot, User, Send } from "lucide-react";
+import { Bot, User, Send, Loader2 } from "lucide-react";
+import { api } from "~/trpc/react";
+import { MarkdownPreview } from "~/components/MarkdownPreview";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
 }
 
-export function AgentChat() {
+interface AgentChatProps {
+  workspaceId?: string;
+}
+
+export function AgentChat({ workspaceId }: AgentChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
 
-  const handleSendMessage = () => {
-    if (!inputMessage.trim()) return;
-
-    const userMessage: Message = { role: "user", content: inputMessage };
-    setMessages((prev) => [...prev, userMessage]);
-
-    // 模拟AI回复
-    setTimeout(() => {
-      const assistantMessage: Message = {
+  const agentQuery = api.agent.query.useMutation({
+    onSuccess: (data) => {
+      // 直接添加AI回复
+      setMessages((prev) => [...prev, {
         role: "assistant",
-        content: `您刚才说："${inputMessage}"。这是来自工作区助手的回复。`,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-    }, 1000);
+        content: data.content,
+      }]);
+    },
+    onError: (error) => {
+      // 添加错误消息
+      setMessages((prev) => [...prev, {
+        role: "assistant",
+        content: "抱歉，处理您的请求时出现了错误。请稍后再试。",
+      }]);
+    },
+  });
 
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim() || agentQuery.isPending) return;
+
+    // 添加用户消息
+    const userMessage = inputMessage;
+    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
     setInputMessage("");
+
+    // 调用 tRPC query
+    await agentQuery.mutate({
+      query: userMessage,
+      workspaceId,
+    });
   };
 
   return (
@@ -73,13 +93,20 @@ export function AgentChat() {
                   </div>
                 )}
                 <div
-                  className={`max-w-[80%] rounded-lg p-3 ${
+                  className={`max-w-[80%] rounded-lg p-3 overflow-auto ${
                     message.role === "user"
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted"
                   }`}
                 >
-                  <p className="text-sm">{message.content}</p>
+                  {message.role === "assistant" ? (
+                    <MarkdownPreview
+                      content={message.content}
+                      className="prose-sm max-w-none [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:mb-2 [&_ol]:mb-2 [&_li]:mb-1 [&_h1]:text-lg [&_h1]:font-semibold [&_h1]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mb-1"
+                    />
+                  ) : (
+                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                  )}
                 </div>
                 {message.role === "user" && (
                   <div className="bg-primary flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
@@ -105,16 +132,26 @@ export function AgentChat() {
                 handleSendMessage();
               }
             }}
+            disabled={agentQuery.isPending}
             className="flex-1"
           />
           <Button
             onClick={handleSendMessage}
-            disabled={!inputMessage.trim()}
+            disabled={!inputMessage.trim() || agentQuery.isPending}
             size="icon"
           >
-            <Send className="h-4 w-4" />
+            {agentQuery.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
           </Button>
         </div>
+        {agentQuery.isPending && (
+          <p className="text-muted-foreground mt-2 text-sm">
+            AI 正在思考中...
+          </p>
+        )}
       </div>
     </div>
   );
