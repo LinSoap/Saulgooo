@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, use, useState } from "react";
+import { Suspense, use, useState, useEffect } from "react";
 import { Button } from "~/components/ui/button";
 import { ArrowLeft, FolderOpen, File, Plus } from "lucide-react";
 import Link from "next/link";
@@ -13,6 +13,7 @@ import {
 import { api } from "~/trpc/react";
 import { useSession } from "next-auth/react";
 import { FileTreeItem } from "~/components/FileTreeItem";
+import { MarkdownPreview } from "~/components/MarkdownPreview";
 import {
   Dialog,
   DialogContent,
@@ -46,6 +47,7 @@ function WorkspaceContent({
   workspaceId: string;
 }) {
   const [selectedFile, setSelectedFile] = useState<any>(null);
+  const [fileContent, setFileContent] = useState<string | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newFileName, setNewFileName] = useState("");
 
@@ -69,6 +71,44 @@ function WorkspaceContent({
     },
   });
 
+  const {
+    data: fileData,
+    isLoading: isFileLoading,
+    error: fileError,
+  } = api.workspace.getFileContent.useQuery(
+    {
+      workspaceId: workspaceId,
+      filePath: selectedFile?.path || "",
+    },
+    {
+      enabled:
+        !!selectedFile &&
+        selectedFile.type === "file" &&
+        selectedFile.extension === "md",
+    },
+  );
+
+  // 当选择的文件改变时，重置内容
+  useEffect(() => {
+    if (
+      !selectedFile ||
+      selectedFile.type !== "file" ||
+      selectedFile.extension !== "md"
+    ) {
+      setFileContent(null);
+    }
+  }, [selectedFile]);
+
+  // 当文件数据加载成功时，更新内容
+  useEffect(() => {
+    if (fileData) {
+      setFileContent(fileData.content);
+    } else if (fileError) {
+      console.error("Failed to get file content:", fileError);
+      setFileContent(null);
+    }
+  }, [fileData, fileError]);
+
   const handleCreateFile = () => {
     if (!newFileName.trim()) return;
 
@@ -76,15 +116,15 @@ function WorkspaceContent({
       workspaceId: workspaceId,
       fileName: newFileName,
       directoryPath: "",
-      initialContent: "# " + newFileName.replace(/\.md$/, "") + "\n\n开始编写您的文档...\n",
+      initialContent:
+        "# " + newFileName.replace(/\.md$/, "") + "\n\n开始编写您的文档...\n",
     });
   };
 
-  console.log("File tree data:", fileTreeData);
   return (
     <div className="flex h-full flex-col">
       {/* 工作空间头部 */}
-      <div className="bg-background/95 supports-backdrop-filter:bg-background/60 border-b backdrop-blur">
+      <div className="bg-background/95 supports-backdrop-filter:bg-background/60 h-30 border-b backdrop-blur">
         <div className="p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -98,9 +138,9 @@ function WorkspaceContent({
                 <h1 className="text-2xl font-bold">{workspace.name}</h1>
                 <p className="text-muted-foreground">{workspace.description}</p>
                 {selectedFile && (
-                  <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground">
+                  <div className="text-muted-foreground mt-2 flex items-center gap-4 text-sm">
                     <span className="flex items-center gap-1">
-                      {selectedFile.type === 'file' ? (
+                      {selectedFile.type === "file" ? (
                         <File className="h-3 w-3" />
                       ) : (
                         <FolderOpen className="h-3 w-3" />
@@ -110,8 +150,10 @@ function WorkspaceContent({
                     <span>·</span>
                     <span>路径: {selectedFile.path}</span>
                     <span>·</span>
-                    <span>{selectedFile.type === 'file' ? '文件' : '文件夹'}</span>
-                    {selectedFile.type === 'file' && (
+                    <span>
+                      {selectedFile.type === "file" ? "文件" : "文件夹"}
+                    </span>
+                    {selectedFile.type === "file" && (
                       <>
                         <span>·</span>
                         <span>{selectedFile.size} bytes</span>
@@ -124,7 +166,9 @@ function WorkspaceContent({
                       </>
                     )}
                     <span>·</span>
-                    <span>{new Date(selectedFile.modifiedAt).toLocaleString()}</span>
+                    <span>
+                      {new Date(selectedFile.modifiedAt).toLocaleString()}
+                    </span>
                   </div>
                 )}
               </div>
@@ -151,7 +195,10 @@ function WorkspaceContent({
                   <FolderOpen className="text-primary h-5 w-5" />
                   <h3 className="font-semibold">文件浏览器</h3>
                 </div>
-                <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                <Dialog
+                  open={isCreateDialogOpen}
+                  onOpenChange={setIsCreateDialogOpen}
+                >
                   <DialogTrigger asChild>
                     <Button variant="outline" size="sm">
                       <Plus className="mr-1 h-3 w-3" />
@@ -192,7 +239,9 @@ function WorkspaceContent({
                       <Button
                         type="button"
                         onClick={handleCreateFile}
-                        disabled={!newFileName.trim() || createFileMutation.isPending}
+                        disabled={
+                          !newFileName.trim() || createFileMutation.isPending
+                        }
                       >
                         {createFileMutation.isPending ? "创建中..." : "创建"}
                       </Button>
@@ -236,28 +285,68 @@ function WorkspaceContent({
 
           {/* 文件内容预览 */}
           <ResizablePanel defaultSize={75}>
-            <div className="h-full p-6">
+            <div className="h-full overflow-auto">
               {selectedFile ? (
-                <div className="flex h-full items-center justify-center">
-                  <div className="text-center">
-                    {selectedFile.type === 'file' ? (
-                      <>
-                        <File className="text-muted-foreground mx-auto h-16 w-16 mb-4" />
-                        <h3 className="text-xl font-semibold mb-2">{selectedFile.name}</h3>
-                        <p className="text-muted-foreground">
-                          文件内容预览功能开发中...
-                        </p>
-                      </>
-                    ) : (
-                      <>
-                        <FolderOpen className="text-muted-foreground mx-auto h-16 w-16 mb-4" />
-                        <h3 className="text-xl font-semibold mb-2">{selectedFile.name}</h3>
-                        <p className="text-muted-foreground">
-                          这是一个文件夹
-                        </p>
-                      </>
-                    )}
-                  </div>
+                <div className="h-full">
+                  {selectedFile.type === "file" ? (
+                    <>
+                      {selectedFile.extension === "md" ? (
+                        <div className="p-6">
+                          {isFileLoading ? (
+                            <div className="flex h-64 items-center justify-center">
+                              <p className="text-muted-foreground">加载中...</p>
+                            </div>
+                          ) : fileError ? (
+                            <div className="flex h-64 items-center justify-center">
+                              <p className="text-destructive">加载文件失败</p>
+                            </div>
+                          ) : fileContent !== null ? (
+                            <MarkdownPreview
+                              content={fileContent}
+                              className="max-w-none"
+                            />
+                          ) : (
+                            <div className="flex h-64 items-center justify-center">
+                              <div className="text-center">
+                                <File className="text-muted-foreground mx-auto mb-4 h-16 w-16" />
+                                <h3 className="mb-2 text-xl font-semibold">
+                                  {selectedFile.name}
+                                </h3>
+                                <p className="text-muted-foreground">
+                                  无法预览此文件类型
+                                </p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex h-full items-center justify-center">
+                          <div className="text-center">
+                            <File className="text-muted-foreground mx-auto mb-4 h-16 w-16" />
+                            <h3 className="mb-2 text-xl font-semibold">
+                              {selectedFile.name}
+                            </h3>
+                            <p className="text-muted-foreground">
+                              暂不支持预览此文件类型
+                            </p>
+                            <p className="text-muted-foreground mt-2 text-sm">
+                              目前仅支持 Markdown (.md) 文件预览
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex h-full items-center justify-center">
+                      <div className="text-center">
+                        <FolderOpen className="text-muted-foreground mx-auto mb-4 h-16 w-16" />
+                        <h3 className="mb-2 text-xl font-semibold">
+                          {selectedFile.name}
+                        </h3>
+                        <p className="text-muted-foreground">这是一个文件夹</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex h-full items-center justify-center rounded-lg border-2 border-dashed">
@@ -268,6 +357,9 @@ function WorkspaceContent({
                     </h3>
                     <p className="text-muted-foreground mt-2">
                       从左侧文件浏览器中选择文件以查看内容
+                    </p>
+                    <p className="text-muted-foreground mt-2 text-sm">
+                      支持 Markdown (.md) 文件预览
                     </p>
                   </div>
                 </div>
