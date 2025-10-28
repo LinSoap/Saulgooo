@@ -57,6 +57,9 @@ model User {
   ownedWorkspaces      Workspace[]       @relation("WorkspaceOwner")
   workspaceMemberships WorkspaceMember[]
   invitedMembers       WorkspaceMember[] @relation("InvitedBy")
+
+  // Agent 会话关系
+  agentSessions        AgentSession[]
 }
 
 model VerificationToken {
@@ -82,6 +85,7 @@ model Workspace {
 
   owner     User               @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   members   WorkspaceMember[]
+  agentSessions AgentSession[]
 }
 
 model WorkspaceMember {
@@ -97,4 +101,24 @@ model WorkspaceMember {
   inviter   User?     @relation("InvitedBy", fields: [invitedBy], references: [id])
 
   @@unique([workspaceId, userId])
+}
+
+// Agent 对话会话相关表
+model AgentSession {
+  id          String   @id @default(cuid())
+  workspaceId String
+  userId      String
+  title       String
+  sessionId   String   // Claude SDK 的 session ID
+
+  // 对话历史存储为 JSON
+  messages    Json     // 存储 [{role: "user", content: "...", timestamp: "..."}, ...]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, userId])
 }
