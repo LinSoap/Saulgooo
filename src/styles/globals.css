@@ -3,6 +3,9 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* 导入 Streamdown 样式 */
+@source "../node_modules/streamdown/dist/index.js";
+
 @theme {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
@@ -121,5 +124,19 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* 修复 Streamdown 双主题渲染问题 */
+/* 只显示当前主题的代码块,隐藏另一个 */
+@layer utilities {
+  /* 浅色模式:隐藏深色主题的代码块 */
+  :root:not(.dark) [data-streamdown="code-block"].dark\:block {
+    display: none !important;
+  }
+  
+  /* 深色模式:隐藏浅色主题的代码块 */
+  :root.dark [data-streamdown="code-block"].dark\:hidden {
+    display: none !important;
   }
 }

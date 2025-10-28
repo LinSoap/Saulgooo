@@ -6,7 +6,7 @@ interface FileNode {
   id: string;
   name: string;
   path: string;
-  type: 'file' | 'directory';
+  type: "file" | "directory";
   size: number;
   modifiedAt: Date;
   createdAt: Date;
@@ -77,7 +77,6 @@ function WorkspaceContent({
     workspaceId: workspaceId,
   });
 
-  
   const createFileMutation = api.workspace.createMarkdownFile.useMutation({
     onSuccess: () => {
       void refetchFileTree();
@@ -151,7 +150,10 @@ function WorkspaceContent({
       if (!currentFilePath) return;
 
       // 3. 从新的文件树中查找该文件
-      const findFileInTree = (items: FileNode[], path: string): FileNode | null => {
+      const findFileInTree = (
+        items: FileNode[],
+        path: string,
+      ): FileNode | null => {
         for (const item of items) {
           if (item.path === path) return item;
           if (item.children) {
@@ -162,14 +164,20 @@ function WorkspaceContent({
         return null;
       };
 
-      const updatedFile = findFileInTree(fileTreeResult.data?.tree ?? [], currentFilePath);
+      const updatedFile = findFileInTree(
+        fileTreeResult.data?.tree ?? [],
+        currentFilePath,
+      );
 
       // 4. 处理不同情况
       if (!updatedFile) {
         // 文件被删除了 - 清空选择
         setSelectedFile(null);
         setFileContent(null);
-        } else if (oldModifiedTime && updatedFile.modifiedAt !== oldModifiedTime) {
+      } else if (
+        oldModifiedTime &&
+        updatedFile.modifiedAt !== oldModifiedTime
+      ) {
         // 文件被修改了 - 需要刷新内容
         // 使用 tRPC utils 获取最新文件内容
         const result = await utils.workspace.getFileContent.fetch({
@@ -181,7 +189,7 @@ function WorkspaceContent({
           setFileContent(result.content);
           // 更新 selectedFile 的引用，保持同步
           setSelectedFile(updatedFile);
-          }
+        }
       }
     } catch (error) {
       // 刷新失败
@@ -449,7 +457,10 @@ function WorkspaceContent({
 
               {/* 对话框区域 */}
               <ResizablePanel defaultSize={35} minSize={25} maxSize={50}>
-                <AgentChat workspaceId={workspaceId} onAgentComplete={handleAgentComplete} />
+                <AgentChat
+                  workspaceId={workspaceId}
+                  onAgentComplete={handleAgentComplete}
+                />
               </ResizablePanel>
             </ResizablePanelGroup>
           </ResizablePanel>
