@@ -4,8 +4,22 @@ import { useState, useEffect } from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { ScrollArea } from "~/components/ui/scroll-area";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "~/components/ui/dropdown-menu";
-import { Bot, User, Send, Loader2, MessageSquarePlus, History, Trash2 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu";
+import {
+  Bot,
+  User,
+  Send,
+  Loader2,
+  MessageSquarePlus,
+  History,
+  Trash2,
+} from "lucide-react";
 import { api } from "~/trpc/react";
 import { MarkdownPreview } from "~/components/MarkdownPreview";
 
@@ -33,15 +47,16 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
   const [sessions, setSessions] = useState<Session[]>([]);
 
   // 获取 sessions 列表
-  const { data: sessionsData, refetch: refetchSessions } = api.agent.getSessions.useQuery(
-    { workspaceId: workspaceId || "" },
-    { enabled: !!workspaceId }
-  );
+  const { data: sessionsData, refetch: refetchSessions } =
+    api.agent.getSessions.useQuery(
+      { workspaceId: workspaceId || "" },
+      { enabled: !!workspaceId },
+    );
 
   // 获取特定 session
   const { data: sessionData } = api.agent.getSession.useQuery(
     { sessionId: currentSessionId || "" },
-    { enabled: !!currentSessionId }
+    { enabled: !!currentSessionId },
   );
 
   // 删除 session
@@ -59,24 +74,45 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
   // 更新 sessions 列表
   useEffect(() => {
     if (sessionsData) {
-      setSessions(sessionsData);
+      setSessions(
+        sessionsData.map((session) => ({
+          ...session,
+          createdAt: session.createdAt.toISOString(),
+          updatedAt: session.updatedAt.toISOString(),
+        })),
+      );
     }
   }, [sessionsData]);
 
   // 加载 session 的消息
   useEffect(() => {
     if (sessionData && sessionData.messages) {
-      setMessages(sessionData.messages);
+      // 将 JsonValue 类型转换为 Message 数组
+      const messagesData = sessionData.messages as unknown;
+      if (Array.isArray(messagesData)) {
+        const messages: Message[] = messagesData.filter(
+          (msg): msg is Message =>
+            msg &&
+            typeof msg === "object" &&
+            "role" in msg &&
+            "content" in msg &&
+            (msg.role === "user" || msg.role === "assistant"),
+        );
+        setMessages(messages);
+      }
     }
   }, [sessionData]);
 
   const agentQuery = api.agent.query.useMutation({
     onSuccess: async (data) => {
       // 直接添加AI回复
-      setMessages((prev) => [...prev, {
-        role: "assistant",
-        content: data.content,
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: data.content,
+        },
+      ]);
 
       // 如果是新会话，更新当前会话ID
       if (data.sessionId && !currentSessionId) {
@@ -84,7 +120,10 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
 
         // 为新对话生成标题
         const userMessage = messages[messages.length - 1]?.content || "新对话";
-        const title = userMessage.length > 20 ? userMessage.substring(0, 20) + "..." : userMessage;
+        const title =
+          userMessage.length > 20
+            ? userMessage.substring(0, 20) + "..."
+            : userMessage;
 
         // 这里可以调用API更新会话标题，暂时使用本地生成的标题
         setTimeout(() => {
@@ -106,10 +145,13 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
     },
     onError: async (error) => {
       // 添加错误消息
-      setMessages((prev) => [...prev, {
-        role: "assistant",
-        content: "抱歉，处理您的请求时出现了错误。请稍后再试。",
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: "抱歉，处理您的请求时出现了错误。请稍后再试。",
+        },
+      ]);
 
       // 即使出错也尝试刷新
       if (onAgentComplete) {
@@ -123,7 +165,7 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
   });
 
   const handleSendMessage = async () => {
-    if (!inputMessage.trim() || agentQuery.isPending) return;
+    if (!inputMessage.trim() || agentQuery.isPending || !workspaceId) return;
 
     // 添加用户消息
     const userMessage = inputMessage;
@@ -150,7 +192,10 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
   };
 
   // 删除会话
-  const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
+  const handleDeleteSession = async (
+    sessionId: string,
+    e: React.MouseEvent,
+  ) => {
     e.stopPropagation();
     if (confirm("确定要删除这个对话吗？")) {
       await deleteSessionMutation.mutateAsync({ sessionId });
@@ -159,6 +204,8 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
 
   // 格式化时间
   const formatDate = (dateString: string) => {
+    if (!dateString) return "未知时间";
+
     const date = new Date(dateString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
@@ -193,7 +240,10 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80">
-              <DropdownMenuItem onClick={handleNewConversation} className="cursor-pointer">
+              <DropdownMenuItem
+                onClick={handleNewConversation}
+                className="cursor-pointer"
+              >
                 <MessageSquarePlus className="mr-2 h-4 w-4" />
                 发起新对话
               </DropdownMenuItem>
@@ -201,38 +251,50 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
 
               {sessions.length > 0 ? (
                 <>
-                  <div className="px-2 py-1.5 text-sm font-medium text-muted-foreground">
+                  <div className="text-muted-foreground px-2 py-1.5 text-sm font-medium">
                     历史对话
                   </div>
-                  {sessions.map((session) => (
+                  {sessions.slice(0, 20).map((session) => (
                     <DropdownMenuItem
                       key={session.sessionId}
                       onClick={() => handleSelectSession(session.sessionId)}
-                      className={`cursor-pointer flex items-center justify-between group ${
-                        currentSessionId === session.sessionId ? "bg-accent" : ""
+                      className={`group flex cursor-pointer items-center justify-between ${
+                        currentSessionId === session.sessionId
+                          ? "bg-accent"
+                          : ""
                       }`}
                     >
-                      <div className="flex flex-col items-start min-w-0 flex-1">
-                        <span className="truncate text-sm font-medium">
+                      <div className="mr-2 flex min-w-0 flex-1 flex-col items-start">
+                        <span
+                          className="max-w-[260px] truncate text-sm font-medium"
+                          title={session.title}
+                        >
                           {session.title}
                         </span>
-                        <span className="text-xs text-muted-foreground">
+                        <span className="text-muted-foreground text-xs">
                           {formatDate(session.updatedAt)}
                         </span>
                       </div>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => handleDeleteSession(session.sessionId, e)}
+                        className="h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+                        onClick={(e) =>
+                          handleDeleteSession(session.sessionId, e)
+                        }
                       >
-                        <Trash2 className="h-3 w-3 text-destructive" />
+                        <Trash2 className="text-destructive h-3 w-3" />
                       </Button>
                     </DropdownMenuItem>
                   ))}
+                  {sessions.length > 20 && (
+                    <div className="text-muted-foreground border-t px-2 py-1.5 text-center text-xs">
+                      还有 {sessions.length - 20} 个历史对话...
+                    </div>
+                  )}
                 </>
               ) : (
-                <div className="px-2 py-4 text-sm text-muted-foreground text-center">
+                <div className="text-muted-foreground px-2 py-4 text-center text-sm">
                   暂无历史对话
                 </div>
               )}
@@ -271,7 +333,7 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
                   </div>
                 )}
                 <div
-                  className={`max-w-[80%] rounded-lg p-3 overflow-auto ${
+                  className={`max-w-[80%] overflow-auto rounded-lg p-3 ${
                     message.role === "user"
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted"
@@ -280,10 +342,12 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
                   {message.role === "assistant" ? (
                     <MarkdownPreview
                       content={message.content}
-                      className="prose-sm max-w-none [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:mb-2 [&_ol]:mb-2 [&_li]:mb-1 [&_h1]:text-lg [&_h1]:font-semibold [&_h1]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mb-1"
+                      className="prose-sm max-w-none [&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_li]:mb-1 [&_ol]:mb-2 [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:mb-2"
                     />
                   ) : (
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    <p className="text-sm whitespace-pre-wrap">
+                      {message.content}
+                    </p>
                   )}
                 </div>
                 {message.role === "user" && (
@@ -326,9 +390,7 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
           </Button>
         </div>
         {agentQuery.isPending && (
-          <p className="text-muted-foreground mt-2 text-sm">
-            AI 正在思考中...
-          </p>
+          <p className="text-muted-foreground mt-2 text-sm">AI 正在思考中...</p>
         )}
       </div>
     </div>
