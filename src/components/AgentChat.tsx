@@ -21,11 +21,13 @@ import {
   Trash2,
 } from "lucide-react";
 import { api } from "~/trpc/react";
-import { MarkdownPreview } from "~/components/MarkdownPreview";
+import { MessageRenderer } from "~/components/MessageRenderer";
+import type { ContentBlock } from "@anthropic-ai/sdk/resources/messages";
 
 interface Message {
   role: "user" | "assistant";
-  content: string;
+  content: string | ContentBlock[];
+  timestamp?: string;
 }
 
 interface Session {
@@ -45,6 +47,11 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
   const [inputMessage, setInputMessage] = useState("");
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSending, setIsSending] = useState(false); // 是否正在发送消息
+  const [processedMessageHashes, setProcessedMessageHashes] = useState<
+    Set<string>
+  >(new Set()); // 用于去重
 
   // 获取 sessions 列表
   const { data: sessionsData, refetch: refetchSessions } =
@@ -54,10 +61,14 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
     );
 
   // 获取特定 session
-  const { data: sessionData } = api.agent.getSession.useQuery(
-    { sessionId: currentSessionId ?? "" },
-    { enabled: !!currentSessionId },
-  );
+  const { data: sessionData, isLoading: isLoadingSession } =
+    api.agent.getSession.useQuery(
+      { sessionId: currentSessionId ?? "" },
+      {
+        enabled: !!currentSessionId && !isSending, // 发送消息时不查询
+        retry: false,
+      },
+    );
 
   // 删除 session
   const deleteSessionMutation = api.agent.deleteSession.useMutation({
@@ -84,9 +95,178 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
     }
   }, [sessionsData]);
 
-  // 加载 session 的消息
+  // 处理流式消息的函数
+  const handleStreamQuery = async (query: string, workspaceId: string) => {
+    if (!query.trim()) return;
+
+    setIsLoading(true);
+    setIsSending(true); // 标记正在发送消息
+
+    // 重置已处理的消息哈希集合
+    setProcessedMessageHashes(new Set());
+
+    // 添加用户消息和助手消息容器（使用一次更新）
+    setMessages((prev) => [
+      ...prev,
+      { role: "user", content: query },
+      {
+        role: "assistant",
+        content: [], // 初始为空数组，用于收集流式内容
+      },
+    ]);
+
+    try {
+      const response = await fetch("/api/agent/stream", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          query,
+          workspaceId,
+          sessionId: currentSessionId ?? undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to start stream");
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let sessionId: string | null = null;
+
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\n");
+
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              try {
+                const data = JSON.parse(line.slice(6));
+
+                switch (data.type) {
+                  case "session_id":
+                    sessionId = data.sessionId;
+                    // 如果是新会话，更新当前会话ID
+                    if (sessionId && !currentSessionId) {
+                      setCurrentSessionId(sessionId);
+                    }
+                    break;
+
+                  case "message":
+                    // 检查是否有 messageId
+                    if (data.messageId) {
+                      // 检查是否已处理过此消息 ID
+                      if (processedMessageHashes.has(data.messageId)) {
+                        console.log("跳过重复消息:", data.messageId);
+                        break;
+                      }
+
+                      // 标记为已处理
+                      setProcessedMessageHashes((prev) =>
+                        new Set(prev).add(data.messageId),
+                      );
+                    }
+
+                    // 更新最后一条助手消息
+                    setMessages((prev) => {
+                      const newMessages = [...prev];
+                      const lastMessage = newMessages[newMessages.length - 1];
+
+                      if (lastMessage?.role === "assistant") {
+                        const content = data.content;
+
+                        if (Array.isArray(lastMessage.content)) {
+                          lastMessage.content.push(content);
+                        } else {
+                          lastMessage.content = [content];
+                        }
+                      }
+
+                      return newMessages;
+                    });
+                    break;
+
+                  case "error":
+                    throw new Error(data.error);
+                }
+              } catch (parseError) {
+                console.error("Failed to parse SSE data:", parseError);
+              }
+            }
+          }
+        }
+      }
+
+      // 刷新 sessions 列表
+      setTimeout(() => {
+        void refetchSessions();
+      }, 500);
+
+      // Agent操作完成后，调用刷新回调
+      if (onAgentComplete) {
+        try {
+          await onAgentComplete();
+        } catch (error) {
+          console.error("Failed to refresh after agent completion:", error);
+        }
+      }
+    } catch (error) {
+      console.error("Stream error:", error);
+
+      // 添加错误消息
+      setMessages((prev) => [
+        ...prev.slice(0, -1), // 移除空的助手消息
+        {
+          role: "assistant",
+          content: "抱歉，处理您的请求时出现了错误。请稍后再试。",
+        },
+      ]);
+
+      // 即使出错也尝试刷新
+      if (onAgentComplete) {
+        try {
+          await onAgentComplete();
+        } catch (refreshError) {
+          console.error("Failed to refresh after agent error:", refreshError);
+        }
+      }
+    } finally {
+      setIsLoading(false);
+      setIsSending(false); // 重置发送状态
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!inputMessage.trim() || isLoading || !workspaceId) return;
+
+    const userMessage = inputMessage;
+    setInputMessage("");
+
+    // 调用流式查询
+    await handleStreamQuery(userMessage, workspaceId);
+  };
+
+  // 开始新对话
+  const handleNewConversation = () => {
+    setCurrentSessionId(null);
+    setMessages([]);
+  };
+
+  // 切换到指定会话
+  const handleSelectSession = (sessionId: string) => {
+    setCurrentSessionId(sessionId);
+    setMessages([]); // 先清空，避免旧消息显示
+  };
+
+  // 加载历史消息
   useEffect(() => {
-    if (sessionData?.messages) {
+    if (sessionData?.messages && sessionData.sessionId === currentSessionId) {
       // 将 JsonValue 类型转换为 Message 数组
       const messagesData = sessionData.messages as unknown;
       if (Array.isArray(messagesData)) {
@@ -104,91 +284,7 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
         setMessages(messages);
       }
     }
-  }, [sessionData]);
-
-  const agentQuery = api.agent.query.useMutation({
-    onSuccess: async (data) => {
-      // 直接添加AI回复
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: data.content,
-        },
-      ]);
-
-      // 如果是新会话，更新当前会话ID
-      if (data.sessionId && !currentSessionId) {
-        setCurrentSessionId(data.sessionId);
-
-        // 为新对话生成标题
-        // const userMessage = messages[messages.length - 1]?.content ?? "新对话";
-
-        // 这里可以调用API更新会话标题，暂时使用本地生成的标题
-        setTimeout(() => {
-          void refetchSessions();
-        }, 500);
-      }
-
-      // Agent操作完成后，调用刷新回调
-      if (onAgentComplete) {
-        try {
-          await onAgentComplete();
-        } catch (error) {
-          console.error("Failed to refresh after agent completion:", error);
-        }
-      }
-
-      // 刷新 sessions 列表
-      void refetchSessions();
-    },
-    onError: async () => {
-      // 添加错误消息
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "抱歉，处理您的请求时出现了错误。请稍后再试。",
-        },
-      ]);
-
-      // 即使出错也尝试刷新
-      if (onAgentComplete) {
-        try {
-          await onAgentComplete();
-        } catch (refreshError) {
-          console.error("Failed to refresh after agent error:", refreshError);
-        }
-      }
-    },
-  });
-
-  const handleSendMessage = async () => {
-    if (!inputMessage.trim() || agentQuery.isPending || !workspaceId) return;
-
-    // 添加用户消息
-    const userMessage = inputMessage;
-    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
-    setInputMessage("");
-
-    // 调用 tRPC query
-    void agentQuery.mutate({
-      query: userMessage,
-      workspaceId,
-      sessionId: currentSessionId ?? undefined,
-    });
-  };
-
-  // 开始新对话
-  const handleNewConversation = () => {
-    setCurrentSessionId(null);
-    setMessages([]);
-  };
-
-  // 切换到指定会话
-  const handleSelectSession = (sessionId: string) => {
-    setCurrentSessionId(sessionId);
-  };
+  }, [sessionData, currentSessionId]);
 
   // 删除会话
   const handleDeleteSession = async (
@@ -317,43 +413,39 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
               </p>
             </div>
           </div>
+        ) : isLoadingSession ? (
+          <div className="flex h-full items-center justify-center">
+            <div className="flex items-center gap-3">
+              <Loader2 className="text-primary h-5 w-5 animate-spin" />
+              <span className="text-muted-foreground">加载历史对话中...</span>
+            </div>
+          </div>
         ) : (
           <div className="space-y-4">
             {messages.map((message, index) => (
               <div
                 key={index}
-                className={`flex gap-3 ${
+                className={`flex ${
                   message.role === "user" ? "justify-end" : "justify-start"
                 }`}
               >
-                {message.role === "assistant" && (
-                  <div className="bg-primary/10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
-                    <Bot className="text-primary h-4 w-4" />
-                  </div>
-                )}
                 <div
-                  className={`max-w-[80%] overflow-auto rounded-lg p-3 ${
+                  className={`relative max-w-[85%] rounded-lg p-3 wrap-break-word ${
                     message.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
+                      ? "bg-primary text-primary-foreground ml-auto"
+                      : "mr-auto"
                   }`}
                 >
                   {message.role === "assistant" ? (
-                    <MarkdownPreview
-                      content={message.content}
-                      className="prose-sm max-w-none [&_h1]:mb-2 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_li]:mb-1 [&_ol]:mb-2 [&_p]:mb-2 [&_p:last-child]:mb-0 [&_ul]:mb-2"
-                    />
+                    <MessageRenderer message={message} />
                   ) : (
                     <p className="text-sm whitespace-pre-wrap">
-                      {message.content}
+                      {typeof message.content === "string"
+                        ? message.content
+                        : ""}
                     </p>
                   )}
                 </div>
-                {message.role === "user" && (
-                  <div className="bg-primary flex h-8 w-8 shrink-0 items-center justify-center rounded-full">
-                    <User className="text-primary-foreground h-4 w-4" />
-                  </div>
-                )}
               </div>
             ))}
           </div>
@@ -373,22 +465,22 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
                 void handleSendMessage();
               }
             }}
-            disabled={agentQuery.isPending}
+            disabled={isLoading}
             className="flex-1"
           />
           <Button
             onClick={handleSendMessage}
-            disabled={!inputMessage.trim() || agentQuery.isPending}
+            disabled={!inputMessage.trim() || isLoading}
             size="icon"
           >
-            {agentQuery.isPending ? (
+            {isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Send className="h-4 w-4" />
             )}
           </Button>
         </div>
-        {agentQuery.isPending && (
+        {isLoading && (
           <p className="text-muted-foreground mt-2 text-sm">AI 正在思考中...</p>
         )}
       </div>
