@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import { LogOut, Settings, User, Home, Plus } from "lucide-react";
+import { LogOut, Settings, User, Home } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 
@@ -41,12 +41,12 @@ export default function DashboardSidebar({ children }: DashboardSidebarProps) {
               <Button variant="ghost" className="relative h-auto w-auto p-0">
                 <Avatar className="mb-2 h-12 w-12">
                   <AvatarImage
-                    src={session?.user?.image || undefined}
-                    alt={session?.user?.name || "用户头像"}
+                    src={session?.user?.image ?? undefined}
+                    alt={session?.user?.name ?? "用户头像"}
                   />
                   <AvatarFallback className="bg-primary text-primary-foreground">
-                    {session?.user?.name?.[0]?.toUpperCase() ||
-                      session?.user?.email?.[0]?.toUpperCase() ||
+                    {session?.user?.name?.[0]?.toUpperCase() ??
+                      session?.user?.email?.[0]?.toUpperCase() ??
                       "U"}
                   </AvatarFallback>
                 </Avatar>
@@ -55,10 +55,10 @@ export default function DashboardSidebar({ children }: DashboardSidebarProps) {
             <DropdownMenuContent align="end" className="w-56">
               <div className="px-2 py-1.5 text-sm">
                 <div className="text-foreground font-medium">
-                  {session?.user?.name || "未知用户"}
+                  {session?.user?.name ?? "未知用户"}
                 </div>
                 <div className="text-muted-foreground truncate text-xs">
-                  {session?.user?.email}
+                  {session?.user?.email ?? ""}
                 </div>
               </div>
               <DropdownMenuSeparator />
@@ -79,7 +79,7 @@ export default function DashboardSidebar({ children }: DashboardSidebarProps) {
           </DropdownMenu>
           <div className="text-center">
             <h3 className="text-foreground text-sm font-semibold">
-              {session?.user?.name || session?.user?.email || "未知用户"}
+              {session?.user?.name ?? session?.user?.email ?? "未知用户"}
             </h3>
             <p className="text-muted-foreground text-xs">在线状态</p>
           </div>

@@ -91,12 +91,15 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
       const messagesData = sessionData.messages as unknown;
       if (Array.isArray(messagesData)) {
         const messages: Message[] = messagesData.filter(
-          (msg): msg is Message =>
-            msg &&
-            typeof msg === "object" &&
-            "role" in msg &&
-            "content" in msg &&
-            (msg.role === "user" || msg.role === "assistant"),
+          (msg): msg is Message => {
+            if (!msg || typeof msg !== "object") return false;
+            const messageObj = msg as Record<string, unknown>;
+            return (
+              "role" in messageObj &&
+              "content" in messageObj &&
+              (messageObj.role === "user" || messageObj.role === "assistant")
+            );
+          },
         );
         setMessages(messages);
       }
@@ -119,11 +122,7 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
         setCurrentSessionId(data.sessionId);
 
         // 为新对话生成标题
-        const userMessage = messages[messages.length - 1]?.content ?? "新对话";
-        const title =
-          userMessage.length > 20
-            ? userMessage.substring(0, 20) + "..."
-            : userMessage;
+        // const userMessage = messages[messages.length - 1]?.content ?? "新对话";
 
         // 这里可以调用API更新会话标题，暂时使用本地生成的标题
         setTimeout(() => {
@@ -371,7 +370,7 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                handleSendMessage();
+                void handleSendMessage();
               }
             }}
             disabled={agentQuery.isPending}

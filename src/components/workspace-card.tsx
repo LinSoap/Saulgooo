@@ -24,7 +24,15 @@ interface WorkspaceCardProps {
   updatedAt: Date;
   path?: string;
   className?: string;
-  onUpdate?: (workspace: any) => void;
+  onUpdate?: (workspace: {
+    id: string;
+    name: string;
+    description?: string;
+    role: "owner" | "teacher" | "student";
+    memberCount: number;
+    updatedAt: Date;
+    path: string;
+  }) => void;
   onDelete?: (workspaceId: string) => void;
 }
 
@@ -95,7 +103,7 @@ export function WorkspaceCard({
                 role,
                 memberCount,
                 updatedAt,
-                path: path || "",
+                path: path ?? "",
               }}
               onUpdate={onUpdate}
               onDelete={onDelete}

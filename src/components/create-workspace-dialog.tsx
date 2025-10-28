@@ -21,13 +21,13 @@ export function CreateWorkspaceDialog() {
   const [error, setError] = useState("");
   const utils = api.useUtils();
   const createWorkSpaceMutation = api.workspace.createWorkSpace.useMutation({
-    onSuccess: (data) => {
+    onSuccess: (_data) => {
       setError("");
       toast.success("工作空间创建成功", { duration: 1000 });
       setOpen(false);
       createWorkSpaceForm.reset();
       // 刷新workspace列表
-      utils.workspace.getWorkSpaces.invalidate();
+      void utils.workspace.getWorkSpaces.invalidate();
     },
     onError: (error) => {
       setError("创建工作空间失败: " + error.message);

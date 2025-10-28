@@ -16,7 +16,7 @@ function getMimeType(filePath: string): string {
     'png': 'image/png',
     'jpg': 'image/jpeg'
   };
-  return commonTypes[ext || ''] || 'text/plain';
+  return commonTypes[ext ?? ''] ?? 'text/plain';
 }
 
 export const workSpaceRouter = createTRPCRouter({

@@ -4,21 +4,23 @@ import { useState } from "react";
 import { ChevronRight, ChevronDown, File, Folder } from "lucide-react";
 import { cn } from "~/lib/utils";
 
+interface FileTreeItem {
+  id: string;
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  size: number;
+  modifiedAt: Date;
+  createdAt: Date;
+  extension?: string;
+  children?: FileTreeItem[];
+  hasChildren?: boolean;
+}
+
 interface FileTreeItemProps {
-  item: {
-    id: string;
-    name: string;
-    path: string;
-    type: 'file' | 'directory';
-    size: number;
-    modifiedAt: Date;
-    createdAt: Date;
-    extension?: string;
-    children?: any[];
-    hasChildren?: boolean;
-  };
+  item: FileTreeItem;
   level?: number;
-  onSelect?: (item: any) => void;
+  onSelect?: (item: FileTreeItem) => void;
   selectedPath?: string;
 }
 

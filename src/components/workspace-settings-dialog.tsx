@@ -30,7 +30,15 @@ interface WorkspaceSettingsDialogProps {
     updatedAt: Date;
     path: string;
   };
-  onUpdate?: (workspace: any) => void;
+  onUpdate?: (workspace: {
+    id: string;
+    name: string;
+    description?: string;
+    role: "owner" | "teacher" | "student";
+    memberCount: number;
+    updatedAt: Date;
+    path: string;
+  }) => void;
   onDelete?: (workspaceId: string) => void;
 }
 
@@ -42,10 +50,10 @@ export function WorkspaceSettingsDialog({
 }: WorkspaceSettingsDialogProps) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(workspace.name);
-  const [description, setDescription] = useState(workspace.description || "");
+  const [description, setDescription] = useState(workspace.description ?? "");
   const [loading, setLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const { data: session } = useSession();
+  const { data: _session } = useSession();
   const utils = api.useUtils();
 
   const deleteWorkspaceMutation = api.workspace.deleteWorkSpace.useMutation({
@@ -53,7 +61,7 @@ export function WorkspaceSettingsDialog({
       onDelete?.(workspace.id);
       setOpen(false);
       // 刷新workspace列表
-      utils.workspace.getWorkSpaces.invalidate();
+      void utils.workspace.getWorkSpaces.invalidate();
     },
     onError: (error) => {
       console.error("Failed to delete workspace:", error);
@@ -81,11 +89,19 @@ export function WorkspaceSettingsDialog({
         throw new Error("Failed to update workspace");
       }
 
-      const updatedWorkspace = await response.json();
+      const updatedWorkspace = await response.json() as {
+        id: string;
+        name: string;
+        description?: string;
+        role: "owner" | "teacher" | "student";
+        memberCount: number;
+        updatedAt: Date;
+        path: string;
+      };
       onUpdate?.(updatedWorkspace);
       setOpen(false);
       // 刷新workspace列表
-      utils.workspace.getWorkSpaces.invalidate();
+      void utils.workspace.getWorkSpaces.invalidate();
     } catch (error) {
       console.error("Failed to update workspace:", error);
       // TODO: 显示错误提示
@@ -107,7 +123,7 @@ export function WorkspaceSettingsDialog({
     setOpen(false);
     setShowDeleteConfirm(false);
     setName(workspace.name);
-    setDescription(workspace.description || "");
+    setDescription(workspace.description ?? "");
   };
 
   const getRoleColor = (role: string) => {
@@ -250,7 +266,7 @@ export function WorkspaceSettingsDialog({
               ) : (
                 <div className="space-y-2">
                   <p className="text-destructive text-sm font-medium">
-                    确定要删除工作空间 "{workspace.name}" 吗？此操作不可撤销。
+                    确定要删除工作空间 &quot;{workspace.name}&quot; 吗？此操作不可撤销。
                   </p>
                   <div className="flex gap-2">
                     <Button

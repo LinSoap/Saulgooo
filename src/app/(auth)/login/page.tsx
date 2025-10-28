@@ -28,7 +28,7 @@ export default function LoginPage() {
       toast.success("注册成功！正在跳转到登录...", {
         duration: 2000,
       });
-      setPrefilledEmail(data.email || "");
+      setPrefilledEmail(data.email ?? "");
       setTimeout(() => {
         setActiveTab("login");
         toast.info("已自动填充您的邮箱，请输入密码登录");
@@ -78,7 +78,7 @@ export default function LoginPage() {
       } else {
         router.push("/");
       }
-    } catch (err) {
+    } catch {
       setError("登录过程中出现错误");
       toast.error("登录过程中出现错误");
       // 清空密码字段
@@ -102,6 +102,14 @@ export default function LoginPage() {
     defaultValues: { name: "", email: "", password: "", confirmPassword: "" },
   });
 
+  // Update loginPasswordRef when form field ref changes
+  useEffect(() => {
+    const fieldRef = loginPasswordRegister.ref as unknown;
+    if (fieldRef && typeof fieldRef === 'object' && 'current' in fieldRef) {
+      loginPasswordRef.current = (fieldRef as React.RefObject<HTMLInputElement>).current;
+    }
+  }, [loginPasswordRegister]);
+
   const onSubmitRegister = (values: {
     name?: string;
     email: string;
@@ -124,7 +132,7 @@ export default function LoginPage() {
     registerMutation.mutate({
       email: values.email,
       password: values.password,
-      name: values.name || undefined,
+      name: values.name ?? undefined,
     });
   };
 
@@ -193,17 +201,6 @@ export default function LoginPage() {
                     <Input
                       id="login-password"
                       {...loginPasswordRegister}
-                      ref={(el) => {
-                        // keep local ref for focus control
-                        loginPasswordRef.current =
-                          el as HTMLInputElement | null;
-                        // call react-hook-form's ref
-                        if (typeof loginPasswordRegister.ref === "function") {
-                          loginPasswordRegister.ref(el);
-                        } else if (loginPasswordRegister.ref) {
-                          (loginPasswordRegister.ref as any).current = el;
-                        }
-                      }}
                       type="password"
                       autoComplete="current-password"
                       placeholder="请输入密码"

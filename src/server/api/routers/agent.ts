@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { query, type Options } from "@anthropic-ai/claude-agent-sdk";
+import { query } from "@anthropic-ai/claude-agent-sdk";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
@@ -111,7 +111,7 @@ export const agentRouter = createTRPCRouter({
               maxTurns: 10,
               permissionMode: 'bypassPermissions',
               // continue: true,
-              resume: input.sessionId ? input.sessionId : undefined,
+              resume: input.sessionId ?? undefined,
               cwd, // 设置工作目录
             }
 

@@ -1,6 +1,19 @@
 "use client";
 
 import { Suspense, use, useState, useEffect } from "react";
+
+interface FileNode {
+  id: string;
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  size: number;
+  modifiedAt: Date;
+  createdAt: Date;
+  extension?: string;
+  children?: FileNode[];
+  hasChildren?: boolean;
+}
 import { Button } from "~/components/ui/button";
 import { ArrowLeft, FolderOpen, File, Plus } from "lucide-react";
 import Link from "next/link";
@@ -47,7 +60,7 @@ function WorkspaceContent({
   };
   workspaceId: string;
 }) {
-  const [selectedFile, setSelectedFile] = useState<any>(null);
+  const [selectedFile, setSelectedFile] = useState<FileNode | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newFileName, setNewFileName] = useState("");
@@ -68,7 +81,7 @@ function WorkspaceContent({
 
   const createFileMutation = api.workspace.createMarkdownFile.useMutation({
     onSuccess: () => {
-      refetchFileTree();
+      void refetchFileTree();
       setIsCreateDialogOpen(false);
       setNewFileName("");
     },
@@ -84,7 +97,7 @@ function WorkspaceContent({
   } = api.workspace.getFileContent.useQuery(
     {
       workspaceId: workspaceId,
-      filePath: selectedFile?.path || "",
+      filePath: selectedFile?.path ?? "",
     },
     {
       enabled:
@@ -97,7 +110,7 @@ function WorkspaceContent({
   // 当选择的文件改变时，重置内容
   useEffect(() => {
     if (
-      !selectedFile ||
+      !selectedFile?.type ||
       selectedFile.type !== "file" ||
       selectedFile.extension !== "md"
     ) {
@@ -118,7 +131,7 @@ function WorkspaceContent({
   const handleCreateFile = () => {
     if (!newFileName.trim()) return;
 
-    createFileMutation.mutate({
+    void createFileMutation.mutate({
       workspaceId: workspaceId,
       fileName: newFileName,
       directoryPath: "",
@@ -140,7 +153,7 @@ function WorkspaceContent({
       if (!currentFilePath) return;
 
       // 3. 从新的文件树中查找该文件
-      const findFileInTree = (items: any[], path: string): any => {
+      const findFileInTree = (items: FileNode[], path: string): FileNode | null => {
         for (const item of items) {
           if (item.path === path) return item;
           if (item.children) {
@@ -151,7 +164,7 @@ function WorkspaceContent({
         return null;
       };
 
-      const updatedFile = findFileInTree(fileTreeResult.data?.tree || [], currentFilePath);
+      const updatedFile = findFileInTree(fileTreeResult.data?.tree ?? [], currentFilePath);
 
       // 4. 处理不同情况
       if (!updatedFile) {
