@@ -7,16 +7,16 @@ import type { FileTreeItem } from "../types/file";
 
 // 简单的 MIME 类型检测
 function getMimeType(filePath: string): string {
-  const ext = filePath.split('.').pop()?.toLowerCase();
-  const commonTypes: Record<string, string> = {
-    'md': 'text/markdown',
-    'js': 'text/javascript',
-    'ts': 'text/typescript',
-    'json': 'application/json',
-    'png': 'image/png',
-    'jpg': 'image/jpeg'
-  };
-  return commonTypes[ext ?? ''] ?? 'text/plain';
+    const ext = filePath.split('.').pop()?.toLowerCase();
+    const commonTypes: Record<string, string> = {
+        'md': 'text/markdown',
+        'js': 'text/javascript',
+        'ts': 'text/typescript',
+        'json': 'application/json',
+        'png': 'image/png',
+        'jpg': 'image/jpeg'
+    };
+    return commonTypes[ext ?? ''] ?? 'text/plain';
 }
 
 export const workSpaceRouter = createTRPCRouter({
@@ -130,7 +130,7 @@ export const workSpaceRouter = createTRPCRouter({
                     const workspacePath = join(homedir(), 'workspaces', workspace.path);
                     await rmdir(workspacePath, { recursive: true });
                 }
-            } catch (fsError) {
+            } catch {
                 // 文件夹删除失败
                 // 文件夹删除失败不影响数据库删除结果，只记录错误
             }
@@ -176,7 +176,7 @@ export const workSpaceRouter = createTRPCRouter({
             // 检查目录是否存在
             try {
                 await stat(basePath);
-            } catch (err) {
+            } catch {
                 throw new Error(`Cannot access workspace directory: ${basePath}`);
             }
 

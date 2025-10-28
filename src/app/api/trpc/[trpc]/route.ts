@@ -23,9 +23,9 @@ const handler = (req: NextRequest) =>
     createContext: () => createContext(req),
     onError:
       env.NODE_ENV === "development"
-        ? ({ path, error }) => {
-            // tRPC 错误
-          }
+        ? ({ path: _path, error: _error }) => {
+          // tRPC 错误
+        }
         : undefined,
   });
 

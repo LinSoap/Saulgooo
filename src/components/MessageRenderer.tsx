@@ -25,14 +25,14 @@ function ToolCall({ tool }: { tool: ContentItem }) {
   const getFileName = (path: string): string => {
     if (!path) return "";
     const parts = path.split("/");
-    return parts[parts.length - 1] || path;
+    return parts[parts.length - 1] ?? path;
   };
 
   // 格式化工具调用显示
   const formatToolDisplay = () => {
     // 检查是否是工具使用块
     if (tool.type === "tool_use") {
-      const toolName = tool.name?.toLowerCase() || "";
+      const toolName = tool.name?.toLowerCase() ?? "";
       const input = tool.input as Record<string, string> | undefined;
 
       if (toolName === "write" && input?.file_path) {
@@ -40,7 +40,7 @@ function ToolCall({ tool }: { tool: ContentItem }) {
           text: `Write(${getFileName(input.file_path)})`,
           hasContent: !!input.content,
           file: input.file_path,
-          content: input.content || "",
+          content: input.content ?? "",
         };
       } else if (toolName === "read" && input?.file_path) {
         return {
@@ -66,7 +66,7 @@ function ToolCall({ tool }: { tool: ContentItem }) {
       } else {
         // 其他工具显示名称
         return {
-          text: tool.name || "Unknown Tool",
+          text: tool.name ?? "Unknown Tool",
           hasContent: false,
           file: "",
           content: "",

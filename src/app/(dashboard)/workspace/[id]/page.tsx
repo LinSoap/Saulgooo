@@ -83,7 +83,7 @@ function WorkspaceContent({
       setIsCreateDialogOpen(false);
       setNewFileName("");
     },
-    onError: (error) => {
+    onError: (_error) => {
       // 创建文件失败
     },
   });
@@ -191,7 +191,7 @@ function WorkspaceContent({
           setSelectedFile(updatedFile);
         }
       }
-    } catch (error) {
+    } catch {
       // 刷新失败
     }
   };

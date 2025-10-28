@@ -4,7 +4,7 @@ import { query } from "@anthropic-ai/claude-agent-sdk";
 import type { ContentBlock } from "@anthropic-ai/sdk/resources/messages";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 
 // 使用 Anthropic SDK 的类型
 type ContentItem = ContentBlock;
@@ -130,7 +130,7 @@ export const agentRouter = createTRPCRouter({
           for await (const message of query({
             prompt: input.query,
             options: {
-              maxTurns: 10,
+              maxTurns: 30,
               permissionMode: 'bypassPermissions',
               resume: input.sessionId ?? undefined,
               cwd, // 设置工作目录
@@ -175,7 +175,7 @@ export const agentRouter = createTRPCRouter({
         // 如果有助手消息内容，保存它们
         if (messageContents.length > 0) {
           // 如果有最终结果，添加到内容末尾
-          if (content && content.trim()) {
+          if (content?.trim?.()) {
             messageContents.push({
               type: 'text',
               text: content,
@@ -188,7 +188,7 @@ export const agentRouter = createTRPCRouter({
             content: messageContents,
             timestamp: new Date().toISOString()
           });
-        } else if (content && content.trim()) {
+        } else if (content?.trim?.()) {
           // 如果没有收集到消息内容，只保存最终结果
           messagesToSave.push({
             role: "assistant",
@@ -220,7 +220,7 @@ export const agentRouter = createTRPCRouter({
 
           if (existingSession) {
             const existingMessages: StoredMessage[] = Array.isArray(existingSession.messages)
-              ? (existingSession.messages as Prisma.JsonArray)
+              ? (existingSession.messages)
                 .filter((msg): msg is Prisma.JsonObject => {
                   if (!msg || typeof msg !== 'object') return false;
                   const messageObj = msg as Record<string, unknown>;

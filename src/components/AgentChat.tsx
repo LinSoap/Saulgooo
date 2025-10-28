@@ -13,7 +13,6 @@ import {
 } from "~/components/ui/dropdown-menu";
 import {
   Bot,
-  User,
   Send,
   Loader2,
   MessageSquarePlus,
@@ -28,6 +27,13 @@ interface Message {
   role: "user" | "assistant";
   content: string | ContentBlock[];
   timestamp?: string;
+}
+
+interface StreamData {
+  type: "session_id" | "message" | "error";
+  sessionId?: string;
+  content?: ContentBlock;
+  error?: string;
 }
 
 interface Session {
@@ -137,16 +143,15 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
 
           const chunk = decoder.decode(value, { stream: true });
           const lines = chunk.split("\n");
-          
-  
+
           for (const line of lines) {
             if (line.startsWith("data: ")) {
               try {
-                const data = JSON.parse(line.slice(6));
-  
+                const data = JSON.parse(line.slice(6)) as StreamData;
+
                 switch (data.type) {
                   case "session_id":
-                    sessionId = data.sessionId;
+                    sessionId = data.sessionId ?? null;
                     // 如果是新会话，更新当前会话ID
                     if (sessionId && !currentSessionId) {
                       setCurrentSessionId(sessionId);
@@ -156,26 +161,23 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
                   case "message":
                     // 直接添加内容，不做去重
                     // SDK 会为同一个 messageId 多次返回不同的 content，这是正常行为
-  
+
+                    const content = data.content;
+                    if (!content) break;
+
                     // 更新最后一条助手消息 - 使用不可变更新
                     setMessages((prev) => {
-                        const newMessages = [...prev];
+                      const newMessages = [...prev];
                       const lastIndex = newMessages.length - 1;
                       const lastMessage = newMessages[lastIndex];
 
                       if (lastMessage?.role === "assistant") {
-                        const content = data.content;
-                        const currentLength = Array.isArray(lastMessage.content)
-                          ? lastMessage.content.length
-                          : 0;
-  
                         // 创建新的内容数组，而不是修改原数组
                         if (Array.isArray(lastMessage.content)) {
                           newMessages[lastIndex] = {
                             ...lastMessage,
                             content: [...lastMessage.content, content],
                           };
-                          const newLength = (newMessages[lastIndex].content as ContentBlock[]).length;
                         } else {
                           newMessages[lastIndex] = {
                             ...lastMessage,
@@ -188,12 +190,15 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
 
                       return newMessages;
                     });
-                      break;
+                    break;
 
                   case "error":
-                    throw new Error(data.error);
+                    if (data.error) {
+                      throw new Error(data.error);
+                    }
+                    break;
                 }
-              } catch (parseError) {
+              } catch {
                 // 解析错误，忽略
               }
             }
@@ -210,12 +215,11 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
       if (onAgentComplete) {
         try {
           await onAgentComplete();
-        } catch (error) {
+        } catch {
           // 刷新失败，忽略
         }
       }
-    } catch (error) {
-
+    } catch {
       // 添加错误消息
       setMessages((prev) => [
         ...prev.slice(0, -1), // 移除空的助手消息
@@ -229,7 +233,7 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
       if (onAgentComplete) {
         try {
           await onAgentComplete();
-        } catch (refreshError) {
+        } catch {
           // 刷新失败，忽略
         }
       }

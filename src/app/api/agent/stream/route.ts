@@ -1,11 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import { auth } from '~/server/auth';
 import { db } from '~/server/db';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { ContentBlock } from '@anthropic-ai/sdk/resources/messages';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import { Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
 type ContentItem = ContentBlock;
 
@@ -33,7 +34,11 @@ export async function POST(request: NextRequest) {
     }
 
     // 解析请求体
-    const body = await request.json();
+    const body = (await request.json()) as {
+      query?: string;
+      workspaceId?: string;
+      sessionId?: string;
+    };
     const { query: userQuery, workspaceId, sessionId } = body;
 
     if (!userQuery || !workspaceId) {
@@ -98,7 +103,7 @@ export async function POST(request: NextRequest) {
             if (message.type === 'assistant' && message.message?.content) {
               const content = message.message.content;
 
-  
+
               if (Array.isArray(content)) {
                 // 发送数组中的每个内容
                 for (const item of content) {
@@ -183,7 +188,7 @@ export async function POST(request: NextRequest) {
 
               if (existingSession) {
                 const existingMessages: StoredMessage[] = Array.isArray(existingSession.messages)
-                  ? (existingSession.messages as Prisma.JsonArray)
+                  ? existingSession.messages
                     .filter((msg): msg is Prisma.JsonObject => {
                       if (!msg || typeof msg !== 'object') return false;
                       const messageObj = msg as Record<string, unknown>;
@@ -246,7 +251,7 @@ export async function POST(request: NextRequest) {
         'Connection': 'keep-alive',
       },
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

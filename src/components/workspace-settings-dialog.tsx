@@ -16,7 +16,6 @@ import { Label } from "~/components/ui/label";
 import { Textarea } from "~/components/ui/textarea";
 import { Badge } from "~/components/ui/badge";
 import { Settings, Users, Calendar, Trash2 } from "lucide-react";
-import { useSession } from "next-auth/react";
 import { api } from "~/trpc/react";
 
 interface WorkspaceSettingsDialogProps {
@@ -53,7 +52,6 @@ export function WorkspaceSettingsDialog({
   const [description, setDescription] = useState(workspace.description ?? "");
   const [loading, setLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const { data: _session } = useSession();
   const utils = api.useUtils();
 
   const deleteWorkspaceMutation = api.workspace.deleteWorkSpace.useMutation({
@@ -63,7 +61,7 @@ export function WorkspaceSettingsDialog({
       // 刷新workspace列表
       void utils.workspace.getWorkSpaces.invalidate();
     },
-    onError: (error) => {
+    onError: () => {
       // 删除失败
     },
   });
@@ -89,7 +87,7 @@ export function WorkspaceSettingsDialog({
         throw new Error("Failed to update workspace");
       }
 
-      const updatedWorkspace = await response.json() as {
+      const updatedWorkspace = (await response.json()) as {
         id: string;
         name: string;
         description?: string;
@@ -102,7 +100,7 @@ export function WorkspaceSettingsDialog({
       setOpen(false);
       // 刷新workspace列表
       void utils.workspace.getWorkSpaces.invalidate();
-    } catch (error) {
+    } catch {
       // 更新失败
     } finally {
       setLoading(false);
@@ -265,7 +263,8 @@ export function WorkspaceSettingsDialog({
               ) : (
                 <div className="space-y-2">
                   <p className="text-destructive text-sm font-medium">
-                    确定要删除工作空间 &quot;{workspace.name}&quot; 吗？此操作不可撤销。
+                    确定要删除工作空间 &quot;{workspace.name}&quot;
+                    吗？此操作不可撤销。
                   </p>
                   <div className="flex gap-2">
                     <Button
