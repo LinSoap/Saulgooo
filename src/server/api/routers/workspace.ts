@@ -129,7 +129,6 @@ export const workSpaceRouter = createTRPCRouter({
                 if (workspace.path) {
                     const workspacePath = join(homedir(), 'workspaces', workspace.path);
                     await rmdir(workspacePath, { recursive: true });
-                    console.log(`Workspace directory deleted: ${workspacePath}`);
                 }
             } catch (fsError) {
                 console.error('Failed to delete workspace directory:', fsError);
@@ -165,49 +164,31 @@ export const workSpaceRouter = createTRPCRouter({
             workspaceId: z.string().cuid(),
         }))
         .query(async ({ ctx, input }) => {
-            console.log("Getting file tree for workspace:", input.workspaceId);
-
             const workspace = await ctx.db.workspace.findUnique({
                 where: { id: input.workspaceId, ownerId: ctx.session.user.id },
             });
 
             if (!workspace) throw new Error("Workspace not found");
 
-            console.log("Workspace found:", workspace);
-            console.log("Workspace path:", workspace.path);
-
             const basePath = join(homedir(), 'workspaces', workspace.path);
-            console.log("Base path:", basePath);
-
             const ignoreItems = ['.git', 'node_modules', '.next', 'dist'];
 
             // 检查目录是否存在
             try {
-                const stats = await stat(basePath);
-                console.log("Base path stats:", stats.isDirectory() ? "directory" : "file");
+                await stat(basePath);
             } catch (err) {
                 console.error("Cannot access base path:", err);
                 throw new Error(`Cannot access workspace directory: ${basePath}`);
             }
 
             const buildTree = async (dirPath: string, relativePath = ""): Promise<FileTreeItem[]> => {
-                console.log(`Building tree for: ${dirPath}, relative: ${relativePath}`);
-
                 const items = await readdir(dirPath);
-                console.log(`Found items:`, items);
-
                 const result: FileTreeItem[] = [];
 
                 for (const item of items) {
                     if (ignoreItems.includes(item)) {
-                        console.log(`Ignoring item: ${item}`);
                         continue;
                     }
-                    // 允许显示以点开头但不是隐藏目录的文件
-                    // if (item.startsWith('.')) {
-                    //     console.log(`Ignoring hidden item: ${item}`);
-                    //     continue;
-                    // }
 
                     const fullPath = join(dirPath, item);
                     const itemRelativePath = join(relativePath, item);
@@ -247,7 +228,6 @@ export const workSpaceRouter = createTRPCRouter({
             };
 
             const tree = await buildTree(basePath);
-            console.log("Final tree built:", JSON.stringify(tree, null, 2));
 
             return {
                 workspaceId: workspace.id,

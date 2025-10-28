@@ -46,8 +46,7 @@ export function CreateWorkspaceDialog() {
   });
 
   const onSubmit = (data: { name: string; description?: string }) => {
-    console.log("Creating workspace with data:", data);
-    createWorkSpaceMutation.mutate(data);
+        createWorkSpaceMutation.mutate(data);
   };
 
   return (
