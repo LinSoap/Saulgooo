@@ -61,6 +61,8 @@ function WorkspaceContent({
     workspaceId: workspaceId,
   });
 
+  console.log("File Tree Data:", fileTreeData);
+
   const createFileMutation = api.workspace.createMarkdownFile.useMutation({
     onSuccess: () => {
       refetchFileTree();
@@ -123,7 +125,7 @@ function WorkspaceContent({
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col overflow-hidden">
       {/* 工作空间头部 */}
       <div className="bg-background/95 supports-backdrop-filter:bg-background/60 h-30 border-b backdrop-blur">
         <div className="p-6">
@@ -186,12 +188,12 @@ function WorkspaceContent({
       </div>
 
       {/* 文件浏览器内容 */}
-      <div className="flex-1">
+      <div className="min-h-0 flex-1">
         <ResizablePanelGroup direction="horizontal" className="h-full">
           {/* 文件树 */}
           <ResizablePanel defaultSize={15} minSize={15} maxSize={25}>
-            <div className="h-full border-r p-4">
-              <div className="mb-4 flex items-center justify-between">
+            <div className="flex h-full flex-col border-r p-4">
+              <div className="mb-4 flex flex-shrink-0 items-center justify-between">
                 <div className="flex items-center gap-2">
                   <FolderOpen className="text-primary h-5 w-5" />
                   <h3 className="font-semibold">文件浏览器</h3>
@@ -252,32 +254,34 @@ function WorkspaceContent({
               </div>
 
               {/* 文件树结构 */}
-              <div className="space-y-2 text-sm">
-                {isFileTreeLoading ? (
-                  <div className="text-muted-foreground py-8 text-center">
-                    <p>加载中...</p>
-                  </div>
-                ) : fileTreeError ? (
-                  <div className="text-destructive py-8 text-center">
-                    <p>加载文件树失败</p>
-                  </div>
-                ) : fileTreeData?.tree && fileTreeData.tree.length > 0 ? (
-                  <div className="overflow-auto">
-                    {fileTreeData.tree.map((item) => (
-                      <FileTreeItem
-                        key={item.id}
-                        item={item}
-                        onSelect={setSelectedFile}
-                        selectedPath={selectedFile?.path}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-muted-foreground py-8 text-center">
-                    <FolderOpen className="mx-auto mb-2 h-8 w-8" />
-                    <p>暂无文件</p>
-                  </div>
-                )}
+              <div className="min-h-0 flex-1 overflow-auto">
+                <div className="space-y-2 text-sm">
+                  {isFileTreeLoading ? (
+                    <div className="text-muted-foreground py-8 text-center">
+                      <p>加载中...</p>
+                    </div>
+                  ) : fileTreeError ? (
+                    <div className="text-destructive py-8 text-center">
+                      <p>加载文件树失败</p>
+                    </div>
+                  ) : fileTreeData?.tree && fileTreeData.tree.length > 0 ? (
+                    <div>
+                      {fileTreeData.tree.map((item) => (
+                        <FileTreeItem
+                          key={item.id}
+                          item={item}
+                          onSelect={setSelectedFile}
+                          selectedPath={selectedFile?.path}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-muted-foreground py-8 text-center">
+                      <FolderOpen className="mx-auto mb-2 h-8 w-8" />
+                      <p>暂无文件</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </ResizablePanel>
@@ -289,20 +293,24 @@ function WorkspaceContent({
             <ResizablePanelGroup direction="horizontal" className="h-full">
               {/* 文件内容预览 */}
               <ResizablePanel defaultSize={65} minSize={40}>
-                <div className="h-full overflow-auto">
+                <div className="flex h-full flex-col overflow-hidden">
                   {selectedFile ? (
-                    <div className="h-full">
+                    <div className="flex-1 overflow-auto">
                       {selectedFile.type === "file" ? (
                         <>
                           {selectedFile.extension === "md" ? (
                             <div className="p-6">
                               {isFileLoading ? (
                                 <div className="flex h-64 items-center justify-center">
-                                  <p className="text-muted-foreground">加载中...</p>
+                                  <p className="text-muted-foreground">
+                                    加载中...
+                                  </p>
                                 </div>
                               ) : fileError ? (
                                 <div className="flex h-64 items-center justify-center">
-                                  <p className="text-destructive">加载文件失败</p>
+                                  <p className="text-destructive">
+                                    加载文件失败
+                                  </p>
                                 </div>
                               ) : fileContent !== null ? (
                                 <MarkdownPreview
@@ -347,7 +355,9 @@ function WorkspaceContent({
                             <h3 className="mb-2 text-xl font-semibold">
                               {selectedFile.name}
                             </h3>
-                            <p className="text-muted-foreground">这是一个文件夹</p>
+                            <p className="text-muted-foreground">
+                              这是一个文件夹
+                            </p>
                           </div>
                         </div>
                       )}
@@ -375,7 +385,7 @@ function WorkspaceContent({
 
               {/* 对话框区域 */}
               <ResizablePanel defaultSize={35} minSize={25} maxSize={50}>
-                <AgentChat />
+                <AgentChat workspaceId={workspaceId} />
               </ResizablePanel>
             </ResizablePanelGroup>
           </ResizablePanel>
@@ -403,7 +413,7 @@ export default function WorkspacePage({ params }: WorkspacePageProps) {
 
   if (!session?.user) {
     return (
-      <main className="flex h-full items-center justify-center">
+      <main className="flex h-screen items-center justify-center">
         <div>Please log in to view this workspace</div>
       </main>
     );
@@ -411,7 +421,7 @@ export default function WorkspacePage({ params }: WorkspacePageProps) {
 
   if (isLoading) {
     return (
-      <main className="flex h-full items-center justify-center">
+      <main className="flex h-screen items-center justify-center">
         <div>Loading workspace...</div>
       </main>
     );
@@ -419,14 +429,14 @@ export default function WorkspacePage({ params }: WorkspacePageProps) {
 
   if (error || !workspace) {
     return (
-      <main className="flex h-full items-center justify-center">
+      <main className="flex h-screen items-center justify-center">
         <div>Workspace not found</div>
       </main>
     );
   }
 
   return (
-    <main className="h-full">
+    <main className="flex h-screen flex-col">
       <Suspense fallback={<div>Loading workspace...</div>}>
         <WorkspaceContent workspace={workspace} workspaceId={id} />
       </Suspense>
