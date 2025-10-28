@@ -64,7 +64,7 @@ export function WorkspaceSettingsDialog({
       void utils.workspace.getWorkSpaces.invalidate();
     },
     onError: (error) => {
-      console.error("Failed to delete workspace:", error);
+      // 删除失败
     },
   });
 
@@ -103,8 +103,7 @@ export function WorkspaceSettingsDialog({
       // 刷新workspace列表
       void utils.workspace.getWorkSpaces.invalidate();
     } catch (error) {
-      console.error("Failed to update workspace:", error);
-      // TODO: 显示错误提示
+      // 更新失败
     } finally {
       setLoading(false);
     }

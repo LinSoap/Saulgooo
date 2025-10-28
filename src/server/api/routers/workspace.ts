@@ -131,7 +131,7 @@ export const workSpaceRouter = createTRPCRouter({
                     await rmdir(workspacePath, { recursive: true });
                 }
             } catch (fsError) {
-                console.error('Failed to delete workspace directory:', fsError);
+                // 文件夹删除失败
                 // 文件夹删除失败不影响数据库删除结果，只记录错误
             }
 
@@ -177,7 +177,6 @@ export const workSpaceRouter = createTRPCRouter({
             try {
                 await stat(basePath);
             } catch (err) {
-                console.error("Cannot access base path:", err);
                 throw new Error(`Cannot access workspace directory: ${basePath}`);
             }
 

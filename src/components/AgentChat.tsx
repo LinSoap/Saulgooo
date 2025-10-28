@@ -49,9 +49,6 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSending, setIsSending] = useState(false); // 是否正在发送消息
-  const [processedMessageHashes, setProcessedMessageHashes] = useState<
-    Set<string>
-  >(new Set()); // 用于去重
 
   // 获取 sessions 列表
   const { data: sessionsData, refetch: refetchSessions } =
@@ -102,9 +99,6 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
     setIsLoading(true);
     setIsSending(true); // 标记正在发送消息
 
-    // 重置已处理的消息哈希集合
-    setProcessedMessageHashes(new Set());
-
     // 添加用户消息和助手消息容器（使用一次更新）
     setMessages((prev) => [
       ...prev,
@@ -143,12 +137,13 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
 
           const chunk = decoder.decode(value, { stream: true });
           const lines = chunk.split("\n");
-
+          
+  
           for (const line of lines) {
             if (line.startsWith("data: ")) {
               try {
                 const data = JSON.parse(line.slice(6));
-
+  
                 switch (data.type) {
                   case "session_id":
                     sessionId = data.sessionId;
@@ -159,44 +154,47 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
                     break;
 
                   case "message":
-                    // 检查是否有 messageId
-                    if (data.messageId) {
-                      // 检查是否已处理过此消息 ID
-                      if (processedMessageHashes.has(data.messageId)) {
-                        console.log("跳过重复消息:", data.messageId);
-                        break;
-                      }
-
-                      // 标记为已处理
-                      setProcessedMessageHashes((prev) =>
-                        new Set(prev).add(data.messageId),
-                      );
-                    }
-
-                    // 更新最后一条助手消息
+                    // 直接添加内容，不做去重
+                    // SDK 会为同一个 messageId 多次返回不同的 content，这是正常行为
+  
+                    // 更新最后一条助手消息 - 使用不可变更新
                     setMessages((prev) => {
-                      const newMessages = [...prev];
-                      const lastMessage = newMessages[newMessages.length - 1];
+                        const newMessages = [...prev];
+                      const lastIndex = newMessages.length - 1;
+                      const lastMessage = newMessages[lastIndex];
 
                       if (lastMessage?.role === "assistant") {
                         const content = data.content;
-
+                        const currentLength = Array.isArray(lastMessage.content)
+                          ? lastMessage.content.length
+                          : 0;
+  
+                        // 创建新的内容数组，而不是修改原数组
                         if (Array.isArray(lastMessage.content)) {
-                          lastMessage.content.push(content);
+                          newMessages[lastIndex] = {
+                            ...lastMessage,
+                            content: [...lastMessage.content, content],
+                          };
+                          const newLength = (newMessages[lastIndex].content as ContentBlock[]).length;
                         } else {
-                          lastMessage.content = [content];
+                          newMessages[lastIndex] = {
+                            ...lastMessage,
+                            content: [content],
+                          };
                         }
+                      } else {
+                        // 最后一条消息不是 assistant 消息，忽略
                       }
 
                       return newMessages;
                     });
-                    break;
+                      break;
 
                   case "error":
                     throw new Error(data.error);
                 }
               } catch (parseError) {
-                console.error("Failed to parse SSE data:", parseError);
+                // 解析错误，忽略
               }
             }
           }
@@ -213,11 +211,10 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
         try {
           await onAgentComplete();
         } catch (error) {
-          console.error("Failed to refresh after agent completion:", error);
+          // 刷新失败，忽略
         }
       }
     } catch (error) {
-      console.error("Stream error:", error);
 
       // 添加错误消息
       setMessages((prev) => [
@@ -233,7 +230,7 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
         try {
           await onAgentComplete();
         } catch (refreshError) {
-          console.error("Failed to refresh after agent error:", refreshError);
+          // 刷新失败，忽略
         }
       }
     } finally {
@@ -422,32 +419,36 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
           </div>
         ) : (
           <div className="space-y-4">
-            {messages.map((message, index) => (
-              <div
-                key={index}
-                className={`flex ${
-                  message.role === "user" ? "justify-end" : "justify-start"
-                }`}
-              >
-                <div
-                  className={`relative max-w-[85%] rounded-lg p-3 wrap-break-word ${
-                    message.role === "user"
-                      ? "bg-primary text-primary-foreground ml-auto"
-                      : "mr-auto"
-                  }`}
-                >
-                  {message.role === "assistant" ? (
-                    <MessageRenderer message={message} />
-                  ) : (
-                    <p className="text-sm whitespace-pre-wrap">
-                      {typeof message.content === "string"
-                        ? message.content
-                        : ""}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
+            {(() => {
+              return messages.map((message, index) => {
+                return (
+                  <div
+                    key={index}
+                    className={`flex ${
+                      message.role === "user" ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    <div
+                      className={`relative max-w-[85%] rounded-lg p-3 wrap-break-word ${
+                        message.role === "user"
+                          ? "bg-primary text-primary-foreground ml-auto"
+                          : "mr-auto"
+                      }`}
+                    >
+                      {message.role === "assistant" ? (
+                        <MessageRenderer message={message} />
+                      ) : (
+                        <p className="text-sm whitespace-pre-wrap">
+                          {typeof message.content === "string"
+                            ? message.content
+                            : ""}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              });
+            })()}
           </div>
         )}
       </ScrollArea>

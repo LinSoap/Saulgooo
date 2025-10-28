@@ -98,6 +98,7 @@ export async function POST(request: NextRequest) {
             if (message.type === 'assistant' && message.message?.content) {
               const content = message.message.content;
 
+  
               if (Array.isArray(content)) {
                 // 发送数组中的每个内容
                 for (const item of content) {
@@ -225,7 +226,6 @@ export async function POST(request: NextRequest) {
 
           controller.close();
         } catch (error) {
-          console.error('Streaming error:', error);
           controller.enqueue(
             encoder.encode(
               `data: ${JSON.stringify({
@@ -247,7 +247,6 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('API error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

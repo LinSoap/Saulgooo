@@ -157,7 +157,6 @@ export const agentRouter = createTRPCRouter({
             }
           }
         } catch (sdkError) {
-          console.error("Agent SDK error:", sdkError);
           throw sdkError;
         }
 
@@ -257,7 +256,6 @@ export const agentRouter = createTRPCRouter({
           sessionId: claudeSessionId
         };
       } catch (error) {
-        console.error("Agent query error:", error);
 
         // 提供更友好的错误信息
         let errorMessage = "查询失败";

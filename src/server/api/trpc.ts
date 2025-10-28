@@ -99,7 +99,7 @@ const timingMiddleware = t.middleware(async ({ next, path }) => {
   const duration = end - start;
   // Optional: Log slow queries
   if (duration > 1000) {
-    console.warn(`[TRPC] Slow query detected: ${path} took ${duration}ms`);
+    // 慢查询检测
   }
 
   return result;

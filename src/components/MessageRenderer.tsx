@@ -135,6 +135,7 @@ function ToolCall({ tool }: { tool: ContentItem }) {
 }
 
 export function MessageRenderer({ message }: MessageRendererProps) {
+
   // 渲染消息内容的辅助函数
   const renderMessageContent = () => {
     // 如果是普通字符串消息

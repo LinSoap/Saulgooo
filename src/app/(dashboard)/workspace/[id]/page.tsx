@@ -77,8 +77,7 @@ function WorkspaceContent({
     workspaceId: workspaceId,
   });
 
-  console.log("File Tree Data:", fileTreeData);
-
+  
   const createFileMutation = api.workspace.createMarkdownFile.useMutation({
     onSuccess: () => {
       void refetchFileTree();
@@ -86,7 +85,7 @@ function WorkspaceContent({
       setNewFileName("");
     },
     onError: (error) => {
-      console.error("Failed to create file:", error);
+      // 创建文件失败
     },
   });
 
@@ -123,7 +122,6 @@ function WorkspaceContent({
     if (fileData) {
       setFileContent(fileData.content);
     } else if (fileError) {
-      console.error("Failed to get file content:", fileError);
       setFileContent(null);
     }
   }, [fileData, fileError]);
@@ -171,8 +169,7 @@ function WorkspaceContent({
         // 文件被删除了 - 清空选择
         setSelectedFile(null);
         setFileContent(null);
-        console.log(`File ${currentFilePath} was deleted by agent`);
-      } else if (oldModifiedTime && updatedFile.modifiedAt !== oldModifiedTime) {
+        } else if (oldModifiedTime && updatedFile.modifiedAt !== oldModifiedTime) {
         // 文件被修改了 - 需要刷新内容
         // 使用 tRPC utils 获取最新文件内容
         const result = await utils.workspace.getFileContent.fetch({
@@ -184,11 +181,10 @@ function WorkspaceContent({
           setFileContent(result.content);
           // 更新 selectedFile 的引用，保持同步
           setSelectedFile(updatedFile);
-          console.log(`File ${currentFilePath} was refreshed`);
-        }
+          }
       }
     } catch (error) {
-      console.error("Failed to refresh after agent operation:", error);
+      // 刷新失败
     }
   };
 
