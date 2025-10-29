@@ -134,7 +134,7 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
       if (lastMessage?.role === "assistant") {
         const existingContent = Array.isArray(lastMessage.content)
           ? lastMessage.content
-          : [{ type: "text", text: lastMessage.content as string }];
+          : [{ type: "text", text: lastMessage.content }];
 
         return [
           ...prev.slice(0, -1),
@@ -332,6 +332,9 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
   useEffect(() => {
     if (sessionData?.messages && sessionData.sessionId === currentSessionId) {
       const messagesData = sessionData.messages as unknown as Message[];
+      if (process.env.NODE_ENV === "development") {
+        console.debug("[AgentChat] Loaded messages from DB:", messagesData);
+      }
       setMessages(Array.isArray(messagesData) ? messagesData : []);
     }
   }, [sessionData, currentSessionId]);
@@ -471,7 +474,7 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-2">
             {(() => {
               return messages.map((message, index) => {
                 return (
@@ -482,10 +485,10 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
                     }`}
                   >
                     <div
-                      className={`relative max-w-[85%] rounded-lg p-3 wrap-break-word ${
+                      className={`relative max-w-[85%] rounded-lg wrap-break-word ${
                         message.role === "user"
-                          ? "bg-primary text-primary-foreground ml-auto"
-                          : "mr-auto"
+                          ? "bg-primary text-primary-foreground ml-auto p-3"
+                          : "mr-auto px-3 py-1"
                       }`}
                     >
                       {message.role === "assistant" ? (

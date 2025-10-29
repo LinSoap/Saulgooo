@@ -135,17 +135,13 @@ function ToolCall({ tool }: { tool: ContentItem }) {
 }
 
 export function MessageRenderer({ message }: MessageRendererProps) {
-
   // 渲染消息内容的辅助函数
   const renderMessageContent = () => {
     // 如果是普通字符串消息
     if (typeof message.content === "string") {
       return (
         <div className="prose prose-sm max-w-none">
-          <MarkdownPreview
-            content={message.content}
-            className="[&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5 dark:[&_code]:bg-gray-800 [&_h1]:mb-3 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-2 [&_p]:my-2 [&_p]:text-base [&_p]:text-gray-800 dark:[&_p]:text-gray-200 [&_pre]:my-2 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_ul]:my-2"
-          />
+          <MarkdownPreview content={message.content} />
         </div>
       );
     }
@@ -168,10 +164,7 @@ export function MessageRenderer({ message }: MessageRendererProps) {
           }
           elements.push(
             <div key={index} className="prose prose-sm max-w-none">
-              <MarkdownPreview
-                content={item.text || ""}
-                className="[&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5 dark:[&_code]:bg-gray-800 [&_h1]:mb-3 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-2 [&_p]:my-2 [&_p]:text-base [&_p]:text-gray-800 dark:[&_p]:text-gray-200 [&_pre]:my-2 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_ul]:my-2"
-              />
+              <MarkdownPreview content={item.text || ""} />
             </div>,
           );
           lastItemWasTool = false;
@@ -185,17 +178,18 @@ export function MessageRenderer({ message }: MessageRendererProps) {
     }
 
     // 处理单个 ContentBlock 对象
-    if (typeof message.content === "object" && message.content !== null && !Array.isArray(message.content)) {
+    if (
+      typeof message.content === "object" &&
+      message.content !== null &&
+      !Array.isArray(message.content)
+    ) {
       const contentBlock = message.content as ContentItem;
 
       if (contentBlock.type === "text") {
         // 处理文本块
         return (
           <div className="prose prose-sm max-w-none">
-            <MarkdownPreview
-              content={contentBlock.text || ""}
-              className="[&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5 dark:[&_code]:bg-gray-800 [&_h1]:mb-3 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-2 [&_p]:my-2 [&_p]:text-base [&_p]:text-gray-800 dark:[&_p]:text-gray-200 [&_pre]:my-2 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_ul]:my-2"
-            />
+            <MarkdownPreview content={contentBlock.text || ""} />
           </div>
         );
       } else if (contentBlock.type === "tool_use") {
@@ -207,5 +201,5 @@ export function MessageRenderer({ message }: MessageRendererProps) {
     return null;
   };
 
-  return <div className="space-y-1">{renderMessageContent()}</div>;
+  return <div className="">{renderMessageContent()}</div>;
 }
