@@ -96,13 +96,17 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
   // 更新 sessions 列表
   useEffect(() => {
     if (sessionsData) {
-      setSessions(
-        sessionsData.map((session) => ({
-          ...session,
-          createdAt: session.createdAt.toISOString(),
-          updatedAt: session.updatedAt.toISOString(),
-        })),
-      );
+      const formattedSessions = sessionsData.map((session) => ({
+        ...session,
+        createdAt: session.createdAt.toISOString(),
+        updatedAt: session.updatedAt.toISOString(),
+      }));
+      setSessions(formattedSessions);
+
+      // 只在sessions初始化时自动选择最新的会话
+      if (sessions.length === 0 && formattedSessions.length > 0 && formattedSessions[0]) {
+        setCurrentSessionId(formattedSessions[0].sessionId);
+      }
     }
   }, [sessionsData]);
 
