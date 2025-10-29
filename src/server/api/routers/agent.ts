@@ -1,9 +1,70 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { query } from "@anthropic-ai/claude-agent-sdk";
+import { join } from "path";
+import { homedir } from "os";
 
 
 export const agentRouter = createTRPCRouter({
+  query: protectedProcedure
+    .input(z.object({
+      query: z.string(),
+      workspaceId: z.string(),
+      sessionId: z.string().optional()
+    })).subscription(async function* ({ ctx, input }) {
+      const workspace = await ctx.db.workspace.findUnique({
+        where: { id: input.workspaceId },
+        select: { path: true },
+      });
 
+      if (!workspace) {
+        throw new Error("Workspace not found");
+      }
+      const cwd = join(homedir(), 'workspaces', workspace.path);
+      const queryInstance = query({
+        prompt: input.query,
+        options: {
+          maxTurns: 30,
+          permissionMode: 'bypassPermissions',
+          resume: input.sessionId ?? undefined,
+          cwd,
+          systemPrompt: {
+            type: "preset",
+            preset: "claude_code",
+            append:
+              ` - 始终在workspace目录下操作，严格遵守文件读写权限，不要尝试访问未授权的文件或目录。
+                - workspace目录是你能够访问的唯一文件系统位置。
+                - 禁止在非workspace目录下读写文件。`,
+          },
+        }
+      });
+
+
+      for await (const message of queryInstance) {
+        if (message.type === 'system' && message.subtype === 'init') {
+          const sessionId = message.session_id
+          if (!input.sessionId) {
+            ctx.db.agentSession.create({
+              data: {
+                sessionId,
+                workspaceId: input.workspaceId,
+                userId: ctx.session.user.id,
+                title: input.query.slice(0, 30),
+                messages: [],
+              }
+            });
+          }
+          yield message;
+        }
+        if (message.type === "assistant") {
+          console.log(message.message);
+          yield message;
+        }
+        if (message.type === "result") {
+          yield message;
+        }
+      }
+    }),
   // 获取工作区的所有 sessions
   getSessions: protectedProcedure
     .input(z.object({

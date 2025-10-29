@@ -104,7 +104,11 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
       setSessions(formattedSessions);
 
       // 只在sessions初始化时自动选择最新的会话
-      if (sessions.length === 0 && formattedSessions.length > 0 && formattedSessions[0]) {
+      if (
+        sessions.length === 0 &&
+        formattedSessions.length > 0 &&
+        formattedSessions[0]
+      ) {
         setCurrentSessionId(formattedSessions[0].sessionId);
       }
     }
@@ -160,171 +164,24 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
   };
 
   // 处理流式消息的函数
-  const handleStreamQuery = async (query: string, workspaceId: string) => {
-    if (!query.trim()) return;
-
-    setIsLoading(true);
-
-    // 添加用户消息和助手消息容器（使用一次更新）
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", content: query },
+  const subscription = api.agent.query.useSubscription(
+      { query: inputMessage, workspaceId: workspaceId ?? "", sessionId: currentSessionId ?? undefined },
       {
-        role: "assistant",
-        content: [], // 初始为空数组，用于收集流式内容
+        onData(message) {
+          // 处理接收到的消息
+          console.log("Received message:", message);
+        },
+        onError(err) {
+          console.error("Subscription error:", err);
+          resetLoadingState();
+        },
+        onComplete() {
+          console.log("Subscription complete");
+          resetLoadingState();
+          void onAgentComplete?.();
+        },
       },
-    ]);
-
-    try {
-      const response = await fetch("/api/agent/stream", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          query,
-          workspaceId,
-          sessionId: currentSessionId ?? undefined,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to start stream");
-      }
-
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let sessionId: string | null = null;
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split("\n");
-
-          for (const line of lines) {
-            if (line.startsWith("data: ")) {
-              try {
-                const data = JSON.parse(line.slice(6)) as StreamData;
-
-                switch (data.type) {
-                  case "request_id":
-                    // 设置当前请求 ID，用于终止功能
-                    if (data.requestId) {
-                      setCurrentRequestId(data.requestId);
-                    }
-                    break;
-
-                  case "session_id":
-                    sessionId = data.sessionId ?? null;
-                    // 如果是新会话，更新当前会话ID
-                    if (sessionId && !currentSessionId) {
-                      setCurrentSessionId(sessionId);
-                    }
-                    break;
-
-                  case "message":
-                    // 直接添加内容，不做去重
-                    // SDK 会为同一个 messageId 多次返回不同的 content，这是正常行为
-
-                    const content = data.content;
-                    if (!content) break;
-
-                    // 更新最后一条助手消息 - 使用不可变更新
-                    setMessages((prev) => {
-                      const newMessages = [...prev];
-                      const lastIndex = newMessages.length - 1;
-                      const lastMessage = newMessages[lastIndex];
-
-                      if (lastMessage?.role === "assistant") {
-                        // 创建新的内容数组，而不是修改原数组
-                        if (Array.isArray(lastMessage.content)) {
-                          newMessages[lastIndex] = {
-                            ...lastMessage,
-                            content: [...lastMessage.content, content],
-                          };
-
-                          // 调试：输出流式接收到的内容块
-                          if (process.env.NODE_ENV === "development") {
-                            const contentAsRecord =
-                              content as unknown as Record<string, unknown>;
-                            console.log(
-                              "[Stream Debug] Received ContentBlock:",
-                              {
-                                type: contentAsRecord.type,
-                                hasText: !!contentAsRecord.text,
-                                hasName: !!contentAsRecord.name,
-                                contentKeys: Object.keys(content),
-                              },
-                            );
-                          }
-                        } else {
-                          newMessages[lastIndex] = {
-                            ...lastMessage,
-                            content: [content],
-                          };
-                        }
-                      } else {
-                        // 最后一条消息不是 assistant 消息，忽略
-                      }
-
-                      return newMessages;
-                    });
-                    break;
-
-                  case "done":
-                  case "error":
-                    // 流完成或出错，清理请求 ID
-                    setCurrentRequestId(null);
-                    if (data.error) {
-                      throw new Error(data.error);
-                    }
-                    break;
-                }
-              } catch {
-                // 解析错误，忽略
-              }
-            }
-          }
-        }
-      }
-
-      // 刷新 sessions 列表
-      setTimeout(() => {
-        void refetchSessions();
-      }, 500);
-
-      // Agent操作完成后，调用刷新回调
-      if (onAgentComplete) {
-        try {
-          await onAgentComplete();
-        } catch {
-          // 刷新失败，忽略
-        }
-      }
-    } catch {
-      // 添加错误消息
-      setMessages((prev) => [
-        ...prev.slice(0, -1), // 移除空的助手消息
-        {
-          role: "assistant",
-          content: "抱歉，处理您的请求时出现了错误。请稍后再试。",
-        },
-      ]);
-
-      // 即使出错也尝试刷新
-      if (onAgentComplete) {
-        try {
-          await onAgentComplete();
-        } catch {
-          // 刷新失败，忽略
-        }
-      }
-    } finally {
-      resetLoadingState();
-    }
+    );
   };
 
   const handleSendMessage = async () => {
