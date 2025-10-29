@@ -134,6 +134,14 @@ export const agentRouter = createTRPCRouter({
               permissionMode: 'bypassPermissions',
               resume: input.sessionId ?? undefined,
               cwd, // 设置工作目录
+              systemPrompt: {
+                type: "preset",
+                preset: "claude_code",
+                append:
+                  ` - 始终在workspace目录下操作，严格遵守文件读写权限，不要尝试访问未授权的文件或目录。
+                    - workspace目录是你能够访问的唯一文件系统位置。
+                    - 禁止在非workspace目录下读写文件。`,
+              },
             }
           })) {
             // 获取 session ID
