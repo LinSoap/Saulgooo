@@ -453,6 +453,17 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
                 );
               });
             })()}
+            {/* AI正在回复的提示显示在回复内容底部 */}
+            {isLoading && (
+              <div className="flex justify-start">
+                <div className="mr-auto max-w-[85%] rounded-lg p-3">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="text-primary h-4 w-4 animate-spin" />
+                    <p className="text-muted-foreground text-sm">AI 正在思考中...</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </ScrollArea>
@@ -485,9 +496,6 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
             )}
           </Button>
         </div>
-        {isLoading && (
-          <p className="text-muted-foreground mt-2 text-sm">AI 正在思考中...</p>
-        )}
       </div>
     </div>
   );
