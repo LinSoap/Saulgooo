@@ -49,6 +49,7 @@ export const agentRouter = createTRPCRouter({
         throw new Error("Session not found");
       }
 
+      // 直接返回，保持原始数据结构
       return session;
     }),
 

@@ -241,6 +241,21 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
                             ...lastMessage,
                             content: [...lastMessage.content, content],
                           };
+
+                          // 调试：输出流式接收到的内容块
+                          if (process.env.NODE_ENV === "development") {
+                            const contentAsRecord =
+                              content as unknown as Record<string, unknown>;
+                            console.log(
+                              "[Stream Debug] Received ContentBlock:",
+                              {
+                                type: contentAsRecord.type,
+                                hasText: !!contentAsRecord.text,
+                                hasName: !!contentAsRecord.name,
+                                contentKeys: Object.keys(content),
+                              },
+                            );
+                          }
                         } else {
                           newMessages[lastIndex] = {
                             ...lastMessage,
@@ -332,9 +347,33 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
   useEffect(() => {
     if (sessionData?.messages && sessionData.sessionId === currentSessionId) {
       const messagesData = sessionData.messages as unknown as Message[];
+
+      // 调试：详细输出从数据库读取的消息格式
       if (process.env.NODE_ENV === "development") {
-        console.debug("[AgentChat] Loaded messages from DB:", messagesData);
+        console.log("[DB Debug] Loading messages from database:");
+        messagesData.forEach((msg, idx) => {
+          console.log(`[DB Debug] Message ${idx}:`, {
+            role: msg.role,
+            contentType: Array.isArray(msg.content)
+              ? "ContentBlock[]"
+              : typeof msg.content,
+            contentPreview: Array.isArray(msg.content)
+              ? msg.content.map((c: unknown) => {
+                  const contentBlock = c as Record<string, unknown>;
+                  return {
+                    type: contentBlock.type,
+                    hasText: !!contentBlock.text,
+                    hasName: !!contentBlock.name,
+                    textPreview: contentBlock.text
+                      ? (contentBlock.text as string).substring(0, 50) + "..."
+                      : null,
+                  };
+                })
+              : msg.content,
+          });
+        });
       }
+
       setMessages(Array.isArray(messagesData) ? messagesData : []);
     }
   }, [sessionData, currentSessionId]);
@@ -497,7 +536,11 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
                         <p className="text-sm whitespace-pre-wrap">
                           {typeof message.content === "string"
                             ? message.content
-                            : ""}
+                            : Array.isArray(message.content) &&
+                                message.content.length > 0 &&
+                                message.content[0]?.type === "text"
+                              ? message.content[0].text
+                              : ""}
                         </p>
                       )}
                     </div>

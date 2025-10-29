@@ -135,6 +135,31 @@ function ToolCall({ tool }: { tool: ContentItem }) {
 }
 
 export function MessageRenderer({ message }: MessageRendererProps) {
+  // 调试：输出 MessageRenderer 收到的消息格式
+  if (process.env.NODE_ENV === "development") {
+    console.log("[Renderer Debug] MessageRenderer received:", {
+      role: message.role,
+      contentType: Array.isArray(message.content)
+        ? "ContentBlock[]"
+        : typeof message.content,
+      contentLength: Array.isArray(message.content)
+        ? message.content.length
+        : 1,
+      contentPreview: Array.isArray(message.content)
+        ? message.content.map((c) => {
+            const block = c as unknown as Record<string, unknown>;
+            return {
+              index: 0,
+              type: block.type,
+              hasText: !!block.text,
+              hasName: !!block.name,
+              isTool: block.type === "tool_use",
+            };
+          })
+        : null,
+    });
+  }
+
   // 渲染消息内容的辅助函数
   const renderMessageContent = () => {
     // 如果是普通字符串消息
@@ -152,7 +177,10 @@ export function MessageRenderer({ message }: MessageRendererProps) {
       let lastItemWasTool = false;
 
       message.content.forEach((item, index) => {
-        if (item.type === "text") {
+        // 确保 item 有正确的类型
+        const contentBlock = item as unknown as Record<string, unknown>;
+
+        if (contentBlock.type === "text") {
           // 如果上一个项目是工具调用，添加分隔线
           if (lastItemWasTool && elements.length > 0) {
             elements.push(
@@ -164,11 +192,11 @@ export function MessageRenderer({ message }: MessageRendererProps) {
           }
           elements.push(
             <div key={index} className="prose prose-sm max-w-none">
-              <MarkdownPreview content={item.text || ""} />
+              <MarkdownPreview content={(contentBlock.text as string) ?? ""} />
             </div>,
           );
           lastItemWasTool = false;
-        } else if (item.type === "tool_use") {
+        } else if (contentBlock.type === "tool_use") {
           elements.push(<ToolCall key={index} tool={item} />);
           lastItemWasTool = true;
         }
@@ -183,13 +211,13 @@ export function MessageRenderer({ message }: MessageRendererProps) {
       message.content !== null &&
       !Array.isArray(message.content)
     ) {
-      const contentBlock = message.content as ContentItem;
+      const contentBlock = message.content;
 
       if (contentBlock.type === "text") {
         // 处理文本块
         return (
           <div className="prose prose-sm max-w-none">
-            <MarkdownPreview content={contentBlock.text || ""} />
+            <MarkdownPreview content={contentBlock.text ?? ""} />
           </div>
         );
       } else if (contentBlock.type === "tool_use") {

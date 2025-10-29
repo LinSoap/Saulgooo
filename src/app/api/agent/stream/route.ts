@@ -8,8 +8,9 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import type { Prisma } from '@prisma/client';
 
+// 定义消息类型
 interface StoredMessage {
-  role: "user" | "assistant";
+  role: 'user' | 'assistant';
   content: string | ContentBlock | ContentBlock[];
   timestamp: string;
 }
@@ -17,18 +18,37 @@ interface StoredMessage {
 // 全局存储活跃的查询会话
 const activeQueries = new Map<string, Query>();
 
-// 将消息转换为 Prisma JsonValue 格式
+// 将消息转换为 Prisma JsonValue 格式，保留完整的 ContentBlock 结构
 const toPrismaJson = (messages: StoredMessage[]): Prisma.InputJsonValue => {
-  return messages.map(msg => ({
-    role: msg.role,
-    content: msg.content,
-    timestamp: msg.timestamp
-  })) as Prisma.InputJsonValue;
+  const result = messages.map((msg) => {
+    // 调试：输出要存储的消息格式
+    if (process.env.NODE_ENV === "development") {
+      console.log("[Storage Debug] Storing message:", {
+        role: msg.role,
+        contentType: Array.isArray(msg.content) ? 'ContentBlock[]' : typeof msg.content,
+        contentPreview: Array.isArray(msg.content)
+          ? msg.content.map((c) => {
+            const block = c as unknown as Record<string, unknown>;
+            return { type: block.type, hasText: !!block.text, hasName: !!block.name };
+          })
+          : msg.content
+      });
+    }
+
+    return {
+      role: msg.role,
+      content: msg.content,  // 直接存储，不做转换，保持原始结构
+      timestamp: msg.timestamp
+    };
+  });
+
+  return result as Prisma.InputJsonValue;
 };
 
 // 简化的消息存储类 - 在内存中累积消息，批量保存
 class MessageStorage {
   private messages: StoredMessage[] = [];
+  private currentAssistantContent: ContentBlock[] = [];
 
   constructor(
     private sessionId: string,
@@ -37,11 +57,35 @@ class MessageStorage {
   ) { }
 
   addMessage(role: 'user' | 'assistant', content: string | ContentBlock | ContentBlock[]) {
-    this.messages.push({
-      role,
-      content,
-      timestamp: new Date().toISOString()
-    });
+    if (role === 'user') {
+      // 用户消息直接添加
+      this.messages.push({
+        role,
+        content,  // 保持原始格式
+        timestamp: new Date().toISOString()
+      });
+    } else if (role === 'assistant') {
+      // 助手消息需要累积 ContentBlock
+      if (Array.isArray(content)) {
+        // 如果是数组，添加到累积的 ContentBlock 列表
+        this.currentAssistantContent.push(...content);
+      } else {
+        // 单个 ContentBlock，添加到累积列表
+        this.currentAssistantContent.push(content as ContentBlock);
+      }
+    }
+  }
+
+  // 完成助手消息时调用
+  finalizeAssistantMessage() {
+    if (this.currentAssistantContent.length > 0) {
+      this.messages.push({
+        role: 'assistant',
+        content: this.currentAssistantContent,  // 存储为 ContentBlock 数组
+        timestamp: new Date().toISOString()
+      });
+      this.currentAssistantContent = [];  // 清空累积的内容
+    }
   }
 
   async saveToDatabase(title?: string) {
@@ -71,8 +115,9 @@ class MessageStorage {
         select: { messages: true }
       });
 
+      // 直接使用现有消息，不做转换
       const existingMessages = Array.isArray(session?.messages)
-        ? (session.messages as unknown) as StoredMessage[]
+        ? (session.messages as unknown as StoredMessage[])
         : [];
 
       await db.agentSession.update({
@@ -211,8 +256,8 @@ export async function POST(request: NextRequest) {
                 workspaceId
               );
 
-              // 保存用户消息
-              messageStorage.addMessage('user', userQuery);
+              // 保存用户消息，使用 ContentBlock 格式保持一致性
+              messageStorage.addMessage('user', [{ type: "text", text: userQuery, citations: [] } as ContentBlock]);
 
               // 如果是新会话，立即保存用户消息
               if (!sessionId) {
@@ -249,10 +294,10 @@ export async function POST(request: NextRequest) {
                       })}\n\n`
                     )
                   );
-
-                  // 添加到消息存储
-                  messageStorage.addMessage('assistant', item as ContentBlock);
                 }
+
+                // 将整个 ContentBlock 数累积到存储中
+                messageStorage.addMessage('assistant', content as ContentBlock[]);
               } else {
                 // 发送单个内容
                 controller.enqueue(
@@ -265,14 +310,16 @@ export async function POST(request: NextRequest) {
                   )
                 );
 
-                // 添加到消息存储
-                messageStorage.addMessage('assistant', content as ContentBlock);
+                // 将单个 ContentBlock 包装成数组累积到存储中
+                messageStorage.addMessage('assistant', [content as ContentBlock]);
               }
             }
           }
 
           // 保存所有累积的消息
           if (messageStorage) {
+            // 在保存前，完成当前助手消息的累积
+            messageStorage.finalizeAssistantMessage();
             await messageStorage.saveToDatabase();
           }
 
