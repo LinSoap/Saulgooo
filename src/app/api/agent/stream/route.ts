@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { auth } from '~/server/auth';
 import { db } from '~/server/db';
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import { query, type Query } from '@anthropic-ai/claude-agent-sdk';
 import type { ContentBlock } from '@anthropic-ai/sdk/resources/messages';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -14,6 +14,9 @@ interface StoredMessage {
   timestamp: string;
 }
 
+// 全局存储活跃的查询会话
+const activeQueries = new Map<string, Query>();
+
 // 将消息转换为 Prisma JsonValue 格式
 const toPrismaJson = (messages: StoredMessage[]): Prisma.InputJsonValue => {
   return messages.map(msg => ({
@@ -23,71 +26,66 @@ const toPrismaJson = (messages: StoredMessage[]): Prisma.InputJsonValue => {
   })) as Prisma.InputJsonValue;
 };
 
-// 保存单个消息到数据库
-async function saveMessageToDatabase(
-  sessionId: string,
-  userId: string,
-  workspaceId: string,
-  role: 'user' | 'assistant',
-  content: string | ContentBlock | ContentBlock[],
-  isNewSession: boolean = false,
-  title?: string
-) {
-  const messageData: StoredMessage = {
-    role,
-    content,
-    timestamp: new Date().toISOString()
-  };
+// 简化的消息存储类 - 在内存中累积消息，批量保存
+class MessageStorage {
+  private messages: StoredMessage[] = [];
 
-  if (isNewSession && title) {
-    // 创建新会话并添加第一条消息
-    await db.agentSession.create({
-      data: {
-        workspaceId,
-        userId,
-        title,
-        sessionId,
-        messages: toPrismaJson([messageData]),
-      }
+  constructor(
+    private sessionId: string,
+    private userId: string,
+    private workspaceId: string
+  ) { }
+
+  addMessage(role: 'user' | 'assistant', content: string | ContentBlock | ContentBlock[]) {
+    this.messages.push({
+      role,
+      content,
+      timestamp: new Date().toISOString()
     });
-  } else {
-    // 更新现有会话，添加新消息
+  }
+
+  async saveToDatabase(title?: string) {
+    if (this.messages.length === 0) return;
+
+    // 检查是否是新会话
     const existingSession = await db.agentSession.findUnique({
-      where: { sessionId },
-      select: { messages: true }
+      where: { sessionId: this.sessionId },
+      select: { sessionId: true }
     });
 
-    if (existingSession && existingSession.messages) {
-      const existingMessages: StoredMessage[] = Array.isArray(existingSession.messages)
-        ? existingSession.messages
-          .filter((msg): msg is Prisma.JsonObject => {
-            if (!msg || typeof msg !== 'object') return false;
-            const messageObj = msg as Record<string, unknown>;
-            return (
-              'role' in messageObj &&
-              'content' in messageObj &&
-              'timestamp' in messageObj &&
-              (messageObj.role === 'user' || messageObj.role === 'assistant')
-            );
-          })
-          .map((msg) => {
-            const messageObj = msg as Record<string, unknown>;
-            return {
-              role: messageObj.role as "user" | "assistant",
-              content: messageObj.content as string | ContentBlock | ContentBlock[],
-              timestamp: messageObj.timestamp as string
-            };
-          })
+    if (!existingSession && title) {
+      // 创建新会话
+      await db.agentSession.create({
+        data: {
+          workspaceId: this.workspaceId,
+          userId: this.userId,
+          title,
+          sessionId: this.sessionId,
+          messages: toPrismaJson(this.messages),
+        }
+      });
+    } else if (existingSession) {
+      // 获取现有消息并追加新消息
+      const session = await db.agentSession.findUnique({
+        where: { sessionId: this.sessionId },
+        select: { messages: true }
+      });
+
+      const existingMessages = Array.isArray(session?.messages)
+        ? (session.messages as unknown) as StoredMessage[]
         : [];
 
       await db.agentSession.update({
-        where: { sessionId },
+        where: { sessionId: this.sessionId },
         data: {
-          messages: toPrismaJson([...existingMessages, messageData]),
+          messages: toPrismaJson([...existingMessages, ...this.messages]),
           updatedAt: new Date()
         }
       });
     }
+
+    // 清空已保存的消息
+    this.messages = [];
   }
 }
 
@@ -104,8 +102,32 @@ export async function POST(request: NextRequest) {
       query?: string;
       workspaceId?: string;
       sessionId?: string;
+      action?: 'start' | 'stop';
+      requestId?: string;
     };
-    const { query: userQuery, workspaceId, sessionId } = body;
+    const { query: userQuery, workspaceId, sessionId, action = 'start', requestId } = body;
+
+    // 处理终止请求
+    if (action === 'stop' && requestId) {
+      const queryInstance = activeQueries.get(requestId);
+      if (queryInstance) {
+        try {
+          await queryInstance.interrupt();
+          activeQueries.delete(requestId);
+          return NextResponse.json({ success: true, message: 'Query interrupted' });
+        } catch (error) {
+          return NextResponse.json(
+            { error: 'Failed to interrupt query', details: error instanceof Error ? error.message : 'Unknown error' },
+            { status: 500 }
+          );
+        }
+      } else {
+        return NextResponse.json(
+          { error: 'Query not found or already completed' },
+          { status: 404 }
+        );
+      }
+    }
 
     if (!userQuery || !workspaceId) {
       return NextResponse.json(
@@ -115,33 +137,38 @@ export async function POST(request: NextRequest) {
     }
 
     // 获取工作路径
-    let cwd = process.cwd();
-    if (workspaceId) {
-      const workspace = await db.workspace.findUnique({
-        where: { id: workspaceId },
-        select: { path: true },
-      });
+    const workspace = await db.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { path: true },
+    });
 
-      if (workspace?.path) {
-        cwd = join(homedir(), 'workspaces', workspace.path);
-      } else {
-        return NextResponse.json(
-          { error: '工作区路径未配置' },
-          { status: 400 }
-        );
-      }
+    if (!workspace?.path) {
+      return NextResponse.json(
+        { error: '工作区路径未配置' },
+        { status: 400 }
+      );
     }
+
+    const cwd = join(homedir(), 'workspaces', workspace.path);
 
     // 创建 SSE 响应
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
         let claudeSessionId: string | undefined = sessionId;
-        let userMessageSaved = false;
+        let messageStorage: MessageStorage | null = null;
+
+        // 生成唯一的请求 ID
+        const currentRequestId = requestId || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+        // 清理函数
+        const cleanup = () => {
+          activeQueries.delete(currentRequestId);
+        };
 
         try {
           // 使用 Agent SDK 的 query 方法
-          for await (const message of query({
+          const queryInstance = query({
             prompt: userQuery,
             options: {
               maxTurns: 10,
@@ -157,27 +184,42 @@ export async function POST(request: NextRequest) {
                     - 禁止在非workspace目录下读写文件。`,
               },
             }
-          })) {
-            // 获取 session ID 并保存用户消息
+          });
+
+          // 存储查询实例以供终止使用
+          activeQueries.set(currentRequestId, queryInstance);
+
+          // 发送请求 ID
+          controller.enqueue(
+            encoder.encode(
+              `data: ${JSON.stringify({
+                type: 'request_id',
+                requestId: currentRequestId
+              })}\n\n`
+            )
+          );
+
+          for await (const message of queryInstance) {
+            // 获取 session ID 并初始化消息存储
             if (message.type === 'system' && message.subtype === 'init' && message.session_id) {
               claudeSessionId = message.session_id;
 
-              // 保存用户消息（只保存一次）
-              if (!userMessageSaved) {
+              // 初始化消息存储
+              messageStorage = new MessageStorage(
+                claudeSessionId,
+                session.user.id,
+                workspaceId
+              );
+
+              // 保存用户消息
+              messageStorage.addMessage('user', userQuery);
+
+              // 如果是新会话，立即保存用户消息
+              if (!sessionId) {
                 const title = userQuery.length > 20
                   ? userQuery.substring(0, 20) + "..."
                   : userQuery;
-
-                await saveMessageToDatabase(
-                  claudeSessionId,
-                  session.user.id,
-                  workspaceId,
-                  'user',
-                  userQuery,
-                  !sessionId, // 如果没有 sessionId，就是新会话
-                  title
-                );
-                userMessageSaved = true;
+                await messageStorage.saveToDatabase(title);
               }
 
               // 发送 session ID
@@ -191,12 +233,12 @@ export async function POST(request: NextRequest) {
               );
             }
 
-            // 处理助手消息 - 立即保存到数据库
-            if (message.type === 'assistant' && message.message?.content) {
+            // 处理助手消息
+            if (message.type === 'assistant' && message.message?.content && messageStorage) {
               const content = message.message.content;
 
               if (Array.isArray(content)) {
-                // 发送并保存数组中的每个内容
+                // 发送数组中的每个内容
                 for (const item of content) {
                   controller.enqueue(
                     encoder.encode(
@@ -208,17 +250,11 @@ export async function POST(request: NextRequest) {
                     )
                   );
 
-                  // 立即保存到数据库
-                  await saveMessageToDatabase(
-                    claudeSessionId!,
-                    session.user.id,
-                    workspaceId,
-                    'assistant',
-                    item as ContentBlock
-                  );
+                  // 添加到消息存储
+                  messageStorage.addMessage('assistant', item as ContentBlock);
                 }
               } else {
-                // 发送并保存单个内容
+                // 发送单个内容
                 controller.enqueue(
                   encoder.encode(
                     `data: ${JSON.stringify({
@@ -229,16 +265,15 @@ export async function POST(request: NextRequest) {
                   )
                 );
 
-                // 立即保存到数据库
-                await saveMessageToDatabase(
-                  claudeSessionId!,
-                  session.user.id,
-                  workspaceId,
-                  'assistant',
-                  content as ContentBlock
-                );
+                // 添加到消息存储
+                messageStorage.addMessage('assistant', content as ContentBlock);
               }
             }
+          }
+
+          // 保存所有累积的消息
+          if (messageStorage) {
+            await messageStorage.saveToDatabase();
           }
 
           // 发送完成信号
@@ -250,8 +285,19 @@ export async function POST(request: NextRequest) {
             )
           );
 
+          cleanup();
           controller.close();
         } catch (error) {
+          // 即使出错也要保存已有的消息
+          if (messageStorage) {
+            try {
+              await messageStorage.saveToDatabase();
+            } catch {
+              // 保存失败，忽略
+            }
+          }
+
+          cleanup();
           controller.enqueue(
             encoder.encode(
               `data: ${JSON.stringify({

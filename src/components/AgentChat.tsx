@@ -18,6 +18,7 @@ import {
   MessageSquarePlus,
   History,
   Trash2,
+  Square,
 } from "lucide-react";
 import { api } from "~/trpc/react";
 import { MessageRenderer } from "~/components/MessageRenderer";
@@ -30,10 +31,11 @@ interface Message {
 }
 
 interface StreamData {
-  type: "session_id" | "message" | "error";
+  type: "session_id" | "message" | "error" | "request_id" | "done";
   sessionId?: string;
   content?: ContentBlock;
   error?: string;
+  requestId?: string;
 }
 
 interface Session {
@@ -54,7 +56,13 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [isSending, setIsSending] = useState(false); // 是否正在发送消息
+  const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
+
+  // 重置加载状态
+  const resetLoadingState = () => {
+    setIsLoading(false);
+    setCurrentRequestId(null);
+  };
 
   // 获取 sessions 列表
   const { data: sessionsData, refetch: refetchSessions } =
@@ -68,7 +76,7 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
     api.agent.getSession.useQuery(
       { sessionId: currentSessionId ?? "" },
       {
-        enabled: !!currentSessionId && !isSending, // 发送消息时不查询
+        enabled: !!currentSessionId && !isLoading, // 发送消息时不查询
         retry: false,
       },
     );
@@ -98,12 +106,60 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
     }
   }, [sessionsData]);
 
+  // 终止当前查询
+  const handleStopQuery = async () => {
+    if (currentRequestId) {
+      try {
+        await fetch("/api/agent/stream", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action: "stop",
+            requestId: currentRequestId,
+          }),
+        });
+      } catch (error) {
+        console.error("Failed to stop query:", error);
+      }
+    }
+
+    // 无论是否有 requestId 或请求是否成功，都重置状态
+    resetLoadingState();
+
+    // 添加终止提示消息
+    setMessages((prev) => {
+      const lastMessage = prev[prev.length - 1];
+      if (lastMessage?.role === "assistant") {
+        const existingContent = Array.isArray(lastMessage.content)
+          ? lastMessage.content
+          : [{ type: "text", text: lastMessage.content as string }];
+
+        return [
+          ...prev.slice(0, -1),
+          {
+            ...lastMessage,
+            content: [
+              ...existingContent,
+              {
+                type: "text",
+                text: "\n\n*[对话已被用户终止]*",
+                citations: null,
+              },
+            ] as ContentBlock[],
+          },
+        ];
+      }
+      return prev;
+    });
+  };
+
   // 处理流式消息的函数
   const handleStreamQuery = async (query: string, workspaceId: string) => {
     if (!query.trim()) return;
 
     setIsLoading(true);
-    setIsSending(true); // 标记正在发送消息
 
     // 添加用户消息和助手消息容器（使用一次更新）
     setMessages((prev) => [
@@ -150,6 +206,13 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
                 const data = JSON.parse(line.slice(6)) as StreamData;
 
                 switch (data.type) {
+                  case "request_id":
+                    // 设置当前请求 ID，用于终止功能
+                    if (data.requestId) {
+                      setCurrentRequestId(data.requestId);
+                    }
+                    break;
+
                   case "session_id":
                     sessionId = data.sessionId ?? null;
                     // 如果是新会话，更新当前会话ID
@@ -192,7 +255,10 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
                     });
                     break;
 
+                  case "done":
                   case "error":
+                    // 流完成或出错，清理请求 ID
+                    setCurrentRequestId(null);
                     if (data.error) {
                       throw new Error(data.error);
                     }
@@ -238,19 +304,16 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
         }
       }
     } finally {
-      setIsLoading(false);
-      setIsSending(false); // 重置发送状态
+      resetLoadingState();
     }
   };
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading || !workspaceId) return;
 
-    const userMessage = inputMessage;
+    const query = inputMessage.trim();
     setInputMessage("");
-
-    // 调用流式查询
-    await handleStreamQuery(userMessage, workspaceId);
+    await handleStreamQuery(query, workspaceId);
   };
 
   // 开始新对话
@@ -268,22 +331,8 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
   // 加载历史消息
   useEffect(() => {
     if (sessionData?.messages && sessionData.sessionId === currentSessionId) {
-      // 将 JsonValue 类型转换为 Message 数组
-      const messagesData = sessionData.messages as unknown;
-      if (Array.isArray(messagesData)) {
-        const messages: Message[] = messagesData.filter(
-          (msg): msg is Message => {
-            if (!msg || typeof msg !== "object") return false;
-            const messageObj = msg as Record<string, unknown>;
-            return (
-              "role" in messageObj &&
-              "content" in messageObj &&
-              (messageObj.role === "user" || messageObj.role === "assistant")
-            );
-          },
-        );
-        setMessages(messages);
-      }
+      const messagesData = sessionData.messages as unknown as Message[];
+      setMessages(Array.isArray(messagesData) ? messagesData : []);
     }
   }, [sessionData, currentSessionId]);
 
@@ -459,7 +508,9 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
                 <div className="mr-auto max-w-[85%] rounded-lg p-3">
                   <div className="flex items-center gap-2">
                     <Loader2 className="text-primary h-4 w-4 animate-spin" />
-                    <p className="text-muted-foreground text-sm">AI 正在思考中...</p>
+                    <p className="text-muted-foreground text-sm">
+                      AI 正在思考中...
+                    </p>
                   </div>
                 </div>
               </div>
@@ -485,12 +536,13 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
             className="flex-1"
           />
           <Button
-            onClick={handleSendMessage}
-            disabled={!inputMessage.trim() || isLoading}
+            onClick={isLoading ? handleStopQuery : handleSendMessage}
+            disabled={!isLoading && !inputMessage.trim()}
             size="icon"
+            variant={isLoading ? "destructive" : "default"}
           >
             {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Square className="h-4 w-4" />
             ) : (
               <Send className="h-4 w-4" />
             )}
