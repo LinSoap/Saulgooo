@@ -8,11 +8,9 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import type { Prisma } from '@prisma/client';
 
-type ContentItem = ContentBlock;
-
 interface StoredMessage {
   role: "user" | "assistant";
-  content: string | ContentItem[];
+  content: string | ContentBlock | ContentBlock[];
   timestamp: string;
 }
 
@@ -24,6 +22,74 @@ const toPrismaJson = (messages: StoredMessage[]): Prisma.InputJsonValue => {
     timestamp: msg.timestamp
   })) as Prisma.InputJsonValue;
 };
+
+// 保存单个消息到数据库
+async function saveMessageToDatabase(
+  sessionId: string,
+  userId: string,
+  workspaceId: string,
+  role: 'user' | 'assistant',
+  content: string | ContentBlock | ContentBlock[],
+  isNewSession: boolean = false,
+  title?: string
+) {
+  const messageData: StoredMessage = {
+    role,
+    content,
+    timestamp: new Date().toISOString()
+  };
+
+  if (isNewSession && title) {
+    // 创建新会话并添加第一条消息
+    await db.agentSession.create({
+      data: {
+        workspaceId,
+        userId,
+        title,
+        sessionId,
+        messages: toPrismaJson([messageData]),
+      }
+    });
+  } else {
+    // 更新现有会话，添加新消息
+    const existingSession = await db.agentSession.findUnique({
+      where: { sessionId },
+      select: { messages: true }
+    });
+
+    if (existingSession && existingSession.messages) {
+      const existingMessages: StoredMessage[] = Array.isArray(existingSession.messages)
+        ? existingSession.messages
+          .filter((msg): msg is Prisma.JsonObject => {
+            if (!msg || typeof msg !== 'object') return false;
+            const messageObj = msg as Record<string, unknown>;
+            return (
+              'role' in messageObj &&
+              'content' in messageObj &&
+              'timestamp' in messageObj &&
+              (messageObj.role === 'user' || messageObj.role === 'assistant')
+            );
+          })
+          .map((msg) => {
+            const messageObj = msg as Record<string, unknown>;
+            return {
+              role: messageObj.role as "user" | "assistant",
+              content: messageObj.content as string | ContentBlock | ContentBlock[],
+              timestamp: messageObj.timestamp as string
+            };
+          })
+        : [];
+
+      await db.agentSession.update({
+        where: { sessionId },
+        data: {
+          messages: toPrismaJson([...existingMessages, messageData]),
+          updatedAt: new Date()
+        }
+      });
+    }
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -70,9 +136,8 @@ export async function POST(request: NextRequest) {
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
-        let claudeSessionId: string | undefined;
-        const messageContents: ContentItem[] = [];
-        let finalResult: unknown = null;
+        let claudeSessionId: string | undefined = sessionId;
+        let userMessageSaved = false;
 
         try {
           // 使用 Agent SDK 的 query 方法
@@ -83,11 +148,38 @@ export async function POST(request: NextRequest) {
               permissionMode: 'bypassPermissions',
               resume: sessionId ?? undefined,
               cwd,
+              systemPrompt: {
+                type: "preset",
+                preset: "claude_code",
+                append:
+                  ` - 始终在workspace目录下操作，严格遵守文件读写权限，不要尝试访问未授权的文件或目录。
+                    - workspace目录是你能够访问的唯一文件系统位置。
+                    - 禁止在非workspace目录下读写文件。`,
+              },
             }
           })) {
-            // 获取 session ID
+            // 获取 session ID 并保存用户消息
             if (message.type === 'system' && message.subtype === 'init' && message.session_id) {
               claudeSessionId = message.session_id;
+
+              // 保存用户消息（只保存一次）
+              if (!userMessageSaved) {
+                const title = userQuery.length > 20
+                  ? userQuery.substring(0, 20) + "..."
+                  : userQuery;
+
+                await saveMessageToDatabase(
+                  claudeSessionId,
+                  session.user.id,
+                  workspaceId,
+                  'user',
+                  userQuery,
+                  !sessionId, // 如果没有 sessionId，就是新会话
+                  title
+                );
+                userMessageSaved = true;
+              }
+
               // 发送 session ID
               controller.enqueue(
                 encoder.encode(
@@ -99,123 +191,52 @@ export async function POST(request: NextRequest) {
               );
             }
 
-            // 处理助手消息
+            // 处理助手消息 - 立即保存到数据库
             if (message.type === 'assistant' && message.message?.content) {
               const content = message.message.content;
 
-
               if (Array.isArray(content)) {
-                // 发送数组中的每个内容
+                // 发送并保存数组中的每个内容
                 for (const item of content) {
                   controller.enqueue(
                     encoder.encode(
                       `data: ${JSON.stringify({
                         type: 'message',
                         content: item,
-                        messageId: message.message.id // 添加消息 ID
+                        messageId: message.message.id
                       })}\n\n`
                     )
                   );
-                  messageContents.push(item as ContentItem);
+
+                  // 立即保存到数据库
+                  await saveMessageToDatabase(
+                    claudeSessionId!,
+                    session.user.id,
+                    workspaceId,
+                    'assistant',
+                    item as ContentBlock
+                  );
                 }
               } else {
-                // 发送单个内容
+                // 发送并保存单个内容
                 controller.enqueue(
                   encoder.encode(
                     `data: ${JSON.stringify({
                       type: 'message',
                       content: content,
-                      messageId: message.message.id // 添加消息 ID
+                      messageId: message.message.id
                     })}\n\n`
                   )
                 );
-                messageContents.push(content as ContentItem);
-              }
-            }
 
-            // 获取最终结果
-            if (message.type === 'result' && message.subtype === 'success' && message.result) {
-              finalResult = message.result;
-              const resultString = typeof finalResult === 'string'
-                ? finalResult
-                : JSON.stringify(finalResult);
-
-              // 将最终结果添加到消息内容中，但不单独发送
-              messageContents.push({
-                type: 'text',
-                text: resultString,
-                citations: null
-              } as ContentItem);
-            }
-          }
-
-          // 保存到数据库
-          if (claudeSessionId) {
-            const messagesToSave: StoredMessage[] = [
-              {
-                role: 'user' as const,
-                content: userQuery,
-                timestamp: new Date().toISOString()
-              },
-              ...(messageContents.length > 0 ? [{
-                role: 'assistant' as const,
-                content: messageContents,
-                timestamp: new Date().toISOString()
-              }] : [])
-            ];
-
-            if (!sessionId) {
-              // 创建新会话
-              const title = userQuery.length > 20
-                ? userQuery.substring(0, 20) + "..."
-                : userQuery;
-
-              await db.agentSession.create({
-                data: {
+                // 立即保存到数据库
+                await saveMessageToDatabase(
+                  claudeSessionId!,
+                  session.user.id,
                   workspaceId,
-                  userId: session.user.id,
-                  title,
-                  sessionId: claudeSessionId,
-                  messages: toPrismaJson(messagesToSave),
-                }
-              });
-            } else {
-              // 更新现有会话
-              const existingSession = await db.agentSession.findUnique({
-                where: { sessionId },
-                select: { messages: true }
-              });
-
-              if (existingSession) {
-                const existingMessages: StoredMessage[] = Array.isArray(existingSession.messages)
-                  ? existingSession.messages
-                    .filter((msg): msg is Prisma.JsonObject => {
-                      if (!msg || typeof msg !== 'object') return false;
-                      const messageObj = msg as Record<string, unknown>;
-                      return (
-                        'role' in messageObj &&
-                        'content' in messageObj &&
-                        'timestamp' in messageObj &&
-                        (messageObj.role === 'user' || messageObj.role === 'assistant')
-                      );
-                    })
-                    .map((msg) => {
-                      const messageObj = msg as Record<string, unknown>;
-                      return {
-                        role: messageObj.role as "user" | "assistant",
-                        content: messageObj.content as string | ContentItem[],
-                        timestamp: messageObj.timestamp as string
-                      };
-                    })
-                  : [];
-
-                await db.agentSession.update({
-                  where: { sessionId },
-                  data: {
-                    messages: toPrismaJson([...existingMessages, ...messagesToSave]),
-                    updatedAt: new Date()
-                  }
-                });
+                  'assistant',
+                  content as ContentBlock
+                );
               }
             }
           }

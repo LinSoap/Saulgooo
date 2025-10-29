@@ -7,7 +7,7 @@ import type { ContentBlock } from "@anthropic-ai/sdk/resources/messages";
 
 interface Message {
   role: "user" | "assistant";
-  content: string | ContentBlock[];
+  content: string | ContentBlock | ContentBlock[];
   timestamp?: string;
 }
 
@@ -184,25 +184,24 @@ export function MessageRenderer({ message }: MessageRendererProps) {
       return <>{elements}</>;
     }
 
-    // 这个分支现在不会被执行，因为 content 类型定义更精确了
-    // 保留以防兼容性需要
-    if (typeof message.content === "object" && message.content !== null) {
-      if ((message.content as ContentItem).type === "tool_use") {
-        return <ToolCall tool={message.content as ContentItem} />;
-      }
-    }
+    // 处理单个 ContentBlock 对象
+    if (typeof message.content === "object" && message.content !== null && !Array.isArray(message.content)) {
+      const contentBlock = message.content as ContentItem;
 
-    // 默认情况：尝试转换为字符串并渲染
-    const contentStr = String(message.content);
-    if (contentStr.trim()) {
-      return (
-        <div className="prose prose-sm max-w-none">
-          <MarkdownPreview
-            content={contentStr}
-            className="[&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5 dark:[&_code]:bg-gray-800 [&_h1]:mb-3 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-2 [&_p]:my-2 [&_p]:text-base [&_p]:text-gray-800 dark:[&_p]:text-gray-200 [&_pre]:my-2 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_ul]:my-2"
-          />
-        </div>
-      );
+      if (contentBlock.type === "text") {
+        // 处理文本块
+        return (
+          <div className="prose prose-sm max-w-none">
+            <MarkdownPreview
+              content={contentBlock.text || ""}
+              className="[&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5 dark:[&_code]:bg-gray-800 [&_h1]:mb-3 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:mb-3 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-2 [&_p]:my-2 [&_p]:text-base [&_p]:text-gray-800 dark:[&_p]:text-gray-200 [&_pre]:my-2 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_ul]:my-2"
+            />
+          </div>
+        );
+      } else if (contentBlock.type === "tool_use") {
+        // 处理工具调用
+        return <ToolCall tool={contentBlock} />;
+      }
     }
 
     return null;
