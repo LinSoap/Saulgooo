@@ -26,7 +26,7 @@ import {
 import { api } from "~/trpc/react";
 import { useSession } from "next-auth/react";
 import { FileTreeItem } from "~/components/FileTreeItem";
-import { MarkdownPreview } from "~/components/MarkdownPreview";
+import { MarkdownFileEditorSimple } from "~/components/MarkdownFileEditorSimple";
 import { AgentChat } from "~/components/AgentChat";
 import {
   Dialog,
@@ -371,38 +371,38 @@ function WorkspaceContent({
                       {selectedFile.type === "file" ? (
                         <>
                           {selectedFile.extension === "md" ? (
-                            <div className="p-6">
-                              {isFileLoading ? (
-                                <div className="flex h-64 items-center justify-center">
+                            isFileLoading ? (
+                              <div className="flex h-64 items-center justify-center">
+                                <p className="text-muted-foreground">
+                                  加载中...
+                                </p>
+                              </div>
+                            ) : fileError ? (
+                              <div className="flex h-64 items-center justify-center">
+                                <p className="text-destructive">
+                                  加载文件失败
+                                </p>
+                              </div>
+                            ) : fileContent !== null ? (
+                              <MarkdownFileEditorSimple
+                                workspaceId={workspaceId}
+                                filePath={selectedFile.path}
+                                initialContent={fileContent}
+                                className="h-full"
+                              />
+                            ) : (
+                              <div className="flex h-64 items-center justify-center">
+                                <div className="text-center">
+                                  <File className="text-muted-foreground mx-auto mb-4 h-16 w-16" />
+                                  <h3 className="mb-2 text-xl font-semibold">
+                                    {selectedFile.name}
+                                  </h3>
                                   <p className="text-muted-foreground">
-                                    加载中...
+                                    无法预览此文件类型
                                   </p>
                                 </div>
-                              ) : fileError ? (
-                                <div className="flex h-64 items-center justify-center">
-                                  <p className="text-destructive">
-                                    加载文件失败
-                                  </p>
-                                </div>
-                              ) : fileContent !== null ? (
-                                <MarkdownPreview
-                                  content={fileContent}
-                                  className="max-w-none"
-                                />
-                              ) : (
-                                <div className="flex h-64 items-center justify-center">
-                                  <div className="text-center">
-                                    <File className="text-muted-foreground mx-auto mb-4 h-16 w-16" />
-                                    <h3 className="mb-2 text-xl font-semibold">
-                                      {selectedFile.name}
-                                    </h3>
-                                    <p className="text-muted-foreground">
-                                      无法预览此文件类型
-                                    </p>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
+                              </div>
+                            )
                           ) : (
                             <div className="flex h-full items-center justify-center">
                               <div className="text-center">
