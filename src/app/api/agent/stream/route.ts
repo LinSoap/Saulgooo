@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
         let messageStorage: MessageStorage | null = null;
 
         // 生成唯一的请求 ID
-        const currentRequestId = requestId || `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const currentRequestId = requestId ?? `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
         // 清理函数
         const cleanup = () => {
@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
           const queryInstance = query({
             prompt: userQuery,
             options: {
-              maxTurns: 10,
+              maxTurns: 30,
               permissionMode: 'bypassPermissions',
               resume: sessionId ?? undefined,
               cwd,
