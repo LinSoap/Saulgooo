@@ -82,4 +82,6 @@ export const authConfig = {
   // NEXTAUTH_SECRET from env automatically, but we provide a fallback to AUTH_SECRET
   // to match this project's env naming.
   secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
+  // Configure trust hosts for NextAuth in production
+  trustHost: true,
 } satisfies NextAuthConfig;
