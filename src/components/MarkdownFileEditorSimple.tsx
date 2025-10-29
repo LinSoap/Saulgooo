@@ -73,7 +73,7 @@ export function MarkdownFileEditorSimple({
   const [editor, setEditor] = useState<Editor | null>(null)
   const [hasUnsavedChange, setHasUnsavedChange] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('edit')
+  const [viewMode, setViewMode] = useState<'edit' | 'preview'>('preview')
   const [currentMarkdown, setCurrentMarkdown] = useState(initialContent)
 
   // 更新文件内容的mutation
@@ -166,20 +166,20 @@ export function MarkdownFileEditorSimple({
       <div className="flex items-center justify-between px-4 py-2 border-b">
         <div className="flex items-center gap-2">
           <Button
-            variant={viewMode === 'edit' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('edit')}
-          >
-            <Edit3 className="h-4 w-4 mr-2" />
-            编辑
-          </Button>
-          <Button
             variant={viewMode === 'preview' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setViewMode('preview')}
           >
             <Eye className="h-4 w-4 mr-2" />
             预览
+          </Button>
+          <Button
+            variant={viewMode === 'edit' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('edit')}
+          >
+            <Edit3 className="h-4 w-4 mr-2" />
+            编辑
           </Button>
           {viewMode === 'edit' && (
             <>
