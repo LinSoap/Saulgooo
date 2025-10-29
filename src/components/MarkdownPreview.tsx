@@ -13,10 +13,12 @@ interface MarkdownPreviewProps {
 function MarkdownContent({ content, className }: MarkdownPreviewProps) {
   const cleanContent = content.trim();
 
-  const handleImageDownload = (src: string, alt: string) => {
+  const handleImageDownload = (src: string | Blob | undefined, alt: string | undefined) => {
+    if (typeof src !== 'string' || !src) return;
+    
     const link = document.createElement("a");
     link.href = src;
-    link.download = alt || "image";
+    link.download = alt ?? "image";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -43,8 +45,12 @@ function MarkdownContent({ content, className }: MarkdownPreviewProps) {
             return <p {...props}>{children}</p>;
           },
           // 图片组件，包含原始的样式和下载功能
-          img: ({ src, alt, ...props }) => (
+          img: ({ src, alt, ...props }: { src?: string | Blob; alt?: string } & React.ImgHTMLAttributes<HTMLImageElement>) => {
+            if (typeof src !== 'string') return null;
+            
+            return (
             <div className="group relative my-4 inline-block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={src}
                 alt={alt}
@@ -56,7 +62,7 @@ function MarkdownContent({ content, className }: MarkdownPreviewProps) {
               {/* 下载按钮 */}
               <button
                 onClick={() =>
-                  handleImageDownload(src as string, alt as string)
+                  handleImageDownload(src, alt)
                 }
                 className="border-border bg-background/90 hover:bg-background absolute right-2 bottom-2 flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border opacity-0 shadow-sm backdrop-blur-sm transition-all duration-200 group-hover:opacity-100"
                 title="Download image"
@@ -65,7 +71,8 @@ function MarkdownContent({ content, className }: MarkdownPreviewProps) {
                 <Download className="h-3.5 w-3.5" />
               </button>
             </div>
-          ),
+            );
+          },
         }}
       >
         {cleanContent}
