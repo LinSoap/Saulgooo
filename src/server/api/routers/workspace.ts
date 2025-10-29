@@ -313,4 +313,41 @@ export const workSpaceRouter = createTRPCRouter({
                 createdAt: stats.birthtime
             };
         }),
+
+    // 更新文件内容
+    updateFileContent: protectedProcedure
+        .input(z.object({
+            workspaceId: z.string().cuid(),
+            filePath: z.string(),
+            content: z.string(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const workspace = await ctx.db.workspace.findUnique({
+                where: { id: input.workspaceId, ownerId: ctx.session.user.id },
+            });
+
+            if (!workspace) throw new Error("Workspace not found");
+
+            const basePath = join(homedir(), 'workspaces', workspace.path);
+            const fullPath = join(basePath, input.filePath);
+
+            // 简单的路径验证
+            if (!fullPath.startsWith(basePath)) {
+                throw new Error("Invalid path");
+            }
+
+            // 检查文件是否存在
+            const stats = await stat(fullPath);
+            if (!stats.isFile()) throw new Error("Not a file");
+
+            // 更新文件内容
+            await writeFile(fullPath, input.content, 'utf-8');
+            const newStats = await stat(fullPath);
+
+            return {
+                success: true,
+                size: newStats.size,
+                modifiedAt: newStats.mtime,
+            };
+        }),
 })
