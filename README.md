@@ -1,29 +1,184 @@
-# Create T3 App
+# Saulgooo - AI Assistant Workspace
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+A Next.js application integrated with Claude Agent SDK for AI-powered workspace assistance.
 
-## What's next? How do I make an app with this?
+## Features
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+- 🤖 AI Assistant powered by Anthropic Claude
+- 📁 Workspace file management
+- 💾 Persistent session storage
+- 🔄 Background task processing with BullMQ
+- 📊 Real-time task status updates
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+## Tech Stack
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+- [Next.js](https://nextjs.org) - Full-stack React framework
+- [NextAuth.js](https://next-auth.js.org) - Authentication
+- [Prisma](https://prisma.io) - Database ORM
+- [Tailwind CSS](https://tailwindcss.com) - Styling
+- [tRPC](https://trpc.io) - End-to-end typesafe APIs
+- [BullMQ](https://bullmq.io/) - Queue system for background jobs
+- [Redis](https://redis.io/) - In-memory data store
 
-## Learn More
+## Quick Start
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
+### Prerequisites
 
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
+- Node.js 18+
+- Docker and Docker Compose (for Redis)
 
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
+### 1. Clone and Install
 
-## How do I deploy this?
+```bash
+git clone <repository-url>
+cd saulgooo
+npm install
+```
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+### 2. Start Redis with Docker
+
+```bash
+# Start Redis service
+docker-compose up -d redis
+
+# Optional: Start Redis with web UI
+docker-compose --profile tools up -d
+```
+
+### 3. Setup Environment
+
+Copy `.env.example` to `.env` and configure:
+
+```bash
+cp .env.example .env
+```
+
+Key environment variables:
+```env
+# Database
+DATABASE_URL="file:./db.sqlite"
+
+# Redis (for BullMQ)
+REDIS_HOST="localhost"
+REDIS_PORT="6379"
+
+# Anthropic API
+ANTHROPIC_AUTH_TOKEN="your-token"
+ANTHROPIC_BASE_URL="https://open.bigmodel.cn/api/anthropic"
+
+# NextAuth
+NEXTAUTH_URL="http://localhost:3000"
+AUTH_SECRET="your-secret"
+```
+
+### 4. Initialize Database
+
+```bash
+npm run db:migrate
+```
+
+### 5. Run Development Server
+
+```bash
+# Worker will start automatically with Next.js
+npm run dev
+```
+
+Visit [http://localhost:3000](http://localhost:3000) to view the application.
+
+## Development Scripts
+
+```bash
+# Development
+npm run dev          # Start Next.js (Worker starts automatically)
+
+# Database
+npm run db:migrate   # Run migrations
+npm run db:studio    # Open Prisma Studio
+npm run db:push      # Push schema changes
+
+# Build & Deploy
+npm run build        # Build for production
+npm run start        # Start production server
+npm run preview      # Preview production build
+
+# Utilities
+npm run lint         # Run ESLint
+npm run format:write # Format code
+npm run typecheck    # Type checking
+```
+
+## Docker Services
+
+### Redis Server
+
+```bash
+# Start Redis
+docker-compose up -d redis
+
+# Stop Redis
+docker-compose down
+
+# View logs
+docker-compose logs -f redis
+
+# Access Redis CLI
+docker exec -it saulgooo-redis redis-cli
+```
+
+### Redis Commander (Optional Web UI)
+
+```bash
+# Start with Redis Commander
+docker-compose --profile tools up -d
+
+# Access at http://localhost:8081
+```
+
+## Project Structure
+
+```
+├── src/
+│   ├── app/              # Next.js app router
+│   ├── components/       # React components
+│   ├── lib/              # Utility libraries
+│   │   ├── queue.ts      # BullMQ queue config
+│   │   ├── worker.ts     # BullMQ worker
+│   │   └── queue-utils.ts # Queue utilities
+│   ├── server/           # Server-side code
+│   └── trpc/             # tRPC router
+├── prisma/               # Database schema
+├── redis/                # Redis config
+├── scripts/              # Helper scripts
+└── docs/                 # Documentation
+```
+
+## Background Task Processing
+
+This application uses BullMQ for processing AI queries in the background:
+
+- Tasks are queued when users submit queries
+- Worker processes tasks asynchronously
+- Status updates are tracked in real-time
+- Failed tasks are automatically retried
+
+For detailed setup, see [docs/BULLMQ_SETUP.md](./docs/BULLMQ_SETUP.md).
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch
+3. Commit your changes
+4. Push to the branch
+5. Open a pull request
+
+## License
+
+[MIT](LICENSE)
+
+## Support
+
+For help and questions:
+- Create an issue in the repository
+- Join our Discord community
+- Check the documentation in the `/docs` folder
