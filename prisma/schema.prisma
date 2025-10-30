@@ -1,8 +1,5 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
   binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
@@ -11,7 +8,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Next Auth 相关表
 model Account {
   id                       String  @id @default(cuid())
   userId                   String
@@ -48,18 +44,12 @@ model User {
   password             String?
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
-
-  // Next Auth 关系
   accounts             Account[]
-  sessions             Session[]
-
-  // 工作空间关系
-  ownedWorkspaces      Workspace[]       @relation("WorkspaceOwner")
-  workspaceMemberships WorkspaceMember[]
-  invitedMembers       WorkspaceMember[] @relation("InvitedBy")
-
-  // Agent 会话关系
   agentSessions        AgentSession[]
+  sessions             Session[]
+  ownedWorkspaces      Workspace[]       @relation("WorkspaceOwner")
+  invitedMembers       WorkspaceMember[] @relation("InvitedBy")
+  workspaceMemberships WorkspaceMember[]
 }
 
 model VerificationToken {
@@ -70,62 +60,50 @@ model VerificationToken {
   @@unique([identifier, token])
 }
 
-// 教研空间相关表
 model Workspace {
-  id           String   @id @default(cuid())
-  name         String
-  description  String?
-  path         String   @unique  // 文件系统路径
-  teacherGroup String   @default("")  // 教师组名
-  studentGroup String   @default("")  // 学生组名
-  ownerId      String
-  status       String   @default("active") // active, archived
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  owner     User               @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  members   WorkspaceMember[]
+  id            String            @id @default(cuid())
+  name          String
+  description   String?
+  path          String            @unique
+  teacherGroup  String            @default("")
+  studentGroup  String            @default("")
+  ownerId       String
+  status        String            @default("active")
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
   agentSessions AgentSession[]
+  owner         User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members       WorkspaceMember[]
 }
 
 model WorkspaceMember {
   id          String    @id @default(cuid())
   workspaceId String
   userId      String
-  role        String    @default("student")  // teacher, student
+  role        String    @default("student")
   joinedAt    DateTime  @default(now())
-  invitedBy   String?  // 邀请人ID
-
-  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  inviter   User?     @relation("InvitedBy", fields: [invitedBy], references: [id])
+  invitedBy   String?
+  inviter     User?     @relation("InvitedBy", fields: [invitedBy], references: [id])
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, userId])
 }
 
-// Agent 对话会话相关表
 model AgentSession {
-  sessionId   String   @id  // 使用 Claude SDK 的 session ID 作为主键
+  sessionId   String    @id
   workspaceId String
   userId      String
   title       String
-
-  // 对话历史存储为 JSON
-  messages    Json     // 存储 [{role: "user", content: "...", timestamp: "..."}, ...]
-
-  // 后台任务状态字段
-  status      String   @default("pending")  // pending, running, completed, failed, interrupted
-  query       String?  // 当前执行的查询
-  startedAt   DateTime?
-  completedAt DateTime?
-  error       String?  // 错误信息
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  messages    Json
+  bullJobId   String?   @unique
+  lastQuery   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, userId])
-  @@index([status])
+  @@index([createdAt])
+  @@index([bullJobId])
 }
