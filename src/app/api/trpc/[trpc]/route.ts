@@ -5,6 +5,9 @@ import { env } from "~/env";
 import { appRouter } from "~/server/api/root";
 import { createTRPCContext } from "~/server/api/trpc";
 
+// 初始化 BullMQ（在服务器启动时自动运行）
+import "~/lib/init-bullmq";
+
 /**
  * This wraps the `createTRPCContext` helper and provides the required context for the tRPC API when
  * handling a HTTP request (e.g. when you make requests from Client Components).
