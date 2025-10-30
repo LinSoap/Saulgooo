@@ -27,12 +27,15 @@ export const agentRouter = createTRPCRouter({
           where: { sessionId: input.sessionId, userId: ctx.session.user.id },
           select: { messages: true },
         });
-        if (historyMessages && historyMessages.messages && Array.isArray(historyMessages.messages)) {
-          const messages = historyMessages.messages as any[];
-          for (const msgStr of messages) {
-            // 如果message已经是对象，直接使用；如果是字符串，需要解析
-            const msg = typeof msgStr === 'string' ? JSON.parse(msgStr) : msgStr;
-            yield msg as SDKMessage;
+        if (historyMessages?.messages) {
+          // 统一处理：数据库中 messages 始终是 JSON 字符串
+          const messagesStr = typeof historyMessages.messages === 'string'
+            ? historyMessages.messages
+            : '[]'; // 兜底处理，正常情况下不会走到这里
+          const messages = JSON.parse(messagesStr) as SDKMessage[];
+
+          for (const msg of messages) {
+            yield msg;
           }
         }
       }
@@ -87,9 +90,30 @@ export const agentRouter = createTRPCRouter({
                   workspaceId: input.workspaceId,
                   userId: ctx.session.user.id,
                   title: input.query.slice(0, 30),
-                  messages: [userMessage] as any,
+                  messages: JSON.stringify([userMessage]),
                 }
               });
+            } else {
+              const currentSession = await ctx.db.agentSession.findUnique({
+                where: { sessionId: message.session_id },
+                select: { messages: true }
+              });
+              if (currentSession) {
+                // 统一处理：数据库中 messages 始终是 JSON 字符串
+                const messagesStr = typeof currentSession.messages === 'string'
+                  ? currentSession.messages
+                  : '[]'; // 兜底处理，正常情况下不会走到这里
+                const currentMessages = JSON.parse(messagesStr) as SDKMessage[];
+                const updatedMessages = [...currentMessages, userMessage];
+
+                await ctx.db.agentSession.update({
+                  where: { sessionId: message.session_id },
+                  data: {
+                    messages: JSON.stringify(updatedMessages),
+                  }
+                });
+              }
+
             }
             yield userMessage;
           }
@@ -99,18 +123,22 @@ export const agentRouter = createTRPCRouter({
           if (message.type === "assistant") {
             // 获取当前session的messages
             const currentSession = await ctx.db.agentSession.findUnique({
-              where: { sessionId: message.session_id! },
+              where: { sessionId: message.session_id },
               select: { messages: true }
             });
 
             if (currentSession) {
-              const currentMessages = Array.isArray(currentSession.messages) ? currentSession.messages as any[] : [];
+              // 统一处理：数据库中 messages 始终是 JSON 字符串
+              const messagesStr = typeof currentSession.messages === 'string'
+                ? currentSession.messages
+                : '[]'; // 兜底处理，正常情况下不会走到这里
+              const currentMessages = JSON.parse(messagesStr) as SDKMessage[];
               const updatedMessages = [...currentMessages, message];
 
               await ctx.db.agentSession.update({
-                where: { sessionId: message.session_id! },
+                where: { sessionId: message.session_id },
                 data: {
-                  messages: updatedMessages as any,
+                  messages: JSON.stringify(updatedMessages),
                 }
               });
             }
