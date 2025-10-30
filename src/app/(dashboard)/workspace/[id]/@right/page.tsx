@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect } from "react";
+import { use, useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -59,6 +59,9 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
     currentSessionId,
   );
 
+  // 滚动相关 refs - 必须在 messages 声明之后
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
   // 获取 sessions 列表
   const { data: sessionsData, refetch: refetchSessions } =
     api.agent.getSessions.useQuery(
@@ -92,6 +95,19 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
       setSessions(formattedSessions);
     }
   }, [sessionsData]);
+
+  // 滚动到底部
+  const scrollToBottom = () => {
+    // 稍微延迟一下，确保内容渲染完成
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }, 100);
+  };
+
+  // 监听消息变化，自动滚动到底部
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages, isLoading]);
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading || !id) return;
@@ -275,6 +291,9 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
               </span>
             </div>
           )}
+
+          {/* 滚动锚点 */}
+          <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
 
