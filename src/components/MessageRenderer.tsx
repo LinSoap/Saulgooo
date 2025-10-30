@@ -155,7 +155,7 @@ function ToolCall({ tool }: { tool: BetaToolUseBlock }) {
         const todos = input?.todos as Record<string, unknown>[];
         const todoLines = Array.isArray(todos)
           ? todos
-              .map((todo, index) => {
+              .map((todo, _index) => {
                 const status = (todo.status as string) ?? "pending";
                 const content = (todo.content as string) ?? "";
                 const statusIcon =

@@ -6,10 +6,11 @@ export default function NotFound() {
   return (
     <div className="flex h-screen items-center justify-center">
       <div className="text-center">
-        <FileQuestion className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
-        <h2 className="text-2xl font-semibold mb-2">Workspace Not Found</h2>
+        <FileQuestion className="text-muted-foreground mx-auto mb-4 h-16 w-16" />
+        <h2 className="mb-2 text-2xl font-semibold">Workspace Not Found</h2>
         <p className="text-muted-foreground mb-6">
-          The workspace you're looking for doesn't exist or you don't have access to it.
+          The workspace you&apos;re looking for doesn&apos;t exist or you
+          don&apos;t have access to it.
         </p>
         <Link href="/">
           <Button>

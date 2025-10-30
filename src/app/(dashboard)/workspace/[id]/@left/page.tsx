@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { ScrollArea } from "~/components/ui/scroll-area";
 import { Button } from "~/components/ui/button";
 import {
   Dialog,
@@ -16,12 +15,11 @@ import {
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { api } from "~/trpc/react";
-import { ArrowLeft, FolderOpen, File, Plus } from "lucide-react";
+import { ArrowLeft, FolderOpen, Plus } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FileTreeItem } from "~/components/FileTreeItem";
 import { useSession } from "next-auth/react";
-import { formatDate } from "~/lib/date-utils";
 
 interface FileNode {
   id: string;

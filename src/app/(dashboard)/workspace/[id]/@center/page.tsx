@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { Button } from "~/components/ui/button";
 import { File, FolderOpen } from "lucide-react";
 import { api } from "~/trpc/react";
 import { MarkdownFileEditorSimple } from "~/components/MarkdownFileEditorSimple";
@@ -30,9 +29,6 @@ export default function FilePreview() {
 
   const [selectedFile, setSelectedFile] = useState<FileNode | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
-
-  // 获取 tRPC utils 用于手动获取数据
-  const utils = api.useUtils();
 
   // 获取文件内容
   const {
@@ -65,7 +61,7 @@ export default function FilePreview() {
       // 暂时使用简化版本
       setSelectedFile({
         id: filePath,
-        name: filePath.split("/").pop() || "",
+        name: filePath.split("/").pop() ?? "",
         path: filePath,
         type: "file",
         size: 0,

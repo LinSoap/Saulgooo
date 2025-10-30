@@ -8,7 +8,7 @@ interface WorkspacePageProps {
   }>;
 }
 
-export default function WorkspacePage({ params }: WorkspacePageProps) {
+export default function WorkspacePage({ params: _params }: WorkspacePageProps) {
   const { data: session } = useSession();
 
   // 对于并行路由，我们仍然需要验证用户身份

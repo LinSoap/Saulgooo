@@ -23,8 +23,9 @@ import {
 } from "lucide-react";
 import { api } from "~/trpc/react";
 import { MessageBubble } from "~/components/MessageRenderer";
-import { useAgentQuery } from "~/app/(dashboard)/workspace/[id]/hooks";
+import { useBackgroundQuery } from "~/app/(dashboard)/workspace/[id]/hooks";
 import { useSession } from "next-auth/react";
+import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 
 interface Session {
   sessionId: string;
@@ -49,17 +50,20 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
 
-  // 获取 tRPC utils 用于手动获取数据
-  const utils = api.useUtils();
-
   // 从URL读取sessionId
   const currentSessionId = searchParams?.get("sessionId");
 
   // 使用新的 hook
-  const { messages, isLoading, sendQuery, reset } = useAgentQuery(
-    id ?? "",
-    currentSessionId,
-  );
+  const {
+    messages,
+    isLoading,
+    status,
+    progress,
+    error,
+    sendQuery,
+    cancelQuery,
+    reset,
+  } = useBackgroundQuery(id ?? "", currentSessionId);
 
   // 滚动相关 refs - 必须在 messages 声明之后
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -155,7 +159,12 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
 
     const query = inputMessage.trim();
     setInputMessage("");
-    void sendQuery(query, onAgentComplete);
+    try {
+      await sendQuery(query);
+    } catch (error) {
+      console.error("Failed to send query:", error);
+      // 可以在这里显示错误提示
+    }
   };
 
   // 开始新对话
@@ -213,26 +222,6 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
     } else {
       const diffMinutes = Math.floor(diffMs / (1000 * 60));
       return diffMinutes > 0 ? `${diffMinutes}分钟前` : "刚刚";
-    }
-  };
-
-  // 智能刷新函数 - Agent操作完成后调用
-  const onAgentComplete = async () => {
-    const currentFilePath = searchParams?.get("file");
-
-    try {
-      // 1. 刷新文件树
-      await utils.workspace.getFileTree.invalidate({ workspaceId: id });
-
-      // 2. 如果有打开的文件，刷新文件内容
-      if (currentFilePath) {
-        await utils.workspace.getFileContent.invalidate({
-          workspaceId: id,
-          filePath: currentFilePath,
-        });
-      }
-    } catch {
-      // 刷新失败
     }
   };
 
@@ -349,10 +338,10 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
       <ScrollArea ref={scrollAreaRef} className="relative flex-1">
         <div className="space-y-4 p-4">
           {messages.length > 0
-            ? messages.map((message, index) => (
+            ? messages.map((message: unknown, index) => (
                 <MessageBubble
-                  key={`${message.type}-${index}`}
-                  message={message}
+                  key={`message-${index}`}
+                  message={message as SDKMessage}
                 />
               ))
             : null}
@@ -361,8 +350,27 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
             <div className="flex items-center gap-2 p-4">
               <Loader2 className="h-4 w-4 animate-spin" />
               <span className="text-muted-foreground text-sm">
-                正在思考中...
+                {status === "waiting" && "正在排队中..."}
+                {status === "active" &&
+                  `正在思考中... ${progress > 0 ? `${progress}%` : ""}`}
+                {status === "error" && "处理出错"}
               </span>
+              {status === "active" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={cancelQuery}
+                  className="ml-2"
+                >
+                  取消
+                </Button>
+              )}
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-destructive/10 border-destructive/20 flex items-center gap-2 rounded-md border p-4">
+              <span className="text-destructive text-sm">{error}</span>
             </div>
           )}
 
@@ -396,15 +404,19 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
                 void handleSendMessage();
               }
             }}
-            disabled={isLoading}
+            disabled={isLoading || status === "active"}
             className="flex-1"
           />
           <Button
             onClick={handleSendMessage}
-            disabled={!inputMessage.trim() || isLoading}
+            disabled={!inputMessage.trim() || isLoading || status === "active"}
             size="icon"
           >
-            <Send className="h-4 w-4" />
+            {isLoading || status === "active" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
           </Button>
         </div>
       </div>
