@@ -19,6 +19,7 @@ import {
   MessageSquarePlus,
   History,
   Trash2,
+  ArrowDown,
 } from "lucide-react";
 import { api } from "~/trpc/react";
 import { MessageBubble } from "~/components/MessageRenderer";
@@ -61,6 +62,8 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
 
   // 滚动相关 refs - 必须在 messages 声明之后
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
   // 获取 sessions 列表
   const { data: sessionsData, refetch: refetchSessions } =
@@ -98,11 +101,48 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
 
   // 滚动到底部
   const scrollToBottom = () => {
-    // 稍微延迟一下，确保内容渲染完成
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, 100);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
+
+  // 监听滚动事件，显示/隐藏滚动按钮
+  useEffect(() => {
+    const checkScroll = () => {
+      // 查找可滚动的子元素
+      const findScrollableElement = (container: HTMLElement) => {
+        const elements = container.querySelectorAll("*");
+        for (const el of elements) {
+          const element = el as HTMLElement;
+          if (element.scrollHeight > element.clientHeight) {
+            return element;
+          }
+        }
+        return null;
+      };
+
+      const scrollArea = scrollAreaRef.current;
+      if (!scrollArea) return;
+
+      const viewport = findScrollableElement(scrollArea);
+
+      if (viewport) {
+        const { scrollTop, scrollHeight, clientHeight } = viewport;
+        setShowScrollButton(scrollHeight - scrollTop - clientHeight > 50);
+      }
+    };
+
+    // 全局滚动监听
+    const handleScroll = () => checkScroll();
+    document.addEventListener("scroll", handleScroll, { passive: true });
+
+    // 定时检查
+    const interval = setInterval(checkScroll, 200);
+    checkScroll(); // 初始检查
+
+    return () => {
+      document.removeEventListener("scroll", handleScroll);
+      clearInterval(interval);
+    };
+  }, []);
 
   // 监听消息变化，自动滚动到底部
   useEffect(() => {
@@ -114,7 +154,7 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
 
     const query = inputMessage.trim();
     setInputMessage("");
-    sendQuery(query, onAgentComplete);
+    void sendQuery(query, onAgentComplete);
   };
 
   // 开始新对话
@@ -272,7 +312,7 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
       </div>
 
       {/* 消息列表 */}
-      <ScrollArea className="flex-1">
+      <ScrollArea ref={scrollAreaRef} className="relative flex-1">
         <div className="space-y-4 p-4">
           {messages.length > 0
             ? messages.map((message, index) => (
@@ -295,6 +335,18 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
           {/* 滚动锚点 */}
           <div ref={messagesEndRef} />
         </div>
+
+        {/* 滚动到底部按钮 */}
+        {showScrollButton && (
+          <Button
+            onClick={() => scrollToBottom()}
+            size="icon"
+            className="absolute right-4 bottom-4 h-10 w-10 cursor-pointer rounded-full shadow-md transition-shadow hover:shadow-lg"
+            variant="secondary"
+          >
+            <ArrowDown className="h-6 w-6" />
+          </Button>
+        )}
       </ScrollArea>
 
       {/* 输入框 */}
@@ -307,7 +359,7 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                handleSendMessage();
+                void handleSendMessage();
               }
             }}
             disabled={isLoading}
