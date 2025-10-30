@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { query } from "@anthropic-ai/claude-agent-sdk";
+import { query, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { join } from "path";
 import { homedir } from "os";
 
@@ -41,6 +41,7 @@ export const agentRouter = createTRPCRouter({
 
 
       for await (const message of queryInstance) {
+        console.log("[AgentRouter Debug] Received message:", message);
         if (message.type === 'system' && message.subtype === 'init') {
           const sessionId = message.session_id
           if (!input.sessionId) {
@@ -54,10 +55,23 @@ export const agentRouter = createTRPCRouter({
               }
             });
           }
+          const userMessage: SDKUserMessage = {
+            type: "user",
+            message: {
+              role: "user",
+              content: input.query,
+
+            },
+            session_id: sessionId,
+            parent_tool_use_id: null,
+          }
+
+          yield userMessage;
+        }
+        if (message.type === 'user') {
           yield message;
         }
         if (message.type === "assistant") {
-          console.log(message.message);
           yield message;
         }
         if (message.type === "result") {

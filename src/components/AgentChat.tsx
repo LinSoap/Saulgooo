@@ -18,25 +18,10 @@ import {
   MessageSquarePlus,
   History,
   Trash2,
-  Square,
 } from "lucide-react";
 import { api } from "~/trpc/react";
-import { MessageRenderer } from "~/components/MessageRenderer";
-import type { ContentBlock } from "@anthropic-ai/sdk/resources/messages";
-
-interface Message {
-  role: "user" | "assistant";
-  content: string | ContentBlock[];
-  timestamp?: string;
-}
-
-interface StreamData {
-  type: "session_id" | "message" | "error" | "request_id" | "done";
-  sessionId?: string;
-  content?: ContentBlock;
-  error?: string;
-  requestId?: string;
-}
+import { MessageBubble } from "~/components/MessageRenderer";
+import { useAgentQuery } from "~/app/(dashboard)/workspace/[id]/hooks";
 
 interface Session {
   sessionId: string;
@@ -51,34 +36,21 @@ interface AgentChatProps {
 }
 
 export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState("");
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
 
-  // 重置加载状态
-  const resetLoadingState = () => {
-    setIsLoading(false);
-    setCurrentRequestId(null);
-  };
+  // 使用新的 hook
+  const { messages, isLoading, sendQuery, reset } = useAgentQuery(
+    workspaceId ?? "",
+    currentSessionId,
+  );
 
   // 获取 sessions 列表
   const { data: sessionsData, refetch: refetchSessions } =
     api.agent.getSessions.useQuery(
       { workspaceId: workspaceId ?? "" },
       { enabled: !!workspaceId },
-    );
-
-  // 获取特定 session
-  const { data: sessionData, isLoading: isLoadingSession } =
-    api.agent.getSession.useQuery(
-      { sessionId: currentSessionId ?? "" },
-      {
-        enabled: !!currentSessionId && !isLoading, // 发送消息时不查询
-        retry: false,
-      },
     );
 
   // 删除 session
@@ -88,7 +60,7 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
       if (currentSessionId) {
         // 如果删除的是当前会话，重置到新对话状态
         setCurrentSessionId(null);
-        setMessages([]);
+        reset();
       }
     },
   });
@@ -112,132 +84,27 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
         setCurrentSessionId(formattedSessions[0].sessionId);
       }
     }
-  }, [sessionsData]);
-
-  // 终止当前查询
-  const handleStopQuery = async () => {
-    if (currentRequestId) {
-      try {
-        await fetch("/api/agent/stream", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            action: "stop",
-            requestId: currentRequestId,
-          }),
-        });
-      } catch (error) {
-        console.error("Failed to stop query:", error);
-      }
-    }
-
-    // 无论是否有 requestId 或请求是否成功，都重置状态
-    resetLoadingState();
-
-    // 添加终止提示消息
-    setMessages((prev) => {
-      const lastMessage = prev[prev.length - 1];
-      if (lastMessage?.role === "assistant") {
-        const existingContent = Array.isArray(lastMessage.content)
-          ? lastMessage.content
-          : [{ type: "text", text: lastMessage.content }];
-
-        return [
-          ...prev.slice(0, -1),
-          {
-            ...lastMessage,
-            content: [
-              ...existingContent,
-              {
-                type: "text",
-                text: "\n\n*[对话已被用户终止]*",
-                citations: null,
-              },
-            ] as ContentBlock[],
-          },
-        ];
-      }
-      return prev;
-    });
-  };
-
-  // 处理流式消息的函数
-  const subscription = api.agent.query.useSubscription(
-      { query: inputMessage, workspaceId: workspaceId ?? "", sessionId: currentSessionId ?? undefined },
-      {
-        onData(message) {
-          // 处理接收到的消息
-          console.log("Received message:", message);
-        },
-        onError(err) {
-          console.error("Subscription error:", err);
-          resetLoadingState();
-        },
-        onComplete() {
-          console.log("Subscription complete");
-          resetLoadingState();
-          void onAgentComplete?.();
-        },
-      },
-    );
-  };
+  }, [sessionsData, sessions.length]);
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isLoading || !workspaceId) return;
 
     const query = inputMessage.trim();
     setInputMessage("");
-    await handleStreamQuery(query, workspaceId);
+    sendQuery(query, onAgentComplete);
   };
 
   // 开始新对话
   const handleNewConversation = () => {
     setCurrentSessionId(null);
-    setMessages([]);
+    reset();
   };
 
   // 切换到指定会话
   const handleSelectSession = (sessionId: string) => {
     setCurrentSessionId(sessionId);
-    setMessages([]); // 先清空，避免旧消息显示
+    reset();
   };
-
-  // 加载历史消息
-  useEffect(() => {
-    if (sessionData?.messages && sessionData.sessionId === currentSessionId) {
-      const messagesData = sessionData.messages as unknown as Message[];
-
-      // 调试：详细输出从数据库读取的消息格式
-      if (process.env.NODE_ENV === "development") {
-        console.log("[DB Debug] Loading messages from database:");
-        messagesData.forEach((msg, idx) => {
-          console.log(`[DB Debug] Message ${idx}:`, {
-            role: msg.role,
-            contentType: Array.isArray(msg.content)
-              ? "ContentBlock[]"
-              : typeof msg.content,
-            contentPreview: Array.isArray(msg.content)
-              ? msg.content.map((c: unknown) => {
-                  const contentBlock = c as Record<string, unknown>;
-                  return {
-                    type: contentBlock.type,
-                    hasText: !!contentBlock.text,
-                    hasName: !!contentBlock.name,
-                    textPreview: contentBlock.text
-                      ? (contentBlock.text as string).substring(0, 50) + "..."
-                      : null,
-                  };
-                })
-              : msg.content,
-          });
-        });
-      }
-
-      setMessages(Array.isArray(messagesData) ? messagesData : []);
-    }
-  }, [sessionData, currentSessionId]);
 
   // 删除会话
   const handleDeleteSession = async (
@@ -366,49 +233,11 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
               </p>
             </div>
           </div>
-        ) : isLoadingSession ? (
-          <div className="flex h-full items-center justify-center">
-            <div className="flex items-center gap-3">
-              <Loader2 className="text-primary h-5 w-5 animate-spin" />
-              <span className="text-muted-foreground">加载历史对话中...</span>
-            </div>
-          </div>
         ) : (
           <div className="space-y-2">
-            {(() => {
-              return messages.map((message, index) => {
-                return (
-                  <div
-                    key={index}
-                    className={`flex ${
-                      message.role === "user" ? "justify-end" : "justify-start"
-                    }`}
-                  >
-                    <div
-                      className={`relative max-w-[85%] rounded-lg wrap-break-word ${
-                        message.role === "user"
-                          ? "bg-primary text-primary-foreground ml-auto p-3"
-                          : "mr-auto px-3 py-1"
-                      }`}
-                    >
-                      {message.role === "assistant" ? (
-                        <MessageRenderer message={message} />
-                      ) : (
-                        <p className="text-sm whitespace-pre-wrap">
-                          {typeof message.content === "string"
-                            ? message.content
-                            : Array.isArray(message.content) &&
-                                message.content.length > 0 &&
-                                message.content[0]?.type === "text"
-                              ? message.content[0].text
-                              : ""}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                );
-              });
-            })()}
+            {messages.map((message, index) => (
+              <MessageBubble key={index} message={message} />
+            ))}
             {/* AI正在回复的提示显示在回复内容底部 */}
             {isLoading && (
               <div className="flex justify-start">
@@ -443,16 +272,12 @@ export function AgentChat({ workspaceId, onAgentComplete }: AgentChatProps) {
             className="flex-1"
           />
           <Button
-            onClick={isLoading ? handleStopQuery : handleSendMessage}
-            disabled={!isLoading && !inputMessage.trim()}
+            onClick={handleSendMessage}
+            disabled={!inputMessage.trim()}
             size="icon"
-            variant={isLoading ? "destructive" : "default"}
+            variant="default"
           >
-            {isLoading ? (
-              <Square className="h-4 w-4" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
+            <Send className="h-4 w-4" />
           </Button>
         </div>
       </div>

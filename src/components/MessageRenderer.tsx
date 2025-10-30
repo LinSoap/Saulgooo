@@ -3,22 +3,11 @@
 import { ChevronDown, ChevronLeft } from "lucide-react";
 import { useState } from "react";
 import { MarkdownPreview } from "./MarkdownPreview";
-import type { ContentBlock } from "@anthropic-ai/sdk/resources/messages";
-
-interface Message {
-  role: "user" | "assistant";
-  content: string | ContentBlock | ContentBlock[];
-  timestamp?: string;
-}
-
-type ContentItem = ContentBlock;
-
-interface MessageRendererProps {
-  message: Message;
-}
+import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { BetaToolUseBlock } from "@anthropic-ai/sdk/resources/beta.mjs";
 
 // 简单的工具调用组件
-function ToolCall({ tool }: { tool: ContentItem }) {
+function ToolCall({ tool }: { tool: BetaToolUseBlock }) {
   const [isExpanded, setIsExpanded] = useState(true); // 默认展开
 
   // 提取文件名
@@ -134,53 +123,31 @@ function ToolCall({ tool }: { tool: ContentItem }) {
   );
 }
 
-export function MessageRenderer({ message }: MessageRendererProps) {
-  // 调试：输出 MessageRenderer 收到的消息格式
-  if (process.env.NODE_ENV === "development") {
-    console.log("[Renderer Debug] MessageRenderer received:", {
-      role: message.role,
-      contentType: Array.isArray(message.content)
-        ? "ContentBlock[]"
-        : typeof message.content,
-      contentLength: Array.isArray(message.content)
-        ? message.content.length
-        : 1,
-      contentPreview: Array.isArray(message.content)
-        ? message.content.map((c) => {
-            const block = c as unknown as Record<string, unknown>;
-            return {
-              index: 0,
-              type: block.type,
-              hasText: !!block.text,
-              hasName: !!block.name,
-              isTool: block.type === "tool_use",
-            };
-          })
-        : null,
-    });
-  }
-
+export function MessageRenderer({ message }: { message: SDKMessage }) {
   // 渲染消息内容的辅助函数
   const renderMessageContent = () => {
-    // 如果是普通字符串消息
-    if (typeof message.content === "string") {
+    if (
+      message.type === "user" &&
+      typeof message.message.content === "string"
+    ) {
       return (
         <div className="prose prose-sm max-w-none">
-          <MarkdownPreview content={message.content} />
+          <MarkdownPreview content={message.message.content} />
         </div>
       );
     }
-
-    // 如果是数组格式的消息（如 tool_use 和 text 组合）
-    if (Array.isArray(message.content)) {
+    if (
+      message.type === "assistant" &&
+      Array.isArray(message.message.content)
+    ) {
+      const contentArray = message.message.content;
       const elements: React.ReactNode[] = [];
       let lastItemWasTool = false;
 
-      message.content.forEach((item, index) => {
+      contentArray.forEach((item, index) => {
         // 确保 item 有正确的类型
-        const contentBlock = item as unknown as Record<string, unknown>;
 
-        if (contentBlock.type === "text") {
+        if (item.type === "text") {
           // 如果上一个项目是工具调用，添加分隔线
           if (lastItemWasTool && elements.length > 0) {
             elements.push(
@@ -192,11 +159,11 @@ export function MessageRenderer({ message }: MessageRendererProps) {
           }
           elements.push(
             <div key={index} className="prose prose-sm max-w-none">
-              <MarkdownPreview content={(contentBlock.text as string) ?? ""} />
+              <MarkdownPreview content={(item.text as string) ?? ""} />
             </div>,
           );
           lastItemWasTool = false;
-        } else if (contentBlock.type === "tool_use") {
+        } else if (item.type === "tool_use") {
           elements.push(<ToolCall key={index} tool={item} />);
           lastItemWasTool = true;
         }
@@ -205,29 +172,25 @@ export function MessageRenderer({ message }: MessageRendererProps) {
       return <>{elements}</>;
     }
 
-    // 处理单个 ContentBlock 对象
-    if (
-      typeof message.content === "object" &&
-      message.content !== null &&
-      !Array.isArray(message.content)
-    ) {
-      const contentBlock = message.content;
-
-      if (contentBlock.type === "text") {
-        // 处理文本块
-        return (
-          <div className="prose prose-sm max-w-none">
-            <MarkdownPreview content={contentBlock.text ?? ""} />
-          </div>
-        );
-      } else if (contentBlock.type === "tool_use") {
-        // 处理工具调用
-        return <ToolCall tool={contentBlock} />;
-      }
-    }
-
     return null;
   };
 
   return <div className="">{renderMessageContent()}</div>;
+}
+
+export function MessageBubble({ message }: { message: SDKMessage }) {
+  const isUser = message.type === "user";
+  return (
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div
+        className={`relative max-w-[85%] rounded-lg wrap-break-word ${
+          isUser
+            ? "bg-primary text-primary-foreground ml-auto p-3"
+            : "mr-auto px-3 py-1"
+        }`}
+      >
+        <MessageRenderer message={message} />
+      </div>
+    </div>
+  );
 }
