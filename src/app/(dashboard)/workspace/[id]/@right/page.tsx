@@ -258,9 +258,14 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
       {/* 消息列表 */}
       <ScrollArea className="flex-1">
         <div className="space-y-4 p-4">
-          {messages.map((message, index) => (
-            <MessageBubble key={`${message.type}-${index}`} message={message} />
-          ))}
+          {messages.length > 0
+            ? messages.map((message, index) => (
+                <MessageBubble
+                  key={`${message.type}-${index}`}
+                  message={message}
+                />
+              ))
+            : null}
 
           {isLoading && (
             <div className="flex items-center gap-2 p-4">

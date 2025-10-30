@@ -1,6 +1,7 @@
 import { skipToken } from '@tanstack/react-query';
 import { api } from '~/trpc/react';
 import * as React from 'react';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
 
@@ -10,13 +11,22 @@ export function useWorkspaceHooks() {
 }
 
 export function useAgentQuery(workspaceId: string, sessionId?: string | null) {
+    const route = useRouter();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
     const [messages, setMessages] = React.useState<SDKMessage[]>([]);
     const [isLoading, setIsLoading] = React.useState(false);
     const [currentQuery, setCurrentQuery] = React.useState<string | null>(null);
     const [onCompleteCallback, setOnCompleteCallback] = React.useState<(() => void) | undefined>();
 
 
-    const utils = api.useUtils();
+    // 更新URL参数而不刷新页面
+    const updateSessionIdInUrl = React.useCallback((newSessionId: string) => {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set('sessionId', newSessionId);
+        route.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    }, [searchParams, pathname, route]);
+
 
     // 获取 session 数据（如果有 sessionId）
     const { data: sessionData, isLoading: isSessionLoading } = api.agent.getSession.useQuery(
@@ -28,8 +38,9 @@ export function useAgentQuery(workspaceId: string, sessionId?: string | null) {
 
     // 当 session 数据加载时，设置 messages
     React.useEffect(() => {
-        if (sessionData?.messages) {
-            setMessages(sessionData.messages as SDKMessage[]);
+        if (sessionData?.messages && Array.isArray(sessionData.messages)) {
+            const parsedMessages = (sessionData.messages as string[]).map(msg => JSON.parse(msg) as SDKMessage);
+            setMessages(parsedMessages);
         }
     }, [sessionData]);
 
@@ -37,7 +48,6 @@ export function useAgentQuery(workspaceId: string, sessionId?: string | null) {
 
     // 发送查询的函数
     const sendQuery = React.useCallback((query: string, onComplete?: () => void) => {
-
         setCurrentQuery(query);
         setOnCompleteCallback(() => onComplete);
         setIsLoading(true);
@@ -73,13 +83,26 @@ export function useAgentQuery(workspaceId: string, sessionId?: string | null) {
                 setIsLoading(false);
                 setCurrentQuery(null);
                 setOnCompleteCallback(undefined);
+                // 如果URL中没有sessionId且有消息，说明是新会话，需要更新URL
+                if (!searchParams.get('sessionId') && messages.length > 0) {
+                    const sessionIdFromMessages = messages.find(msg => msg.session_id)?.session_id;
+                    if (sessionIdFromMessages) {
+                        updateSessionIdInUrl(sessionIdFromMessages);
+                    }
+                }
             },
             onComplete() {
-                console.log('Agent query complete');
                 setIsLoading(false);
                 setCurrentQuery(null);
                 onCompleteCallback?.();
                 setOnCompleteCallback(undefined);
+                // 如果URL中没有sessionId且有消息，说明是新会话，需要更新URL
+                if (!searchParams.get('sessionId') && messages.length > 0) {
+                    const sessionIdFromMessages = messages.find(msg => msg.session_id)?.session_id;
+                    if (sessionIdFromMessages) {
+                        updateSessionIdInUrl(sessionIdFromMessages);
+                    }
+                }
             },
         }
     );

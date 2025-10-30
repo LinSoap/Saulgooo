@@ -40,21 +40,9 @@ export const agentRouter = createTRPCRouter({
       });
 
 
-      const messageArray: SDKMessage[] = [];
       for await (const message of queryInstance) {
         if (message.type === 'system' && message.subtype === 'init') {
           const sessionId = message.session_id
-          if (!input.sessionId) {
-            ctx.db.agentSession.create({
-              data: {
-                sessionId,
-                workspaceId: input.workspaceId,
-                userId: ctx.session.user.id,
-                title: input.query.slice(0, 30),
-                messages: [],
-              }
-            });
-          }
           const userMessage: SDKUserMessage = {
             type: "user",
             message: {
@@ -65,20 +53,40 @@ export const agentRouter = createTRPCRouter({
             parent_tool_use_id: null,
           }
 
+
+          if (!input.sessionId) {
+            await ctx.db.agentSession.create({
+              data: {
+                sessionId,
+                workspaceId: input.workspaceId,
+                userId: ctx.session.user.id,
+                title: input.query.slice(0, 30),
+                messages: [JSON.stringify(userMessage)],
+              }
+            });
+          }
           yield userMessage;
         }
         if (message.type === 'user') {
           yield message;
         }
         if (message.type === "assistant") {
-          ctx.db.agentSession.update({
+          // 获取当前session的messages
+          const currentSession = await ctx.db.agentSession.findUnique({
             where: { sessionId: message.session_id! },
-            data: {
-              messages: {
-                push: JSON.stringify(message),
-              }
-            }
+            select: { messages: true }
           });
+
+          if (currentSession) {
+            const updatedMessages = [...(currentSession.messages as string[]), JSON.stringify(message)];
+
+            await ctx.db.agentSession.update({
+              where: { sessionId: message.session_id! },
+              data: {
+                messages: updatedMessages,
+              }
+            });
+          }
 
           yield message;
         }
