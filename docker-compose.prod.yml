@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # Redis for production
+  redis:
+    image: redis:7-alpine
+    container_name: saulgooo-redis-prod
+    restart: always
+    ports:
+      - "127.0.0.1:6379:6379"  # 只绑定到本地
+    volumes:
+      - redis_data_prod:/data
+      - ./redis/redis.prod.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    environment:
+      - TZ=Asia/Shanghai
+    networks:
+      - saulgooo-prod-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Next.js App (包含 BullMQ 队列)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: saulgooo-app-prod
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ANTHROPIC_AUTH_TOKEN=${ANTHROPIC_AUTH_TOKEN}
+      - AUTH_SECRET=${AUTH_SECRET}
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - WORKER_CONCURRENCY=1  # 应用内轻量级处理
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - saulgooo-prod-network
+    volumes:
+      - ./db.sqlite:/app/db.sqlite  # SQLite 数据持久化
+
+volumes:
+  redis_data_prod:
+    driver: local
+
+networks:
+  saulgooo-prod-network:
+    driver: bridge
