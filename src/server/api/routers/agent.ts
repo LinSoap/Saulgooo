@@ -8,7 +8,7 @@ import { homedir } from "os";
 export const agentRouter = createTRPCRouter({
   query: protectedProcedure
     .input(z.object({
-      query: z.string(),
+      query: z.string().optional(),
       workspaceId: z.string(),
       sessionId: z.string().optional()
     })).subscription(async function* ({ ctx, input }) {
@@ -21,77 +21,106 @@ export const agentRouter = createTRPCRouter({
         throw new Error("Workspace not found");
       }
       const cwd = join(homedir(), 'workspaces', workspace.path);
-      const queryInstance = query({
-        prompt: input.query,
-        options: {
-          maxTurns: 30,
-          permissionMode: 'bypassPermissions',
-          resume: input.sessionId ?? undefined,
-          cwd,
-          systemPrompt: {
-            type: "preset",
-            preset: "claude_code",
-            append:
-              ` - 始终在workspace目录下操作，严格遵守文件读写权限，不要尝试访问未授权的文件或目录。
+
+      if (input.sessionId && !input.query) {
+        const historyMessages = await ctx.db.agentSession.findUnique({
+          where: { sessionId: input.sessionId, userId: ctx.session.user.id },
+          select: { messages: true },
+        });
+        if (historyMessages && historyMessages.messages && Array.isArray(historyMessages.messages)) {
+          const messages = historyMessages.messages as any[];
+          for (const msgStr of messages) {
+            // 如果message已经是对象，直接使用；如果是字符串，需要解析
+            const msg = typeof msgStr === 'string' ? JSON.parse(msgStr) : msgStr;
+            yield msg as SDKMessage;
+          }
+        }
+      }
+
+      // 如果没有新query，只是加载历史消息，则yield结果并返回
+      if (!input.query) {
+        yield {
+          type: 'result' as const,
+          session_id: input.sessionId,
+        };
+        return;
+      }
+
+      if (input.query) {
+        const queryInstance = query({
+          prompt: input.query,
+          options: {
+            maxTurns: 30,
+            permissionMode: 'bypassPermissions',
+            resume: input.sessionId ?? undefined,
+            cwd,
+            systemPrompt: {
+              type: "preset",
+              preset: "claude_code",
+              append:
+                ` - 始终在workspace目录下操作，严格遵守文件读写权限，不要尝试访问未授权的文件或目录。
                 - workspace目录是你能够访问的唯一文件系统位置。
                 - 禁止在非workspace目录下读写文件。`,
-          },
-        }
-      });
-
-
-      for await (const message of queryInstance) {
-        if (message.type === 'system' && message.subtype === 'init') {
-          const sessionId = message.session_id
-          const userMessage: SDKUserMessage = {
-            type: "user",
-            message: {
-              role: "user",
-              content: input.query,
             },
-            session_id: sessionId,
-            parent_tool_use_id: null,
           }
+        });
 
 
-          if (!input.sessionId) {
-            await ctx.db.agentSession.create({
-              data: {
-                sessionId,
-                workspaceId: input.workspaceId,
-                userId: ctx.session.user.id,
-                title: input.query.slice(0, 30),
-                messages: [JSON.stringify(userMessage)],
-              }
-            });
+        for await (const message of queryInstance) {
+          if (message.type === 'system' && message.subtype === 'init') {
+            const sessionId = message.session_id
+            const userMessage: SDKUserMessage = {
+              type: "user",
+              message: {
+                role: "user",
+                content: input.query,
+              },
+              session_id: sessionId,
+              parent_tool_use_id: null,
+            }
+
+
+            if (!input.sessionId) {
+              await ctx.db.agentSession.create({
+                data: {
+                  sessionId,
+                  workspaceId: input.workspaceId,
+                  userId: ctx.session.user.id,
+                  title: input.query.slice(0, 30),
+                  messages: [userMessage] as any,
+                }
+              });
+            }
+            yield userMessage;
           }
-          yield userMessage;
-        }
-        if (message.type === 'user') {
-          yield message;
-        }
-        if (message.type === "assistant") {
-          // 获取当前session的messages
-          const currentSession = await ctx.db.agentSession.findUnique({
-            where: { sessionId: message.session_id! },
-            select: { messages: true }
-          });
-
-          if (currentSession) {
-            const updatedMessages = [...(currentSession.messages as string[]), JSON.stringify(message)];
-
-            await ctx.db.agentSession.update({
+          if (message.type === 'user') {
+            yield message;
+          }
+          if (message.type === "assistant") {
+            // 获取当前session的messages
+            const currentSession = await ctx.db.agentSession.findUnique({
               where: { sessionId: message.session_id! },
-              data: {
-                messages: updatedMessages,
-              }
+              select: { messages: true }
             });
+
+            if (currentSession) {
+              const currentMessages = Array.isArray(currentSession.messages) ? currentSession.messages as any[] : [];
+              const updatedMessages = [...currentMessages, message];
+
+              await ctx.db.agentSession.update({
+                where: { sessionId: message.session_id! },
+                data: {
+                  messages: updatedMessages as any,
+                }
+              });
+            }
+
+            yield message;
+          }
+          if (message.type === "result") {
+            yield message;
           }
 
-          yield message;
-        }
-        if (message.type === "result") {
-          yield message;
         }
       }
     }),
@@ -114,34 +143,6 @@ export const agentRouter = createTRPCRouter({
           updatedAt: true,
         }
       });
-    }),
-
-  // 获取 session 的所有消息
-  getSession: protectedProcedure
-    .input(z.object({
-      sessionId: z.string() // Claude SDK 的 session ID (现在也是主键)
-    }))
-    .query(async ({ ctx, input }) => {
-      const session = await ctx.db.agentSession.findUnique({
-        where: {
-          sessionId: input.sessionId,
-          userId: ctx.session.user.id // 确保用户只能访问自己的 session
-        },
-        select: {
-          sessionId: true,
-          title: true,
-          messages: true,
-          createdAt: true,
-          updatedAt: true
-        }
-      });
-
-      if (!session) {
-        throw new Error("Session not found");
-      }
-
-      // 直接返回，保持原始数据结构
-      return session;
     }),
 
   // 删除 session

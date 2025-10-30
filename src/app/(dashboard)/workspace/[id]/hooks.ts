@@ -17,6 +17,7 @@ export function useAgentQuery(workspaceId: string, sessionId?: string | null) {
     const [messages, setMessages] = React.useState<SDKMessage[]>([]);
     const [isLoading, setIsLoading] = React.useState(false);
     const [currentQuery, setCurrentQuery] = React.useState<string | null>(null);
+    const [loadingHistoryMessages, setLoadingHistoryMessages] = React.useState(false);
     const [onCompleteCallback, setOnCompleteCallback] = React.useState<(() => void) | undefined>();
 
 
@@ -28,22 +29,15 @@ export function useAgentQuery(workspaceId: string, sessionId?: string | null) {
     }, [searchParams, pathname, route]);
 
 
-    // 获取 session 数据（如果有 sessionId）
-    const { data: sessionData, isLoading: isSessionLoading } = api.agent.getSession.useQuery(
-        sessionId ? { sessionId } : skipToken,
-        {
-            enabled: !!sessionId,
-        }
-    );
-
-    // 当 session 数据加载时，设置 messages
+    // 当sessionId变化时，触发subscription来加载历史消息
     React.useEffect(() => {
-        if (sessionData?.messages && Array.isArray(sessionData.messages)) {
-            const parsedMessages = (sessionData.messages as string[]).map(msg => JSON.parse(msg) as SDKMessage);
-            setMessages(parsedMessages);
+        if (sessionId) {
+            setLoadingHistoryMessages(true);
+            setMessages([]); // 清空当前消息
+            // 直接设置query来触发subscription重新连接
+            setCurrentQuery(`__LOAD_HISTORY_${sessionId}`);
         }
-    }, [sessionData]);
-
+    }, [sessionId]);
 
 
     // 发送查询的函数
@@ -53,10 +47,10 @@ export function useAgentQuery(workspaceId: string, sessionId?: string | null) {
         setIsLoading(true);
     }, []);
 
-    // Subscription - 只在有 currentQuery 时激活
+    // Subscription - 用于加载历史消息和发送新查询
     const subscription = api.agent.query.useSubscription(
         currentQuery ? {
-            query: currentQuery,
+            query: currentQuery.startsWith('__LOAD_HISTORY_') ? undefined : currentQuery,
             workspaceId,
             sessionId: sessionId ?? undefined
         } : skipToken,
@@ -73,6 +67,7 @@ export function useAgentQuery(workspaceId: string, sessionId?: string | null) {
                 } else if (message.type === "result") {
                     // 查询完成
                     setIsLoading(false);
+                    setLoadingHistoryMessages(false);
                     setCurrentQuery(null);
                     onCompleteCallback?.();
                     setOnCompleteCallback(undefined);
@@ -81,6 +76,7 @@ export function useAgentQuery(workspaceId: string, sessionId?: string | null) {
             onError(err) {
                 console.error('Agent query error:', err);
                 setIsLoading(false);
+                setLoadingHistoryMessages(false);
                 setCurrentQuery(null);
                 setOnCompleteCallback(undefined);
                 // 如果URL中没有sessionId且有消息，说明是新会话，需要更新URL
@@ -93,6 +89,7 @@ export function useAgentQuery(workspaceId: string, sessionId?: string | null) {
             },
             onComplete() {
                 setIsLoading(false);
+                setLoadingHistoryMessages(false);
                 setCurrentQuery(null);
                 onCompleteCallback?.();
                 setOnCompleteCallback(undefined);
@@ -111,13 +108,14 @@ export function useAgentQuery(workspaceId: string, sessionId?: string | null) {
     const reset = React.useCallback(() => {
         setMessages([]);
         setIsLoading(false);
+        setLoadingHistoryMessages(false);
         setCurrentQuery(null);
         setOnCompleteCallback(undefined);
     }, []);
 
     return {
         messages,
-        isLoading: isLoading || isSessionLoading,
+        isLoading: isLoading || loadingHistoryMessages,
         sendQuery,
         reset,
         subscription,
