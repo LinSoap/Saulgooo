@@ -1,166 +1,408 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { query, type SDKMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
-import { join } from "path";
-import { homedir } from "os";
-import type { PrismaClient } from "@prisma/client";
+import { addAgentTask, getTaskStatus, cancelTask, getWorkspaceSessionsWithStatus } from "~/lib/queue-utils";
+import { QueueEvents } from "bullmq";
+import { redisConnection } from "~/lib/queue";
+import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type { JobState } from "bullmq";
 
-// 辅助函数：向指定session添加消息
-async function addMessageToSession(
-  db: PrismaClient,
-  sessionId: string,
-  message: SDKMessage
-) {
-  const currentSession = await db.agentSession.findUnique({
-    where: { sessionId },
-    select: { messages: true }
-  });
+// 业务逻辑状态类型（扩展BullMQ状态）
+type TaskStatus = JobState | 'idle' | 'error' | 'init' | 'unknown';
 
-  if (!currentSession) {
-    throw new Error(`Session ${sessionId} not found`);
+// 推送消息类型（与前端契约）
+// 推送消息类型
+type PushMessage = {
+  type: 'init' | 'waiting' | 'active' | 'completed' | 'failed' | 'sessionIdChanged';
+  sessionId: string;
+  status?: TaskStatus;
+  progress?: number;
+  messages?: SDKMessage[];
+  lastMessage?: SDKMessage;
+  timestamp?: Date;
+  title?: string;
+  createdAt?: Date;
+  oldSessionId?: string;
+  newSessionId?: string;
+};
+
+// 会话状态信息类型
+type SessionWithStatus = {
+  sessionId: string;
+  title: string;
+  lastQuery: string | null;
+  bullJobId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  status: string;
+  progress: number;
+  isActive: boolean;
+  attemptsMade: number;
+  attemptsRemaining: number;
+  processedAt: number | null;
+  finishedAt: number | null;
+  failedReason: string | null;
+};
+
+// 全局subscription管理器
+class SubscriptionManager {
+  private subscriptions = new Map<string, (message: PushMessage) => void>();
+
+  // 注册subscription
+  register(sessionId: string, emitter: (message: PushMessage) => void) {
+    this.subscriptions.set(sessionId, emitter);
   }
 
-  // 统一处理：数据库中 messages 始终是 JSON 字符串
-  const messagesStr = typeof currentSession.messages === 'string'
-    ? currentSession.messages
-    : '[]'; // 兜底处理，正常情况下不会走到这里
-  const currentMessages = JSON.parse(messagesStr) as SDKMessage[];
-  const updatedMessages = [...currentMessages, message];
+  // 注销subscription
+  unregister(sessionId: string) {
+    this.subscriptions.delete(sessionId);
+  }
 
-  await db.agentSession.update({
-    where: { sessionId },
-    data: {
-      messages: JSON.stringify(updatedMessages),
+  // 推送消息给特定的subscription
+  emit(sessionId: string, message: PushMessage) {
+    const emitter = this.subscriptions.get(sessionId);
+    if (emitter) {
+      emitter(message);
     }
-  });
+  }
+
+  // 检查subscription是否存在
+  has(sessionId: string): boolean {
+    return this.subscriptions.has(sessionId);
+  }
 }
 
-export const agentRouter = createTRPCRouter({
-  query: protectedProcedure
-    .input(z.object({
-      query: z.string().optional(),
-      workspaceId: z.string(),
-      sessionId: z.string().optional()
-    })).subscription(async function* ({ ctx, input }) {
-      const workspace = await ctx.db.workspace.findUnique({
-        where: { id: input.workspaceId },
-        select: { path: true },
+// 创建全局subscription管理器
+export const subscriptionManager = new SubscriptionManager();
+
+// JobId到SessionId的映射缓存
+const jobSessionMap = new Map<string, string>();
+
+// 注册jobId和sessionId的映射
+export function registerJobSession(jobId: string | undefined, sessionId: string | undefined) {
+  if (jobId && sessionId) {
+    jobSessionMap.set(jobId, sessionId);
+  }
+}
+
+// 通过jobId找到sessionId
+function findSessionIdByJobId(jobId: string): string | null {
+  return jobSessionMap.get(jobId) ?? null;
+}
+
+// 清理job-session映射
+export function cleanupJobSession(jobId: string) {
+  jobSessionMap.delete(jobId);
+}
+
+// 更新job-session映射（当sessionId改变时）
+export function updateJobSession(jobId: string, newSessionId: string) {
+  if (jobSessionMap.has(jobId)) {
+    jobSessionMap.set(jobId, newSessionId);
+  }
+}
+
+// 创建队列事件监听器
+export const queueEvents = new QueueEvents('agent-tasks', {
+  connection: redisConnection,
+});
+
+// 监听队列事件并转发给subscriptions
+queueEvents.on('waiting', ({ jobId }) => {
+  console.log(`⏳ Job ${jobId} waiting`);
+  const sessionId = findSessionIdByJobId(jobId);
+  if (sessionId) {
+    subscriptionManager.emit(sessionId, {
+      type: 'waiting',
+      sessionId,
+      status: 'waiting',
+      timestamp: new Date()
+    });
+  }
+});
+
+queueEvents.on('active', ({ jobId, prev: _prev }) => {
+  console.log(`🚀 Job ${jobId} active`);
+  const sessionId = findSessionIdByJobId(jobId);
+  if (sessionId) {
+    subscriptionManager.emit(sessionId, {
+      type: 'active',
+      sessionId,
+      status: 'active',
+      timestamp: new Date()
+    });
+  }
+});
+
+queueEvents.on('completed', ({ jobId, returnvalue: _returnvalue }) => {
+  console.log(`✅ Job ${jobId} completed`);
+  const sessionId = findSessionIdByJobId(jobId);
+  if (sessionId) {
+    // 清理映射
+    cleanupJobSession(jobId);
+
+    subscriptionManager.emit(sessionId, {
+      type: 'completed',
+      sessionId,
+      status: 'completed',
+      progress: 100,
+      timestamp: new Date()
+    });
+  }
+});
+
+queueEvents.on('failed', ({ jobId, failedReason }) => {
+  console.error(`❌ Job ${jobId} failed:`, failedReason);
+  const sessionId = findSessionIdByJobId(jobId);
+  if (sessionId) {
+    // 清理映射
+    cleanupJobSession(jobId);
+
+    subscriptionManager.emit(sessionId, {
+      type: 'failed',
+      sessionId,
+      status: 'failed',
+      progress: 0,
+      timestamp: new Date()
+    });
+  }
+});
+
+queueEvents.on('progress', ({ jobId, data }) => {
+  console.log(`📊 Job ${jobId} progress:`, data);
+  const sessionId = findSessionIdByJobId(jobId);
+  if (sessionId) {
+    // 检查是否是sessionId更新消息
+    if (typeof data === 'object' && data !== null && 'type' in data && data.type === 'sessionIdUpdate') {
+      const updateData = data as unknown as { oldSessionId: string; newSessionId: string };
+      const { oldSessionId, newSessionId } = updateData;
+      console.log(`🔄 Session ID updated: ${oldSessionId} -> ${newSessionId}`);
+
+      // 更新映射
+      updateJobSession(jobId, newSessionId);
+
+      // 通知旧的sessionId的订阅者
+      subscriptionManager.emit(oldSessionId, {
+        type: 'sessionIdChanged',
+        sessionId: oldSessionId,
+        oldSessionId,
+        newSessionId,
+        timestamp: new Date()
       });
 
-      if (!workspace) {
-        throw new Error("Workspace not found");
+      // 同时发送给新的sessionId（以防前端已经切换）
+      subscriptionManager.emit(newSessionId, {
+        type: 'active',
+        sessionId: newSessionId,
+        status: 'active',
+        progress: 0,
+        timestamp: new Date()
+      });
+    } else {
+      // 普通进度更新
+      subscriptionManager.emit(sessionId, {
+        type: 'active',
+        sessionId,
+        status: 'active',
+        progress: typeof data === 'number' ? data : 0,
+        timestamp: new Date()
+      });
+    }
+  }
+});
+
+export const agentRouter = createTRPCRouter({
+  // 启动后台查询任务
+  startQuery: protectedProcedure
+    .input(z.object({
+      query: z.string(),
+      workspaceId: z.string(),
+      sessionId: z.string().optional()
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // 添加任务到队列
+      const result = await addAgentTask({
+        workspaceId: input.workspaceId,
+        userId: ctx.session.user.id,
+        query: input.query,
+        sessionId: input.sessionId
+      });
+
+      // 注册jobId到sessionId的映射，用于事件驱动推送
+      registerJobSession(result.jobId, result.sessionId);
+
+      return {
+        sessionId: result.sessionId,
+        jobId: result.jobId,
+        status: result.status
+      };
+    }),
+
+  // 监听任务状态（subscription）- 事件驱动版本
+  watchQuery: protectedProcedure
+    .input(z.object({
+      sessionId: z.string(),
+      jobId: z.string()
+    }))
+    .subscription(async function* ({ ctx, input }) {
+      const { sessionId } = input;
+
+      // 验证 session 属于当前用户
+      const session = await ctx.db.agentSession.findUnique({
+        where: { sessionId, userId: ctx.session.user.id },
+        select: { messages: true, title: true, createdAt: true }
+      });
+
+      if (!session) {
+        throw new Error("Session not found or access denied");
       }
-      const cwd = join(homedir(), 'workspaces', workspace.path);
 
-      if (input.sessionId && !input.query) {
-        const historyMessages = await ctx.db.agentSession.findUnique({
-          where: { sessionId: input.sessionId, userId: ctx.session.user.id },
-          select: { messages: true },
-        });
-        if (historyMessages?.messages) {
-          // 统一处理：数据库中 messages 始终是 JSON 字符串
-          const messagesStr = typeof historyMessages.messages === 'string'
-            ? historyMessages.messages
-            : '[]'; // 兜底处理，正常情况下不会走到这里
-          const messages = JSON.parse(messagesStr) as SDKMessage[];
+      // 发送初始状态和历史消息
+      const currentTaskStatus = await getTaskStatus(sessionId);
+      const parsedMessages: unknown = JSON.parse((session.messages as string) ?? '[]');
+      const messages: SDKMessage[] = Array.isArray(parsedMessages)
+        ? parsedMessages.filter((msg): msg is SDKMessage =>
+          typeof msg === 'object' && msg !== null &&
+          'type' in msg && 'content' in msg
+        )
+        : [];
+      yield {
+        type: 'init',
+        sessionId,
+        status: currentTaskStatus.status,
+        messages,
+        title: session.title,
+        createdAt: session.createdAt
+      };
 
-          for (const msg of messages) {
-            yield msg;
-          }
+      // 创建一个Promise来处理事件驱动的推送
+      let resolveSubscription: ((value: PushMessage) => void) | null = null;
+
+      const eventPromise = new Promise<PushMessage>((resolve, reject) => {
+        resolveSubscription = resolve;
+        // reject is not used in current implementation
+        void reject;
+      });
+
+      // 注册到subscription管理器
+      const eventEmitter = (message: PushMessage) => {
+        if (resolveSubscription) {
+          resolveSubscription(message);
+          // 重置Promise以便接收下一个事件
+          resolveSubscription = null;
         }
-      }
+      };
 
-      // 如果没有新query，只是加载历史消息，则yield结果并返回
-      if (!input.query) {
-        yield {
-          type: 'result' as const,
-          session_id: input.sessionId,
-        };
-        return;
-      }
+      subscriptionManager.register(sessionId, eventEmitter);
 
-      if (input.query) {
-        const queryInstance = query({
-          prompt: input.query,
-          options: {
-            maxTurns: 30,
-            permissionMode: 'bypassPermissions',
-            resume: input.sessionId ?? undefined,
-            cwd,
-            systemPrompt: {
-              type: "preset",
-              preset: "claude_code",
-              append:
-                ` - 始终在workspace目录下操作，严格遵守文件读写权限，不要尝试访问未授权的文件或目录。
-                - workspace目录是你能够访问的唯一文件系统位置。
-                - 禁止在非workspace目录下读写文件。`,
-            },
-          }
-        });
+      try {
+        // 持续监听事件
+        while (true) {
+          // 等待事件发生
+          const message = await eventPromise;
 
-
-        for await (const message of queryInstance) {
-          if (message.type === 'system' && message.subtype === 'init') {
-            const sessionId = message.session_id
-            const userMessage: SDKUserMessage = {
-              type: "user",
-              message: {
-                role: "user",
-                content: input.query,
-              },
-              session_id: sessionId,
-              parent_tool_use_id: null,
-            }
-
-
-            if (!input.sessionId) {
-              await ctx.db.agentSession.create({
-                data: {
-                  sessionId,
-                  workspaceId: input.workspaceId,
-                  userId: ctx.session.user.id,
-                  title: input.query.slice(0, 30),
-                  messages: JSON.stringify([userMessage]),
-                }
-              });
-            } else {
-              await addMessageToSession(ctx.db, message.session_id, userMessage);
-            }
-            yield userMessage;
-          }
-          if (message.type === 'user') {
+          // 检查是否是终止状态
+          if (message.status === 'completed' || message.status === 'failed') {
             yield message;
-          }
-          if (message.type === "assistant") {
-            await addMessageToSession(ctx.db, message.session_id, message);
-            yield message;
-          }
-          if (message.type === "result") {
-            yield message;
+            break;
           }
 
+          yield message;
+
+          // 为下一个事件创建新的Promise
+          void new Promise<PushMessage>((resolve) => {
+            resolveSubscription = resolve;
+          });
         }
+      } finally {
+        // 清理：取消注册subscription
+        subscriptionManager.unregister(sessionId);
       }
     }),
-  // 获取工作区的所有 sessions
+
+  // 获取会话历史消息（query）
+  getSessionHistory: protectedProcedure
+    .input(z.object({
+      sessionId: z.string()
+    }))
+    .query(async ({ ctx, input }) => {
+      const session = await ctx.db.agentSession.findUnique({
+        where: {
+          sessionId: input.sessionId,
+          userId: ctx.session.user.id
+        },
+        select: {
+          messages: true,
+          title: true,
+          lastQuery: true,
+          createdAt: true,
+          updatedAt: true,
+          bullJobId: true
+        }
+      });
+
+      if (!session) {
+        throw new Error("Session not found or access denied");
+      }
+
+      const parsedMessages: unknown = JSON.parse((session.messages as string) ?? '[]');
+      const messages: SDKMessage[] = Array.isArray(parsedMessages)
+        ? parsedMessages.filter((msg): msg is SDKMessage =>
+          typeof msg === 'object' && msg !== null &&
+          'type' in msg && 'content' in msg
+        )
+        : [];
+      let status = 'idle';
+
+      if (session.bullJobId) {
+        const taskStatus = await getTaskStatus(input.sessionId);
+        status = taskStatus.status ?? 'idle';
+      }
+
+      return {
+        sessionId: input.sessionId,
+        title: session.title,
+        lastQuery: session.lastQuery,
+        messages,
+        status,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt
+      };
+    }),
+
+  // 获取工作区的所有 sessions（增强版）
   getSessions: protectedProcedure
     .input(z.object({
       workspaceId: z.string()
     }))
-    .query(async ({ ctx, input }) => {
-      return await ctx.db.agentSession.findMany({
-        where: {
-          workspaceId: input.workspaceId,
-          userId: ctx.session.user.id,
-        },
-        orderBy: { updatedAt: 'desc' },
-        select: {
-          sessionId: true,
-          title: true,
-          createdAt: true,
-          updatedAt: true,
-        }
+    .query(async ({ input }): Promise<SessionWithStatus[]> => {
+      // 使用 BullMQ 工具函数获取带状态的会话列表
+      return await getWorkspaceSessionsWithStatus(input.workspaceId);
+    }),
+
+  // 取消任务
+  cancelQuery: protectedProcedure
+    .input(z.object({
+      sessionId: z.string()
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // 验证 session 属于当前用户
+      const session = await ctx.db.agentSession.findUnique({
+        where: { sessionId: input.sessionId, userId: ctx.session.user.id },
+        select: { bullJobId: true }
       });
+
+      if (!session) {
+        throw new Error("Session not found or access denied");
+      }
+
+      if (session.bullJobId) {
+        const result = await cancelTask(input.sessionId);
+        // 清理job-session映射
+        cleanupJobSession(session.bullJobId);
+        return result;
+      } else {
+        throw new Error("No active task to cancel");
+      }
     }),
 
   // 删除 session
@@ -170,11 +412,21 @@ export const agentRouter = createTRPCRouter({
       // 验证 session 属于当前用户
       const session = await ctx.db.agentSession.findUnique({
         where: { sessionId: input.sessionId },
-        select: { userId: true }
+        select: { userId: true, bullJobId: true }
       });
 
       if (!session || session.userId !== ctx.session.user.id) {
         throw new Error("Session not found or access denied");
+      }
+
+      // 如果有正在运行的任务，先取消
+      if (session.bullJobId) {
+        try {
+          await cancelTask(input.sessionId);
+        } catch (e) {
+          // 忽略取消错误，继续删除
+          console.error('Error cancelling task:', e);
+        }
       }
 
       // 物理删除
