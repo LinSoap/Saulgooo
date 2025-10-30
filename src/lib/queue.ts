@@ -5,7 +5,7 @@ import Redis from 'ioredis';
 const redisConfig = {
   host: process.env.REDIS_HOST ?? 'localhost',
   port: parseInt(process.env.REDIS_PORT ?? '6379'),
-  maxRetriesPerRequest: 3,
+  maxRetriesPerRequest: null,
   retryDelayOnFailover: 100,
   // 如果使用本地 Redis
   lazyConnect: true,
@@ -34,7 +34,7 @@ export const agentQueue = new Queue('agent-tasks', {
 });
 
 // 队列事件监听器（用于调试和监控）
-export const queueEvents = new QueueEvents('agent-tasks', {
+const queueEvents = new QueueEvents('agent-tasks', {
   connection: redisConnection,
 });
 

@@ -1,4 +1,5 @@
 import { Worker } from 'bullmq';
+import type { Job } from 'bullmq';
 import { PrismaClient } from '@prisma/client';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
@@ -8,22 +9,31 @@ import { redisConnection } from './queue';
 
 const prisma = new PrismaClient();
 
-// Agent Task Worker - 在服务器启动时自动运行
-export const agentWorker = new Worker(
-  'agent-tasks',
-  async (job) => {
-    const { sessionId, query: queryText, workspaceId } = job.data as {
-      sessionId: string;
-      query: string;
-      workspaceId: string;
-    };
+// JobId到SessionId的映射缓存（worker本地）
+const jobSessionMap = new Map<string, string>();
 
-    console.log(`🚀 Starting job ${job.id} for session ${sessionId}`);
+// 定义任务数据类型
+interface AgentTaskData {
+  sessionId: string; // 这是一个临时ID，用于数据库查找
+  query: string;
+  workspaceId: string;
+  userId: string;
+}
+
+// Agent Task Worker - 在服务器启动时自动运行
+export const agentWorker = new Worker<AgentTaskData>(
+  'agent-tasks',
+  async (job: Job<AgentTaskData>) => {
+    const { sessionId: tempSessionId, query: queryText, workspaceId } = job.data;
+
+    console.log(`🚀 Starting job ${job.id} for temp session ${tempSessionId}`);
+
+    let realSessionId: string | null = null;
 
     try {
       // 1. 更新任务状态为运行中
       await prisma.agentSession.update({
-        where: { sessionId },
+        where: { sessionId: tempSessionId },
         data: {
           bullJobId: job.id,
           updatedAt: new Date(),
@@ -45,13 +55,15 @@ export const agentWorker = new Worker(
       // 3. 准备消息数组
       const messages: SDKMessage[] = [];
 
-      // 4. 执行查询
+      console.log("Temp SessionId:", tempSessionId);
+
+      // 4. 执行查询 - 不使用resume参数，让Claude生成新的sessionId
       const queryInstance = query({
         prompt: queryText,
         options: {
           maxTurns: 30,
           permissionMode: 'bypassPermissions',
-          resume: sessionId,
+          // 不使用resume，让Claude创建新的会话
           cwd,
           systemPrompt: {
             type: "preset",
@@ -67,6 +79,27 @@ export const agentWorker = new Worker(
       for await (const message of queryInstance) {
         messages.push(message);
 
+        // 从init消息中获取真正的sessionId
+        if (message.type === 'system' && message.subtype === 'init') {
+          realSessionId = message.session_id;
+          console.log(`🎯 Real session ID from Claude: ${realSessionId}`);
+
+          // 更新数据库中的sessionId
+          await prisma.agentSession.update({
+            where: { sessionId: tempSessionId },
+            data: {
+              sessionId: realSessionId,
+              updatedAt: new Date()
+            }
+          });
+
+          // 更新本地job-session映射
+          jobSessionMap.set(job.id!, realSessionId);
+
+          // 发送sessionId更新通知（通过progress事件）
+          await job.updateProgress({ type: 'sessionIdUpdate', oldSessionId: tempSessionId, newSessionId: realSessionId });
+        }
+
         // 更新任务进度
         if (message.type === 'assistant') {
           await job.updateProgress(50);
@@ -74,17 +107,24 @@ export const agentWorker = new Worker(
 
         // 如果是用户消息，添加到数据库
         if (message.type === 'user') {
+          const currentSessionId = realSessionId ?? tempSessionId;
           const currentSession = await prisma.agentSession.findUnique({
-            where: { sessionId },
+            where: { sessionId: currentSessionId },
             select: { messages: true }
           });
 
           if (currentSession) {
-            const existingMessages = JSON.parse((currentSession.messages as string) ?? '[]') as SDKMessage[];
+            const parsedMessages: unknown = JSON.parse((currentSession.messages as string) ?? '[]');
+            const existingMessages: SDKMessage[] = Array.isArray(parsedMessages)
+              ? parsedMessages.filter((msg): msg is SDKMessage =>
+                typeof msg === 'object' && msg !== null &&
+                'type' in msg && 'content' in msg
+              )
+              : [];
             existingMessages.push(message);
 
             await prisma.agentSession.update({
-              where: { sessionId },
+              where: { sessionId: currentSessionId },
               data: {
                 messages: JSON.stringify(existingMessages),
                 updatedAt: new Date()
@@ -95,8 +135,9 @@ export const agentWorker = new Worker(
       }
 
       // 6. 任务完成，更新数据库
+      const finalSessionId = realSessionId ?? tempSessionId;
       await prisma.agentSession.update({
-        where: { sessionId },
+        where: { sessionId: finalSessionId },
         data: {
           messages: JSON.stringify(messages),
           lastQuery: queryText,
@@ -109,17 +150,21 @@ export const agentWorker = new Worker(
       // 返回结果
       return {
         success: true,
-        sessionId,
+        tempSessionId,
+        realSessionId,
+        sessionId: finalSessionId ?? tempSessionId,
         messageCount: messages.length,
-        lastMessage: messages[messages.length - 1]
+        lastMessage: messages[messages.length - 1],
+        messages
       };
 
     } catch (error) {
       console.error(`❌ Job ${job.id} failed:`, error);
 
       // 更新错误信息到数据库
+      const errorSessionId = realSessionId ?? tempSessionId;
       await prisma.agentSession.update({
-        where: { sessionId },
+        where: { sessionId: errorSessionId },
         data: {
           updatedAt: new Date()
         }

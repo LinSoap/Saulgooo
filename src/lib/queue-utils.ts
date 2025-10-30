@@ -94,7 +94,7 @@ export async function addAgentTask({
 }
 
 /**
- * 获取任务状态
+ * 获取任务状态 - 增强版，包含更多状态信息
  */
 export async function getTaskStatus(sessionId: string) {
   const session = await prisma.agentSession.findUnique({
@@ -117,9 +117,14 @@ export async function getTaskStatus(sessionId: string) {
   if (!session.bullJobId) {
     return {
       ...session,
-      status: 'idle',
+      status: 'idle' as const,
       progress: 0,
       isActive: false,
+      attemptsMade: 0,
+      attemptsRemaining: 3,
+      processedAt: null,
+      finishedAt: null,
+      failedReason: null,
     };
   }
 
@@ -127,33 +132,50 @@ export async function getTaskStatus(sessionId: string) {
   try {
     const job = await agentQueue.getJob(session.bullJobId);
     if (!job) {
+      // 任务已被清理，认为是完成状态
       return {
         ...session,
-        status: 'completed',
+        status: 'completed' as const,
         progress: 100,
         isActive: false,
+        attemptsMade: 3,
+        attemptsRemaining: 0,
+        processedAt: session.updatedAt,
+        finishedAt: session.updatedAt,
+        failedReason: null,
       };
     }
 
     const state = await job.getState();
-    const progress = job.progress || 0;
+    const progress = typeof job.progress === 'number' ? job.progress : 0;
+
+    // 获取任务的尝试信息
+    const attemptsMade = job.attemptsMade ?? 0;
+    const attemptsRemaining = Math.max(0, (job.opts?.attempts ?? 3) - attemptsMade);
 
     return {
       ...session,
       status: state,
       progress,
       isActive: state === 'active',
+      attemptsMade,
+      attemptsRemaining,
+      processedAt: job.processedOn,
+      finishedAt: job.finishedOn,
       failedReason: job.failedReason,
-      processedOn: job.processedOn,
-      finishedOn: job.finishedOn,
     };
   } catch (error) {
     console.error('Error getting job status:', error);
     return {
       ...session,
-      status: 'error',
+      status: 'error' as const,
       progress: 0,
       isActive: false,
+      attemptsMade: 0,
+      attemptsRemaining: 0,
+      processedAt: null,
+      finishedAt: null,
+      failedReason: error instanceof Error ? error.message : 'Unknown error',
     };
   }
 }
@@ -192,7 +214,7 @@ export async function cancelTask(sessionId: string) {
 }
 
 /**
- * 获取工作区的所有会话及其状态
+ * 获取工作区的所有会话及其状态 - 优化版
  */
 export async function getWorkspaceSessionsWithStatus(workspaceId: string) {
   const sessions = await prisma.agentSession.findMany({
@@ -208,45 +230,268 @@ export async function getWorkspaceSessionsWithStatus(workspaceId: string) {
     }
   });
 
-  // 批量获取状态
-  const sessionsWithStatus = await Promise.all(
-    sessions.map(async (session) => {
-      if (session.bullJobId) {
+  if (sessions.length === 0) {
+    return [];
+  }
+
+  // 批量获取所有活跃任务的状态
+  const activeJobIds = sessions
+    .map(session => session.bullJobId)
+    .filter((jobId): jobId is string => jobId !== null);
+
+  const jobStatuses = new Map<string, {
+    status: string;
+    progress: number;
+    isActive: boolean;
+    attemptsMade: number;
+    attemptsRemaining: number;
+    processedAt: number | null;
+    finishedAt: number | null;
+    failedReason: string | null;
+  }>();
+
+  if (activeJobIds.length > 0) {
+    // 批量获取任务状态，避免N+1查询
+    const jobs = await Promise.allSettled(
+      activeJobIds.map(jobId => agentQueue.getJob(jobId))
+    );
+
+    // 并行获取状态
+    const statusPromises = jobs.map(async (result, _index) => {
+      if (result.status === 'fulfilled' && result.value) {
+        const job = result.value;
         try {
-          const job = await agentQueue.getJob(session.bullJobId);
-          if (job) {
-            const state = await job.getState();
-            return {
-              ...session,
-              status: state,
-              isActive: state === 'active',
-            };
-          }
+          const state = await job.getState();
+          const progress = typeof job.progress === 'number' ? job.progress : 0;
+          const attemptsMade = job.attemptsMade ?? 0;
+          const attemptsRemaining = Math.max(0, (job.opts?.attempts ?? 3) - attemptsMade);
+
+          jobStatuses.set(job.id!, {
+            status: state,
+            progress,
+            isActive: state === 'active',
+            attemptsMade,
+            attemptsRemaining,
+            processedAt: job.processedOn ?? null,
+            finishedAt: job.finishedOn ?? null,
+            failedReason: job.failedReason,
+          });
         } catch (error) {
-          // 忽略错误，继续处理
+          jobStatuses.set(job.id!, {
+            status: 'error',
+            progress: 0,
+            isActive: false,
+            attemptsMade: 0,
+            attemptsRemaining: 0,
+            processedAt: null,
+            finishedAt: null,
+            failedReason: error instanceof Error ? error.message : 'Unknown error',
+          });
         }
       }
+    });
 
+    await Promise.all(statusPromises);
+  }
+
+  // 构建结果
+  return sessions.map(session => {
+    if (session.bullJobId && jobStatuses.has(session.bullJobId)) {
       return {
         ...session,
-        status: 'idle',
-        isActive: false,
+        ...jobStatuses.get(session.bullJobId)!,
       };
-    })
-  );
+    }
 
-  return sessionsWithStatus;
+    // 没有活跃任务的会话
+    return {
+      ...session,
+      status: 'idle' as const,
+      progress: 0,
+      isActive: false,
+      attemptsMade: 0,
+      attemptsRemaining: 3,
+      processedAt: null,
+      finishedAt: null,
+      failedReason: null,
+    };
+  });
 }
 
 /**
- * 清理旧的完成任务（定期任务）
+ * 记录任务状态变化历史
  */
-export async function cleanCompletedJobs() {
-  const completedJobs = await agentQueue.getCompleted();
-  const failedJobs = await agentQueue.getFailed();
+export async function recordTaskStatusChange(
+  sessionId: string,
+  jobId: string,
+  oldStatus: string,
+  newStatus: string,
+  metadata?: Record<string, unknown>
+) {
+  // 这里可以扩展为将状态变化记录到数据库
+  // 目前先记录到日志，将来可以存储到专门的状态历史表
+  console.log(`📊 Task ${jobId} status changed: ${oldStatus} -> ${newStatus}`, {
+    sessionId,
+    timestamp: new Date().toISOString(),
+    ...metadata
+  });
+}
 
-  console.log(`Cleaning up ${completedJobs.length} completed and ${failedJobs.length} failed jobs`);
+/**
+ * 获取任务的完整状态信息，包括历史和统计
+ */
+export async function getTaskDetailedStatus(sessionId: string) {
+  const basicStatus = await getTaskStatus(sessionId);
 
-  // BullMQ 会自动清理（根据 defaultJobOptions 配置）
-  // 这里可以添加额外的清理逻辑
+  // 获取任务统计信息
+  if (basicStatus.bullJobId) {
+    try {
+      const job = await agentQueue.getJob(basicStatus.bullJobId);
+      if (job) {
+        const stats = {
+          ...basicStatus,
+          jobStats: {
+            attemptsMade: job.attemptsMade ?? 0,
+            attemptsRemaining: Math.max(0, (job.opts?.attempts ?? 3) - (job.attemptsMade ?? 0)),
+            priority: job.opts?.priority ?? 0,
+            delay: job.opts?.delay ?? 0,
+            createdAt: job.timestamp,
+            processedAt: job.processedOn,
+            finishedAt: job.finishedOn,
+            duration: job.finishedOn && job.processedOn
+              ? Number(job.finishedOn) - Number(job.processedOn)
+              : null,
+          }
+        };
+        return stats;
+      }
+    } catch (error) {
+      console.error('Error getting detailed job stats:', error);
+    }
+  }
+
+  return {
+    ...basicStatus,
+    jobStats: null,
+  };
+}
+
+/**
+ * 批量获取多个任务的状态（优化版本，避免 N+1 查询）
+ */
+export async function getBulkTaskStatus(sessionIds: string[]) {
+  if (sessionIds.length === 0) return {};
+
+  // 批量从数据库获取会话信息
+  const sessions = await prisma.agentSession.findMany({
+    where: {
+      sessionId: { in: sessionIds }
+    },
+    select: {
+      sessionId: true,
+      bullJobId: true,
+      createdAt: true,
+      updatedAt: true,
+      messages: true, // messages 是 Json 类型
+    }
+  });
+
+  // 批量获取 BullMQ 作业状态
+  const jobIds = sessions
+    .map(s => s.bullJobId)
+    .filter(Boolean) as string[];
+
+  const jobs = jobIds.length > 0
+    ? await Promise.all(
+      jobIds.map(jobId => agentQueue.getJob(jobId).catch(() => null))
+    )
+    : [];
+
+  // 构建结果映射
+  const jobMap = new Map(jobs.filter(Boolean).map(job => [job!.id, job]));
+
+  const results: Record<string, {
+    sessionId: string;
+    bullJobId: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+    lastMessage: unknown;
+    jobState: string;
+    progress: number;
+    attemptsMade: number;
+    attemptsRemaining: number;
+    processedAt: number | undefined;
+    finishedAt: number | undefined;
+    failedReason: string | undefined;
+    duration: number | null;
+  }> = {};
+
+  for (const session of sessions) {
+    const job = session.bullJobId ? jobMap.get(session.bullJobId) : null;
+
+    // 从 messages JSON 中提取最后一条消息
+    const messages = Array.isArray(session.messages) ? session.messages : [];
+    const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+
+    results[session.sessionId] = {
+      sessionId: session.sessionId,
+      bullJobId: session.bullJobId,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      lastMessage,
+      jobState: job ? await job.getState() : 'unknown',
+      progress: typeof job?.progress === 'number' ? job.progress : 0,
+      attemptsMade: job?.attemptsMade ?? 0,
+      attemptsRemaining: Math.max(0, (job?.opts?.attempts ?? 3) - (job?.attemptsMade ?? 0)),
+      processedAt: job?.processedOn,
+      finishedAt: job?.finishedOn,
+      failedReason: job?.failedReason ?? undefined,
+      duration: job?.finishedOn && job?.processedOn
+        ? Number(job.finishedOn) - Number(job.processedOn)
+        : null,
+    };
+  }
+
+  return results;
+}
+
+/**
+ * 获取工作区的活跃任务统计
+ */
+export async function getWorkspaceTaskStats(workspaceId: string) {
+  const sessions = await prisma.agentSession.findMany({
+    where: {
+      workspaceId,
+    },
+    select: {
+      sessionId: true,
+      bullJobId: true,
+      createdAt: true,
+      updatedAt: true,
+    }
+  });
+
+  const stats = {
+    total: sessions.length,
+    averageDuration: 0,
+    oldestSession: null as Date | null,
+  };
+
+  // 计算平均持续时间
+  if (sessions.length > 0) {
+    const totalDuration = sessions.reduce((sum, session) => {
+      const duration = session.updatedAt.getTime() - session.createdAt.getTime();
+      return sum + duration;
+    }, 0);
+    stats.averageDuration = totalDuration / sessions.length;
+  }
+
+  // 找到最老的会话
+  if (sessions.length > 0) {
+    stats.oldestSession = sessions
+      .map(s => s.createdAt)
+      .sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
+  }
+
+  return stats;
 }
