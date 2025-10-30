@@ -130,7 +130,7 @@ export function WorkspaceCard({
       </CardContent>
 
       <CardFooter>
-        <Link href={`/workspace/${id}`} className="w-full">
+        <Link href={`/workspace/${id}?file=`} className="w-full">
           <Button className="w-full">
             进入工作空间
             <ArrowRight className="ml-2 h-4 w-4" />

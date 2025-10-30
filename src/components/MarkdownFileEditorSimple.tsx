@@ -153,8 +153,8 @@ export function MarkdownFileEditorSimple({
       )}
     >
       {/* 工具栏 */}
-      <div className="flex items-center justify-between border-b px-4 py-2">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between border-b p-4">
+        <div className="flex h-8 items-center gap-2">
           <Button
             variant={viewMode === "preview" ? "default" : "outline"}
             size="sm"
