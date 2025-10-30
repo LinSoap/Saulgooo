@@ -3,7 +3,37 @@ import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { query, type SDKMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { join } from "path";
 import { homedir } from "os";
+import type { PrismaClient } from "@prisma/client";
 
+// 辅助函数：向指定session添加消息
+async function addMessageToSession(
+  db: PrismaClient,
+  sessionId: string,
+  message: SDKMessage
+) {
+  const currentSession = await db.agentSession.findUnique({
+    where: { sessionId },
+    select: { messages: true }
+  });
+
+  if (!currentSession) {
+    throw new Error(`Session ${sessionId} not found`);
+  }
+
+  // 统一处理：数据库中 messages 始终是 JSON 字符串
+  const messagesStr = typeof currentSession.messages === 'string'
+    ? currentSession.messages
+    : '[]'; // 兜底处理，正常情况下不会走到这里
+  const currentMessages = JSON.parse(messagesStr) as SDKMessage[];
+  const updatedMessages = [...currentMessages, message];
+
+  await db.agentSession.update({
+    where: { sessionId },
+    data: {
+      messages: JSON.stringify(updatedMessages),
+    }
+  });
+}
 
 export const agentRouter = createTRPCRouter({
   query: protectedProcedure
@@ -94,26 +124,7 @@ export const agentRouter = createTRPCRouter({
                 }
               });
             } else {
-              const currentSession = await ctx.db.agentSession.findUnique({
-                where: { sessionId: message.session_id },
-                select: { messages: true }
-              });
-              if (currentSession) {
-                // 统一处理：数据库中 messages 始终是 JSON 字符串
-                const messagesStr = typeof currentSession.messages === 'string'
-                  ? currentSession.messages
-                  : '[]'; // 兜底处理，正常情况下不会走到这里
-                const currentMessages = JSON.parse(messagesStr) as SDKMessage[];
-                const updatedMessages = [...currentMessages, userMessage];
-
-                await ctx.db.agentSession.update({
-                  where: { sessionId: message.session_id },
-                  data: {
-                    messages: JSON.stringify(updatedMessages),
-                  }
-                });
-              }
-
+              await addMessageToSession(ctx.db, message.session_id, userMessage);
             }
             yield userMessage;
           }
@@ -121,28 +132,7 @@ export const agentRouter = createTRPCRouter({
             yield message;
           }
           if (message.type === "assistant") {
-            // 获取当前session的messages
-            const currentSession = await ctx.db.agentSession.findUnique({
-              where: { sessionId: message.session_id },
-              select: { messages: true }
-            });
-
-            if (currentSession) {
-              // 统一处理：数据库中 messages 始终是 JSON 字符串
-              const messagesStr = typeof currentSession.messages === 'string'
-                ? currentSession.messages
-                : '[]'; // 兜底处理，正常情况下不会走到这里
-              const currentMessages = JSON.parse(messagesStr) as SDKMessage[];
-              const updatedMessages = [...currentMessages, message];
-
-              await ctx.db.agentSession.update({
-                where: { sessionId: message.session_id },
-                data: {
-                  messages: JSON.stringify(updatedMessages),
-                }
-              });
-            }
-
+            await addMessageToSession(ctx.db, message.session_id, message);
             yield message;
           }
           if (message.type === "result") {
