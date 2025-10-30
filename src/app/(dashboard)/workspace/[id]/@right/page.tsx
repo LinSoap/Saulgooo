@@ -47,6 +47,7 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
   const { data: session } = useSession();
   const [inputMessage, setInputMessage] = useState("");
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
 
   // 获取 tRPC utils 用于手动获取数据
   const utils = api.useUtils();
@@ -165,6 +166,7 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
     const newUrl = `${pathname}?${newParams.toString()}`;
     router.push(newUrl);
     reset();
+    setConfirmingDelete(null);
   };
 
   // 切换到指定会话 - 修改URL
@@ -174,6 +176,7 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
     const newUrl = `${pathname}?${newParams.toString()}`;
     router.push(newUrl);
     reset();
+    setConfirmingDelete(null);
   };
 
   // 删除会话
@@ -182,8 +185,14 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
     e: React.MouseEvent,
   ) => {
     e.stopPropagation();
-    if (confirm("确定要删除这个对话吗？")) {
-      void deleteSessionMutation.mutateAsync({ sessionId });
+
+    if (confirmingDelete === sessionId) {
+      // 第二次点击，执行删除
+      await deleteSessionMutation.mutateAsync({ sessionId });
+      setConfirmingDelete(null);
+    } else {
+      // 第一次点击，显示确认状态
+      setConfirmingDelete(sessionId);
     }
   };
 
@@ -246,7 +255,13 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
           </div>
 
           {/* 会话管理下拉菜单 */}
-          <DropdownMenu>
+          <DropdownMenu
+            onOpenChange={(open) => {
+              if (!open) {
+                setConfirmingDelete(null);
+              }
+            }}
+          >
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                 <History className="h-4 w-4" />
@@ -291,12 +306,31 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100"
+                        className={`h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100 ${
+                          confirmingDelete === session.sessionId
+                            ? "bg-destructive text-destructive-foreground hover:bg-destructive/90 animate-pulse"
+                            : "hover:bg-destructive/10 hover:text-destructive"
+                        }`}
                         onClick={(e) =>
                           handleDeleteSession(session.sessionId, e)
                         }
+                        disabled={deleteSessionMutation.isPending}
+                        title={
+                          confirmingDelete === session.sessionId
+                            ? "再次点击确认删除"
+                            : "删除对话"
+                        }
                       >
-                        <Trash2 className="h-3 w-3" />
+                        {deleteSessionMutation.isPending &&
+                        confirmingDelete === session.sessionId ? (
+                          <Loader2 className="h-3 w-3" />
+                        ) : confirmingDelete === session.sessionId ? (
+                          <div className="flex items-center justify-center">
+                            <span className="text-[10px] font-bold">✓</span>
+                          </div>
+                        ) : (
+                          <Trash2 className="h-3 w-3" />
+                        )}
                       </Button>
                     </DropdownMenuItem>
                   ))}
