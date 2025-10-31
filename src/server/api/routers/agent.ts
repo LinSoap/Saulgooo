@@ -240,8 +240,7 @@ export const agentRouter = createTRPCRouter({
   // 监听任务状态（subscription）- 事件驱动版本
   watchQuery: protectedProcedure
     .input(z.object({
-      sessionId: z.string(),
-      jobId: z.string()
+      sessionId: z.string()
     }))
     .subscription(async function* ({ ctx, input }) {
       const { sessionId } = input;
@@ -249,15 +248,31 @@ export const agentRouter = createTRPCRouter({
       // 验证 session 属于当前用户
       const session = await ctx.db.agentSession.findUnique({
         where: { sessionId, userId: ctx.session.user.id },
-        select: { messages: true, title: true, createdAt: true }
+        select: { messages: true, title: true, createdAt: true, bullJobId: true }
       });
 
       if (!session) {
         throw new Error("Session not found or access denied");
       }
 
-      // 发送初始状态和历史消息
-      const currentTaskStatus = await getTaskStatus(sessionId);
+      // 获取当前任务状态
+      let currentTaskStatus = { status: 'idle' as TaskStatus, progress: 0 };
+      let jobId = session.bullJobId ?? undefined;
+
+      // 如果有活跃任务，获取真实状态
+      if (session.bullJobId) {
+        try {
+          currentTaskStatus = await getTaskStatus(sessionId);
+          jobId = session.bullJobId;
+        } catch (error) {
+          console.error('Error getting task status:', error);
+          // 任务可能已经完成或出错
+          currentTaskStatus = { status: 'idle', progress: 0 };
+          jobId = undefined;
+        }
+      }
+
+      // 解析历史消息
       const parsedMessages: unknown = JSON.parse((session.messages as string) ?? '[]');
       const messages: SDKMessage[] = Array.isArray(parsedMessages)
         ? parsedMessages.filter((msg): msg is SDKMessage =>
@@ -265,6 +280,8 @@ export const agentRouter = createTRPCRouter({
           'type' in msg && 'content' in msg
         )
         : [];
+
+      // 发送初始状态和历史消息
       yield {
         type: 'init',
         sessionId,
@@ -273,6 +290,15 @@ export const agentRouter = createTRPCRouter({
         title: session.title,
         createdAt: session.createdAt
       };
+
+      // 如果没有活跃任务，直接结束
+      if (!jobId) {
+        console.log(`ℹ️ No active job for session ${sessionId}, ending subscription`);
+        return;
+      }
+
+      // 注册 jobId 到 sessionId 的映射（如果还没有的话）
+      registerJobSession(jobId, sessionId);
 
       // 创建一个Promise来处理事件驱动的推送
       let resolveSubscription: ((value: PushMessage) => void) | null = null;

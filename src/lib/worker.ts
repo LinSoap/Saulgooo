@@ -14,7 +14,7 @@ const jobSessionMap = new Map<string, string>();
 
 // 定义任务数据类型
 interface AgentTaskData {
-  sessionId: string; // 这是一个临时ID，用于数据库查找
+  sessionId?: string; // 这是一个临时ID，用于数据库查找
   query: string;
   workspaceId: string;
   userId: string;
@@ -63,6 +63,7 @@ export const agentWorker = new Worker<AgentTaskData>(
         options: {
           maxTurns: 30,
           permissionMode: 'bypassPermissions',
+          // resume: 
           // 不使用resume，让Claude创建新的会话
           cwd,
           systemPrompt: {
