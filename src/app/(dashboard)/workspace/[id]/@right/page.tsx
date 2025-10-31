@@ -55,6 +55,7 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
   const [inputMessage, setInputMessage] = useState("");
   const [sessions, setSessions] = useState<Session[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const isInitialLoadRef = useRef(true); // 跟踪是否是首次加载
 
   // 从URL读取id（数据库主键）
   const currentId = searchParams?.get("id");
@@ -104,8 +105,21 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
         updatedAt: session.updatedAt.toISOString(),
       }));
       setSessions(formattedSessions);
+
+      // 只在首次加载且没有指定session ID时自动选择最近的session
+      if (
+        isInitialLoadRef.current &&
+        !currentId &&
+        formattedSessions.length > 0
+      ) {
+        const latestSession = formattedSessions[0]; // sessionsData已经按updatedAt降序排列
+        if (latestSession) {
+          handleSelectSession(latestSession.id);
+        }
+        isInitialLoadRef.current = false; // 标记为非首次加载
+      }
     }
-  }, [sessionsData]);
+  }, [sessionsData, currentId]);
 
   // 滚动到底部
   const scrollToBottom = () => {
