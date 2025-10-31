@@ -1,12 +1,24 @@
+"use client";
+
 import { SessionProvider } from "next-auth/react";
 import DashboardSidebar from "~/components/dashboard-sidebar";
+import { usePathname } from "next/navigation";
 
 export default function DashboardLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const pathname = usePathname();
+
+  // 在 workspace 页面不显示 sidebar
+  const showSidebar = !pathname.includes("/workspace/");
+
   return (
     <SessionProvider>
-      <DashboardSidebar>{children}</DashboardSidebar>
+      {showSidebar ? (
+        <DashboardSidebar>{children}</DashboardSidebar>
+      ) : (
+        <>{children}</>
+      )}
     </SessionProvider>
   );
 }
