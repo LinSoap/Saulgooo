@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useState, useEffect, useRef } from "react";
+import { use, useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -72,7 +72,7 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
   const { messages, isLoading, status, error, sendQuery, cancelQuery, reset } =
     useBackgroundQuery(id ?? "", currentId, () => {
       // 当消息完成时，刷新 session 列表
-      refetchSessions();
+      void refetchSessions();
     });
   console.log("Page: messages", messages);
 
@@ -97,14 +97,14 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
   });
 
   // 切换到指定会话 - 修改URL（使用数据库主键）
-  const handleSelectSession = (selectedId: string) => {
+  const handleSelectSession = useCallback((selectedId: string) => {
     const newParams = new URLSearchParams(searchParams?.toString() || "");
     newParams.set("id", selectedId);
     const newUrl = `${pathname}?${newParams.toString()}`;
     router.push(newUrl);
     reset();
     setConfirmingDelete(null);
-  };
+  }, [searchParams, pathname, router, reset]);
 
   // 更新 sessions 列表
   useEffect(() => {
@@ -129,7 +129,7 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
         isInitialLoadRef.current = false; // 标记为非首次加载
       }
     }
-  }, [sessionsData, currentId]);
+  }, [sessionsData, currentId, handleSelectSession]);
 
   // 滚动到底部
   const scrollToBottom = () => {

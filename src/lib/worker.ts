@@ -28,7 +28,7 @@ export const agentWorker = new Worker<AgentTaskData>(
     console.log(`🚀 Starting job ${job.id} for session ${id}`);
     console.log('🔍 Worker - Job data:', {
       id,
-      sessionId: sessionId || '(null - new session)',
+      sessionId: sessionId ?? '(null - new session)',
       queryText: queryText.substring(0, 50) + '...',
       workspaceId,
       userId
@@ -59,7 +59,7 @@ export const agentWorker = new Worker<AgentTaskData>(
 
       // 5. 执行查询
       console.log('🔍 Worker - Creating query instance');
-      console.log('🔍 Worker - Resume sessionId:', sessionId || 'none (new conversation)');
+      console.log('🔍 Worker - Resume sessionId:', sessionId ?? 'none (new conversation)');
       const queryInstance = query({
         prompt: queryText,
         options: {
@@ -88,9 +88,9 @@ export const agentWorker = new Worker<AgentTaskData>(
         messageCount++;
         console.log(`🔍 Worker - Message #${messageCount}:`, {
           type: message.type,
-          subtype: (message as any).subtype,
+          subtype: 'subtype' in message ? (message as { subtype: unknown }).subtype : 'N/A',
           has_session_id: 'session_id' in message,
-          session_id: (message as any).session_id
+          session_id: 'session_id' in message ? (message as { session_id: unknown }).session_id : 'N/A'
         });
 
         if (message.type === 'system' && message.subtype === 'init') {
