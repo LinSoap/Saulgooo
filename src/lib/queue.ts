@@ -34,7 +34,7 @@ export const agentQueue = new Queue('agent-tasks', {
 });
 
 // 队列事件监听器（用于调试和监控）
-const queueEvents = new QueueEvents('agent-tasks', {
+export const queueEvents = new QueueEvents('agent-tasks', {
   connection: redisConnection,
 });
 
