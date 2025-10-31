@@ -59,23 +59,26 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
   // 从URL读取id（数据库主键）
   const currentId = searchParams?.get("id");
 
-  // 使用新的 hook
-  // id 是 workspaceId，currentId 是要加载的会话 ID（数据库主键）
-  const { messages, isLoading, status, error, sendQuery, cancelQuery, reset } =
-    useBackgroundQuery(id ?? "", currentId);
-  console.log("Page: messages", messages);
-
-  // 滚动相关 refs - 必须在 messages 声明之后
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const [showScrollButton, setShowScrollButton] = useState(false);
-
   // 获取 sessions 列表
   const { data: sessionsData, refetch: refetchSessions } =
     api.agent.getSessions.useQuery(
       { workspaceId: id ?? "" },
       { enabled: !!id },
     );
+
+  // 使用新的 hook
+  // id 是 workspaceId，currentId 是要加载的会话 ID（数据库主键）
+  const { messages, isLoading, status, error, sendQuery, cancelQuery, reset } =
+    useBackgroundQuery(id ?? "", currentId, () => {
+      // 当消息完成时，刷新 session 列表
+      refetchSessions();
+    });
+  console.log("Page: messages", messages);
+
+  // 滚动相关 refs - 必须在 messages 声明之后
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
 
   // 删除 session
   const deleteSessionMutation = api.agent.deleteSession.useMutation({

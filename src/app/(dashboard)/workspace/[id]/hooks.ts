@@ -20,7 +20,8 @@ interface UseBackgroundQueryReturn {
 
 export function useBackgroundQuery(
   workspaceId: string,
-  initialId?: string | null
+  initialId?: string | null,
+  onMessageCompleted?: () => void  // 新增回调函数
 ): UseBackgroundQueryReturn {
   const route = useRouter();
   const pathname = usePathname();
@@ -91,6 +92,10 @@ export function useBackgroundQuery(
         } else if (data.status === 'completed') {
           setIsLoading(false);
           setError(null);
+          // 当消息完成时，刷新 session 列表
+          if (onMessageCompleted) {
+            onMessageCompleted();
+          }
         } else if (data.status === 'active') {
           setIsLoading(true);
           setError(null);
