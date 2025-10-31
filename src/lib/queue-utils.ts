@@ -1,6 +1,6 @@
 import { agentQueue } from './queue';
 import { PrismaClient } from '@prisma/client';
-import { randomUUID } from 'crypto';
+import { createId } from '@paralleldrive/cuid2';
 
 const prisma = new PrismaClient();
 
@@ -8,61 +8,72 @@ const prisma = new PrismaClient();
  * 添加一个新的 Agent 任务到队列
  */
 export async function addAgentTask({
+  id,
   workspaceId,
   userId,
   query,
-  sessionId,
 }: {
+  id?: string;
   workspaceId: string;
   userId: string;
   query: string;
-  sessionId?: string;
 }) {
-  // 如果没有 sessionId，创建一个新的
-  const finalSessionId = sessionId ?? randomUUID();
+  // 确保 userId 是字符串类型
+  const userIdStr = String(userId);
+  let session;
+  // 确保 id 是可变的（用于新会话创建）
+  let mutableId = id;
 
-  // 检查会话是否已经有一个正在运行的任务
-  const existingSession = await prisma.agentSession.findUnique({
-    where: { sessionId: finalSessionId },
-    select: { bullJobId: true }
-  });
-
-  if (existingSession?.bullJobId) {
-    // 检查任务是否还在运行
-    const job = await agentQueue.getJob(existingSession.bullJobId);
-    if (job) {
-      const state = await job.getState();
-      if (state === 'active' || state === 'waiting') {
-        throw new Error('Session already has a running task');
-      }
-    }
+  // 1. 如果提供了 id，查找现有会话
+  if (mutableId) {
+    session = await prisma.agentSession.findUnique({
+      where: { id: mutableId },
+      select: { sessionId: true, bullJobId: true }
+    });
+    console.log('🔍 addAgentTask - Found existing session');
+    console.log('🔍 addAgentTask - Session ID:', mutableId);
+    console.log('🔍 addAgentTask - Session sessionId:', session?.sessionId);
+    console.log('🔍 addAgentTask - Session bullJobId:', session?.bullJobId);
   }
 
-  // 创建或更新会话
-  await prisma.agentSession.upsert({
-    where: { sessionId: finalSessionId },
-    update: {
-      lastQuery: query,
-      updatedAt: new Date()
-    },
-    create: {
-      sessionId: finalSessionId,
-      workspaceId,
-      userId,
-      title: query.slice(0, 50), // 使用查询的前50个字符作为标题
-      messages: JSON.stringify([]),
-      lastQuery: query,
+  // 2. 如果找到了现有会话，使用它；否则创建新会话
+  if (session) {
+    // 检查是否有正在运行的任务
+    if (session.bullJobId) {
+      const job = await agentQueue.getJob(session.bullJobId);
+      if (job) {
+        const state = await job.getState();
+        if (state === 'active' || state === 'waiting') {
+          throw new Error('Session already has a running task');
+        }
+      }
     }
-  });
+  } else {
+    // 创建新会话
+    const newId = createId(); // 使用 cuid2 生成 ID
+    session = await prisma.agentSession.create({
+      data: {
+        id: newId,
+        sessionId: null, // 可能为空（新对话）
+        workspaceId,
+        userId: userIdStr,
+        title: query.slice(0, 50),
+        messages: [],
+      }
+    });
+    // 更新 id 为新创建的 ID
+    mutableId = newId;
+  }
 
-  // 添加任务到队列
+  // 3. 创建任务
   const job = await agentQueue.add(
     'execute-query',
     {
-      sessionId: finalSessionId,
+      id: mutableId, // 传递数据库主键
+      sessionId: session?.sessionId, // 传递实际的 sessionId
       query,
       workspaceId,
-      userId,
+      userId: userIdStr,
     },
     {
       // 任务选项
@@ -73,36 +84,37 @@ export async function addAgentTask({
         type: 'exponential',
         delay: 2000,
       },
-      // 可选：设置任务ID以便追踪
-      jobId: `task_${finalSessionId}_${Date.now()}`,
+      // 使用 ID 生成 jobId
+      jobId: `task_${mutableId}_${Date.now()}`,
     }
   );
 
-  // 更新会话的 bullJobId
+  // 4. 更新会话的 bullJobId
   await prisma.agentSession.update({
-    where: { sessionId: finalSessionId },
+    where: { id: mutableId },
     data: {
       bullJobId: job.id,
+      updatedAt: new Date()
     }
   });
 
   return {
-    sessionId: finalSessionId,
+    id: mutableId, // 返回数据库主键
     jobId: job.id,
-    status: 'queued',
+    status: 'waiting' as const, // BullMQ 新任务的初始状态是 'waiting'
   };
 }
 
 /**
  * 获取任务状态 - 增强版，包含更多状态信息
  */
-export async function getTaskStatus(sessionId: string) {
+export async function getTaskStatus(id: string) {
   const session = await prisma.agentSession.findUnique({
-    where: { sessionId },
+    where: { id },
     select: {
+      id: true,
       sessionId: true,
       bullJobId: true,
-      lastQuery: true,
       messages: true,
       createdAt: true,
       updatedAt: true,
@@ -183,9 +195,9 @@ export async function getTaskStatus(sessionId: string) {
 /**
  * 取消任务
  */
-export async function cancelTask(sessionId: string) {
+export async function cancelTask(id: string) {
   const session = await prisma.agentSession.findUnique({
-    where: { sessionId },
+    where: { id },
     select: { bullJobId: true }
   });
 
@@ -203,7 +215,7 @@ export async function cancelTask(sessionId: string) {
 
   // 清理会话的 bullJobId
   await prisma.agentSession.update({
-    where: { sessionId },
+    where: { id },
     data: {
       bullJobId: null,
       updatedAt: new Date()
@@ -221,9 +233,9 @@ export async function getWorkspaceSessionsWithStatus(workspaceId: string) {
     where: { workspaceId },
     orderBy: { updatedAt: 'desc' },
     select: {
-      sessionId: true,
+      id: true,  // 添加内部 ID
+      sessionId: true,  // Claude 的 sessionId
       title: true,
-      lastQuery: true,
       bullJobId: true,
       createdAt: true,
       updatedAt: true,
@@ -379,15 +391,16 @@ export async function getTaskDetailedStatus(sessionId: string) {
 /**
  * 批量获取多个任务的状态（优化版本，避免 N+1 查询）
  */
-export async function getBulkTaskStatus(sessionIds: string[]) {
-  if (sessionIds.length === 0) return {};
+export async function getBulkTaskStatus(ids: string[]) {
+  if (ids.length === 0) return {};
 
   // 批量从数据库获取会话信息
   const sessions = await prisma.agentSession.findMany({
     where: {
-      sessionId: { in: sessionIds }
+      id: { in: ids }
     },
     select: {
+      id: true,
       sessionId: true,
       bullJobId: true,
       createdAt: true,
@@ -433,8 +446,8 @@ export async function getBulkTaskStatus(sessionIds: string[]) {
     const messages = Array.isArray(session.messages) ? session.messages : [];
     const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
 
-    results[session.sessionId] = {
-      sessionId: session.sessionId,
+    results[session.id] = {
+      sessionId: session.id,  // 使用数据库 ID 作为 sessionId
       bullJobId: session.bullJobId,
       createdAt: session.createdAt,
       updatedAt: session.updatedAt,
@@ -464,7 +477,7 @@ export async function getWorkspaceTaskStats(workspaceId: string) {
       workspaceId,
     },
     select: {
-      sessionId: true,
+      id: true,
       bullJobId: true,
       createdAt: true,
       updatedAt: true,
