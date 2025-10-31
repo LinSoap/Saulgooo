@@ -1,35 +1,34 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { addAgentTask, getTaskStatus, cancelTask, getWorkspaceSessionsWithStatus } from "~/lib/queue-utils";
-import { QueueEvents } from "bullmq";
-import { redisConnection } from "~/lib/queue";
+import { queueEvents } from "~/lib/queue";
+import { PrismaClient } from '@prisma/client';
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { JobState } from "bullmq";
 
 // 业务逻辑状态类型（扩展BullMQ状态）
-type TaskStatus = JobState | 'idle' | 'error' | 'init' | 'unknown';
+export type TaskStatus = JobState | 'idle' | 'error' | 'init' | 'unknown';
 
 // 推送消息类型（与前端契约）
-// 推送消息类型
+// 注意：这个类型必须与 watchQuery 实际 yield 的数据完全匹配
 type PushMessage = {
-  type: 'init' | 'waiting' | 'active' | 'completed' | 'failed' | 'sessionIdChanged';
-  sessionId: string;
+  type: 'init' | 'waiting' | 'active' | 'completed' | 'failed' | 'message_update';
+  id: string;  // 数据库内部 ID
+  sessionId: string | null;  // Claude 的 sessionId
   status?: TaskStatus;
   progress?: number;
-  messages?: SDKMessage[];
+  messages?: SDKMessage[];  // 总是包含最新的消息
   lastMessage?: SDKMessage;
   timestamp?: Date;
   title?: string;
-  createdAt?: Date;
-  oldSessionId?: string;
-  newSessionId?: string;
+  createdAt?: Date | string;  // Date 或 ISO 字符串
 };
 
 // 会话状态信息类型
 type SessionWithStatus = {
-  sessionId: string;
+  id: string; // 数据库主键
+  sessionId: string | null; // Claude 的 sessionId
   title: string;
-  lastQuery: string | null;
   bullJobId: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -60,8 +59,16 @@ class SubscriptionManager {
   // 推送消息给特定的subscription
   emit(sessionId: string, message: PushMessage) {
     const emitter = this.subscriptions.get(sessionId);
+    console.log('🔍 SubscriptionManager emit - sessionId:', sessionId);
+    console.log('🔍 SubscriptionManager emit - message.type:', message.type);
+    console.log('🔍 SubscriptionManager emit - message.id:', message.id);
+    console.log('🔍 SubscriptionManager emit - message.sessionId:', message.sessionId);
+    console.log('🔍 SubscriptionManager emit - Has emitter:', !!emitter);
     if (emitter) {
       emitter(message);
+      console.log('🔍 SubscriptionManager emit - Message sent successfully');
+    } else {
+      console.log('🔍 SubscriptionManager emit - No emitter found for sessionId:', sessionId);
     }
   }
 
@@ -74,140 +81,146 @@ class SubscriptionManager {
 // 创建全局subscription管理器
 export const subscriptionManager = new SubscriptionManager();
 
-// JobId到SessionId的映射缓存
-const jobSessionMap = new Map<string, string>();
-
-// 注册jobId和sessionId的映射
-export function registerJobSession(jobId: string | undefined, sessionId: string | undefined) {
-  if (jobId && sessionId) {
-    jobSessionMap.set(jobId, sessionId);
+// 安全的JSON解析函数
+function safeParseMessages(messages: unknown): SDKMessage[] {
+  try {
+    if (!messages) return [];
+    if (typeof messages === 'string') {
+      return messages.trim() === '' ? [] : JSON.parse(messages) as SDKMessage[];
+    }
+    if (Array.isArray(messages)) return messages as SDKMessage[];
+    return [];
+  } catch (error) {
+    console.error('Error parsing messages:', error);
+    return [];
   }
 }
 
-// 通过jobId找到sessionId
-function findSessionIdByJobId(jobId: string): string | null {
-  return jobSessionMap.get(jobId) ?? null;
-}
+// 创建 Prisma 客户端
+const prisma = new PrismaClient();
 
-// 清理job-session映射
-export function cleanupJobSession(jobId: string) {
-  jobSessionMap.delete(jobId);
-}
-
-// 更新job-session映射（当sessionId改变时）
-export function updateJobSession(jobId: string, newSessionId: string) {
-  if (jobSessionMap.has(jobId)) {
-    jobSessionMap.set(jobId, newSessionId);
-  }
-}
-
-// 创建队列事件监听器
-export const queueEvents = new QueueEvents('agent-tasks', {
-  connection: redisConnection,
-});
-
-// 监听队列事件并转发给subscriptions
+// 监听队列事件并转发给subscriptions（通过数据库查找session）
 queueEvents.on('waiting', ({ jobId }) => {
   console.log(`⏳ Job ${jobId} waiting`);
-  const sessionId = findSessionIdByJobId(jobId);
-  if (sessionId) {
-    subscriptionManager.emit(sessionId, {
-      type: 'waiting',
-      sessionId,
-      status: 'waiting',
-      timestamp: new Date()
-    });
-  }
+  // 通过jobId查找session
+  prisma.agentSession.findUnique({
+    where: { bullJobId: jobId },
+    select: { id: true, sessionId: true, messages: true }
+  }).then((session) => {
+    if (session) {
+      const messages: SDKMessage[] = safeParseMessages(session.messages);
+      subscriptionManager.emit(session.id, {
+        type: 'waiting',
+        id: session.id,
+        sessionId: session.sessionId,
+        status: 'waiting',
+        messages,
+        timestamp: new Date()
+      });
+    }
+  }).catch((error) => {
+    console.error('Error in waiting event handler:', error);
+  });
 });
 
 queueEvents.on('active', ({ jobId, prev: _prev }) => {
   console.log(`🚀 Job ${jobId} active`);
-  const sessionId = findSessionIdByJobId(jobId);
-  if (sessionId) {
-    subscriptionManager.emit(sessionId, {
-      type: 'active',
-      sessionId,
-      status: 'active',
-      timestamp: new Date()
-    });
-  }
+  // 通过jobId查找session
+  prisma.agentSession.findUnique({
+    where: { bullJobId: jobId },
+    select: { id: true, sessionId: true, messages: true }
+  }).then((session) => {
+    if (session) {
+      const messages: SDKMessage[] = safeParseMessages(session.messages);
+      subscriptionManager.emit(session.id, {
+        type: 'active',
+        id: session.id,
+        sessionId: session.sessionId,
+        status: 'active',
+        messages,
+        timestamp: new Date()
+      });
+    }
+  }).catch((error) => {
+    console.error('Error in active event handler:', error);
+  });
 });
 
 queueEvents.on('completed', ({ jobId, returnvalue: _returnvalue }) => {
   console.log(`✅ Job ${jobId} completed`);
-  const sessionId = findSessionIdByJobId(jobId);
-  if (sessionId) {
-    // 清理映射
-    cleanupJobSession(jobId);
-
-    subscriptionManager.emit(sessionId, {
-      type: 'completed',
-      sessionId,
-      status: 'completed',
-      progress: 100,
-      timestamp: new Date()
-    });
-  }
+  // 通过jobId查找session
+  prisma.agentSession.findUnique({
+    where: { bullJobId: jobId },
+    select: { id: true, sessionId: true, messages: true }
+  }).then((session) => {
+    if (session) {
+      const messages: SDKMessage[] = safeParseMessages(session.messages);
+      console.log('🔍 Agent completed - Session id:', session.id);
+      console.log('🔍 Agent completed - Session sessionId:', session.sessionId);
+      console.log('🔍 Agent completed - Messages count:', messages.length);
+      subscriptionManager.emit(session.id, {
+        type: 'completed',
+        id: session.id,
+        sessionId: session.sessionId,
+        status: 'completed',
+        progress: 100,
+        messages,
+        timestamp: new Date()
+      });
+      console.log('🔍 Agent completed - Emitted completed event');
+    }
+  }).catch((error) => {
+    console.error('Error in completed event handler:', error);
+  });
 });
 
 queueEvents.on('failed', ({ jobId, failedReason }) => {
   console.error(`❌ Job ${jobId} failed:`, failedReason);
-  const sessionId = findSessionIdByJobId(jobId);
-  if (sessionId) {
-    // 清理映射
-    cleanupJobSession(jobId);
-
-    subscriptionManager.emit(sessionId, {
-      type: 'failed',
-      sessionId,
-      status: 'failed',
-      progress: 0,
-      timestamp: new Date()
-    });
-  }
+  // 通过jobId查找session
+  prisma.agentSession.findUnique({
+    where: { bullJobId: jobId },
+    select: { id: true, sessionId: true, messages: true }
+  }).then((session) => {
+    if (session) {
+      const messages: SDKMessage[] = safeParseMessages(session.messages);
+      subscriptionManager.emit(session.id, {
+        type: 'failed',
+        id: session.id,
+        sessionId: session.sessionId,
+        status: 'failed',
+        progress: 0,
+        messages,
+        timestamp: new Date()
+      });
+    }
+  }).catch((error) => {
+    console.error('Error in failed event handler:', error);
+  });
 });
 
 queueEvents.on('progress', ({ jobId, data }) => {
   console.log(`📊 Job ${jobId} progress:`, data);
-  const sessionId = findSessionIdByJobId(jobId);
-  if (sessionId) {
-    // 检查是否是sessionId更新消息
-    if (typeof data === 'object' && data !== null && 'type' in data && data.type === 'sessionIdUpdate') {
-      const updateData = data as unknown as { oldSessionId: string; newSessionId: string };
-      const { oldSessionId, newSessionId } = updateData;
-      console.log(`🔄 Session ID updated: ${oldSessionId} -> ${newSessionId}`);
-
-      // 更新映射
-      updateJobSession(jobId, newSessionId);
-
-      // 通知旧的sessionId的订阅者
-      subscriptionManager.emit(oldSessionId, {
-        type: 'sessionIdChanged',
-        sessionId: oldSessionId,
-        oldSessionId,
-        newSessionId,
-        timestamp: new Date()
-      });
-
-      // 同时发送给新的sessionId（以防前端已经切换）
-      subscriptionManager.emit(newSessionId, {
-        type: 'active',
-        sessionId: newSessionId,
-        status: 'active',
-        progress: 0,
-        timestamp: new Date()
-      });
-    } else {
+  // 通过jobId查找session
+  prisma.agentSession.findUnique({
+    where: { bullJobId: jobId },
+    select: { id: true, sessionId: true, messages: true }
+  }).then((session) => {
+    if (session) {
+      const messages: SDKMessage[] = safeParseMessages(session.messages);
       // 普通进度更新
-      subscriptionManager.emit(sessionId, {
+      subscriptionManager.emit(session.id, {
         type: 'active',
-        sessionId,
+        id: session.id,
+        sessionId: session.sessionId,
         status: 'active',
         progress: typeof data === 'number' ? data : 0,
+        messages,
         timestamp: new Date()
       });
     }
-  }
+  }).catch((error) => {
+    console.error('Error in progress event handler:', error);
+  });
 });
 
 export const agentRouter = createTRPCRouter({
@@ -216,22 +229,21 @@ export const agentRouter = createTRPCRouter({
     .input(z.object({
       query: z.string(),
       workspaceId: z.string(),
-      sessionId: z.string().optional()
+      id: z.string().optional() // 现在接收数据库 session ID
     }))
     .mutation(async ({ ctx, input }) => {
       // 添加任务到队列
       const result = await addAgentTask({
+        id: input.id,
         workspaceId: input.workspaceId,
         userId: ctx.session.user.id,
         query: input.query,
-        sessionId: input.sessionId
       });
 
-      // 注册jobId到sessionId的映射，用于事件驱动推送
-      registerJobSession(result.jobId, result.sessionId);
+      console.log("✅ Query started:", result);
 
       return {
-        sessionId: result.sessionId,
+        id: result.id, // 返回数据库 session ID
         jobId: result.jobId,
         status: result.status
       };
@@ -240,15 +252,15 @@ export const agentRouter = createTRPCRouter({
   // 监听任务状态（subscription）- 事件驱动版本
   watchQuery: protectedProcedure
     .input(z.object({
-      sessionId: z.string()
+      id: z.string()  // 使用内部 ID
     }))
     .subscription(async function* ({ ctx, input }) {
-      const { sessionId } = input;
+      const { id } = input;
 
       // 验证 session 属于当前用户
       const session = await ctx.db.agentSession.findUnique({
-        where: { sessionId, userId: ctx.session.user.id },
-        select: { messages: true, title: true, createdAt: true, bullJobId: true }
+        where: { id, userId: ctx.session.user.id },
+        select: { messages: true, title: true, createdAt: true, bullJobId: true, sessionId: true }
       });
 
       if (!session) {
@@ -262,7 +274,7 @@ export const agentRouter = createTRPCRouter({
       // 如果有活跃任务，获取真实状态
       if (session.bullJobId) {
         try {
-          currentTaskStatus = await getTaskStatus(sessionId);
+          currentTaskStatus = await getTaskStatus(id);
           jobId = session.bullJobId;
         } catch (error) {
           console.error('Error getting task status:', error);
@@ -273,127 +285,72 @@ export const agentRouter = createTRPCRouter({
       }
 
       // 解析历史消息
-      const parsedMessages: unknown = JSON.parse((session.messages as string) ?? '[]');
-      const messages: SDKMessage[] = Array.isArray(parsedMessages)
-        ? parsedMessages.filter((msg): msg is SDKMessage =>
-          typeof msg === 'object' && msg !== null &&
-          'type' in msg && 'content' in msg
-        )
-        : [];
+      const messages: SDKMessage[] = safeParseMessages(session.messages);
 
-      // 发送初始状态和历史消息
+      // 初始状态推送
       yield {
-        type: 'init',
-        sessionId,
+        type: 'init' as const,
+        id,  // 使用内部 ID
+        sessionId: session.sessionId,  // Claude 的 sessionId（可能为空）
         status: currentTaskStatus.status,
         messages,
         title: session.title,
-        createdAt: session.createdAt
+        createdAt: session.createdAt,
+        timestamp: new Date()
       };
 
-      // 如果没有活跃任务，直接结束
+      // 如果没有活跃任务，只发送历史消息后结束
       if (!jobId) {
-        console.log(`ℹ️ No active job for session ${sessionId}, ending subscription`);
+        console.log(`ℹ️ No active job for session ${id}, history sent, ending subscription`);
         return;
       }
 
-      // 注册 jobId 到 sessionId 的映射（如果还没有的话）
-      registerJobSession(jobId, sessionId);
-
-      // 创建一个Promise来处理事件驱动的推送
-      let resolveSubscription: ((value: PushMessage) => void) | null = null;
-
-      const eventPromise = new Promise<PushMessage>((resolve, reject) => {
-        resolveSubscription = resolve;
-        // reject is not used in current implementation
-        void reject;
-      });
+      // 使用一个队列来处理事件
+      const eventQueue: PushMessage[] = [];
+      let resolveNext: ((value: PushMessage) => void) | null = null;
 
       // 注册到subscription管理器
       const eventEmitter = (message: PushMessage) => {
-        if (resolveSubscription) {
-          resolveSubscription(message);
-          // 重置Promise以便接收下一个事件
-          resolveSubscription = null;
+        console.log(message)
+        if (resolveNext) {
+          // 如果有等待的 Promise，直接解析
+          resolveNext(message);
+          resolveNext = null;
+        } else {
+          // 否则将消息加入队列
+          eventQueue.push(message);
         }
       };
 
-      subscriptionManager.register(sessionId, eventEmitter);
+      subscriptionManager.register(id, eventEmitter);
 
       try {
-        // 持续监听事件
+        // 持续监听事件 - 不再因为 completed/failed 而退出
         while (true) {
-          // 等待事件发生
-          const message = await eventPromise;
-
-          // 检查是否是终止状态
-          if (message.status === 'completed' || message.status === 'failed') {
+          // 先检查队列中是否有消息
+          if (eventQueue.length > 0) {
+            const message = eventQueue.shift()!;
             yield message;
-            break;
+
+            // 不再因为 completed/failed 而退出，继续监听新消息
+            // 这样可以支持同一会话的多次查询
           }
+
+          // 如果队列中没有消息，创建新的 Promise 等待下一个事件
+          const message = await new Promise<PushMessage>((resolve) => {
+            resolveNext = resolve;
+          });
 
           yield message;
 
-          // 为下一个事件创建新的Promise
-          void new Promise<PushMessage>((resolve) => {
-            resolveSubscription = resolve;
-          });
+          // 不再因为 completed/failed 而退出，继续监听
         }
       } finally {
         // 清理：取消注册subscription
-        subscriptionManager.unregister(sessionId);
+        subscriptionManager.unregister(id);
       }
     }),
 
-  // 获取会话历史消息（query）
-  getSessionHistory: protectedProcedure
-    .input(z.object({
-      sessionId: z.string()
-    }))
-    .query(async ({ ctx, input }) => {
-      const session = await ctx.db.agentSession.findUnique({
-        where: {
-          sessionId: input.sessionId,
-          userId: ctx.session.user.id
-        },
-        select: {
-          messages: true,
-          title: true,
-          lastQuery: true,
-          createdAt: true,
-          updatedAt: true,
-          bullJobId: true
-        }
-      });
-
-      if (!session) {
-        throw new Error("Session not found or access denied");
-      }
-
-      const parsedMessages: unknown = JSON.parse((session.messages as string) ?? '[]');
-      const messages: SDKMessage[] = Array.isArray(parsedMessages)
-        ? parsedMessages.filter((msg): msg is SDKMessage =>
-          typeof msg === 'object' && msg !== null &&
-          'type' in msg && 'content' in msg
-        )
-        : [];
-      let status = 'idle';
-
-      if (session.bullJobId) {
-        const taskStatus = await getTaskStatus(input.sessionId);
-        status = taskStatus.status ?? 'idle';
-      }
-
-      return {
-        sessionId: input.sessionId,
-        title: session.title,
-        lastQuery: session.lastQuery,
-        messages,
-        status,
-        createdAt: session.createdAt,
-        updatedAt: session.updatedAt
-      };
-    }),
 
   // 获取工作区的所有 sessions（增强版）
   getSessions: protectedProcedure
@@ -408,12 +365,12 @@ export const agentRouter = createTRPCRouter({
   // 取消任务
   cancelQuery: protectedProcedure
     .input(z.object({
-      sessionId: z.string()
+      id: z.string()  // 使用内部 ID
     }))
     .mutation(async ({ ctx, input }) => {
       // 验证 session 属于当前用户
       const session = await ctx.db.agentSession.findUnique({
-        where: { sessionId: input.sessionId, userId: ctx.session.user.id },
+        where: { id: input.id, userId: ctx.session.user.id },
         select: { bullJobId: true }
       });
 
@@ -422,9 +379,7 @@ export const agentRouter = createTRPCRouter({
       }
 
       if (session.bullJobId) {
-        const result = await cancelTask(input.sessionId);
-        // 清理job-session映射
-        cleanupJobSession(session.bullJobId);
+        const result = await cancelTask(input.id);
         return result;
       } else {
         throw new Error("No active task to cancel");
@@ -433,11 +388,11 @@ export const agentRouter = createTRPCRouter({
 
   // 删除 session
   deleteSession: protectedProcedure
-    .input(z.object({ sessionId: z.string() }))
+    .input(z.object({ id: z.string() }))  // 使用内部 ID
     .mutation(async ({ ctx, input }) => {
       // 验证 session 属于当前用户
       const session = await ctx.db.agentSession.findUnique({
-        where: { sessionId: input.sessionId },
+        where: { id: input.id },
         select: { userId: true, bullJobId: true }
       });
 
@@ -448,7 +403,7 @@ export const agentRouter = createTRPCRouter({
       // 如果有正在运行的任务，先取消
       if (session.bullJobId) {
         try {
-          await cancelTask(input.sessionId);
+          await cancelTask(input.id);
         } catch (e) {
           // 忽略取消错误，继续删除
           console.error('Error cancelling task:', e);
@@ -457,7 +412,7 @@ export const agentRouter = createTRPCRouter({
 
       // 物理删除
       return await ctx.db.agentSession.delete({
-        where: { sessionId: input.sessionId }
+        where: { id: input.id }
       });
     }),
 });
