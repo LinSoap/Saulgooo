@@ -34,7 +34,9 @@ export default function FilePreview() {
   const {
     data: fileData,
     isLoading: isFileLoading,
+    isFetching: isFileFetching,
     error: fileError,
+    refetch: refetchFileContent,
   } = api.workspace.getFileContent.useQuery(
     {
       workspaceId: workspaceId,
@@ -78,67 +80,72 @@ export default function FilePreview() {
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       {selectedFile ? (
-        <div className="flex-1 overflow-auto">
-          {selectedFile.type === "file" ? (
-            <>
-              {selectedFile.extension === "md" ? (
-                isFileLoading ? (
-                  <div className="flex h-64 items-center justify-center">
-                    <p className="text-muted-foreground">加载中...</p>
-                  </div>
-                ) : fileError ? (
-                  <div className="flex h-64 items-center justify-center">
-                    <p className="text-destructive">加载文件失败</p>
-                  </div>
-                ) : fileContent !== null ? (
-                  <MarkdownFileEditorSimple
-                    workspaceId={workspaceId}
-                    filePath={selectedFile.path}
-                    initialContent={fileContent}
-                    className="h-full"
-                  />
+        <>
+          <div className="flex-1 overflow-auto">
+            {selectedFile.type === "file" ? (
+              <>
+                {selectedFile.extension === "md" ? (
+                  isFileLoading ? (
+                    <div className="flex h-64 items-center justify-center">
+                      <p className="text-muted-foreground">加载中...</p>
+                    </div>
+                  ) : fileError ? (
+                    <div className="flex h-64 items-center justify-center">
+                      <p className="text-destructive">加载文件失败</p>
+                    </div>
+                  ) : fileContent !== null ? (
+                    <MarkdownFileEditorSimple
+                      workspaceId={workspaceId}
+                      filePath={selectedFile.path}
+                      initialContent={fileContent}
+                      className="h-full"
+                      fileName={selectedFile.name}
+                      onRefresh={() => void refetchFileContent()}
+                      isRefreshing={isFileFetching}
+                    />
+                  ) : (
+                    <div className="flex h-64 items-center justify-center">
+                      <div className="text-center">
+                        <File className="text-muted-foreground mx-auto mb-4 h-16 w-16" />
+                        <h3 className="mb-2 text-xl font-semibold">
+                          {selectedFile.name}
+                        </h3>
+                        <p className="text-muted-foreground">
+                          无法预览此文件类型
+                        </p>
+                      </div>
+                    </div>
+                  )
                 ) : (
-                  <div className="flex h-64 items-center justify-center">
+                  <div className="flex h-full items-center justify-center">
                     <div className="text-center">
                       <File className="text-muted-foreground mx-auto mb-4 h-16 w-16" />
                       <h3 className="mb-2 text-xl font-semibold">
                         {selectedFile.name}
                       </h3>
                       <p className="text-muted-foreground">
-                        无法预览此文件类型
+                        暂不支持预览此文件类型
+                      </p>
+                      <p className="text-muted-foreground mt-2 text-sm">
+                        目前仅支持 Markdown (.md) 文件预览
                       </p>
                     </div>
                   </div>
-                )
-              ) : (
-                <div className="flex h-full items-center justify-center">
-                  <div className="text-center">
-                    <File className="text-muted-foreground mx-auto mb-4 h-16 w-16" />
-                    <h3 className="mb-2 text-xl font-semibold">
-                      {selectedFile.name}
-                    </h3>
-                    <p className="text-muted-foreground">
-                      暂不支持预览此文件类型
-                    </p>
-                    <p className="text-muted-foreground mt-2 text-sm">
-                      目前仅支持 Markdown (.md) 文件预览
-                    </p>
-                  </div>
+                )}
+              </>
+            ) : (
+              <div className="flex h-full items-center justify-center">
+                <div className="text-center">
+                  <FolderOpen className="text-muted-foreground mx-auto mb-4 h-16 w-16" />
+                  <h3 className="mb-2 text-xl font-semibold">
+                    {selectedFile.name}
+                  </h3>
+                  <p className="text-muted-foreground">这是一个文件夹</p>
                 </div>
-              )}
-            </>
-          ) : (
-            <div className="flex h-full items-center justify-center">
-              <div className="text-center">
-                <FolderOpen className="text-muted-foreground mx-auto mb-4 h-16 w-16" />
-                <h3 className="mb-2 text-xl font-semibold">
-                  {selectedFile.name}
-                </h3>
-                <p className="text-muted-foreground">这是一个文件夹</p>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        </>
       ) : (
         <div className="flex h-full items-center justify-center rounded-lg border-2 border-dashed">
           <div className="text-center">

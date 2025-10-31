@@ -15,7 +15,7 @@ import {
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { api } from "~/trpc/react";
-import { ArrowLeft, FolderOpen, Plus } from "lucide-react";
+import { ArrowLeft, FolderOpen, Plus, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FileTreeItem } from "~/components/FileTreeItem";
@@ -59,6 +59,7 @@ export default function FileBrowser() {
   const {
     data: fileTreeData,
     isLoading: isFileTreeLoading,
+    isFetching: isFileTreeFetching,
     error: fileTreeError,
     refetch: refetchFileTree,
   } = api.workspace.getFileTree.useQuery({
@@ -119,6 +120,17 @@ export default function FileBrowser() {
               </p>
             </div>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void refetchFileTree()}
+            disabled={isFileTreeFetching}
+          >
+            <RefreshCw
+              className={`mr-1 h-3 w-3 ${isFileTreeFetching ? "animate-spin" : ""}`}
+            />
+            刷新
+          </Button>
           <Dialog
             open={isCreateDialogOpen}
             onOpenChange={setIsCreateDialogOpen}

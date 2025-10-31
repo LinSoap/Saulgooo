@@ -8,7 +8,7 @@ import { createEditor, jsonFromHTML, type Editor } from "prosekit/core";
 import { useCallback, useEffect, useState } from "react";
 import { useDocChange, ProseKit } from "prosekit/react";
 import { Button } from "~/components/ui/button";
-import { Save, RotateCcw, Edit3, Eye } from "lucide-react";
+import { Save, RotateCcw, Edit3, Eye, RefreshCw, File } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { markdownFromHTML, htmlFromMarkdown } from "~/lib/markdown";
 import { MarkdownPreview } from "~/components/MarkdownPreview";
@@ -38,6 +38,9 @@ interface MarkdownFileEditorProps {
   filePath: string;
   initialContent: string;
   className?: string;
+  fileName?: string;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 export function MarkdownFileEditorSimple({
@@ -45,6 +48,9 @@ export function MarkdownFileEditorSimple({
   filePath,
   initialContent,
   className,
+  fileName,
+  onRefresh,
+  isRefreshing = false,
 }: MarkdownFileEditorProps) {
   const [editor, setEditor] = useState<Editor | null>(null);
   const [hasUnsavedChange, setHasUnsavedChange] = useState(false);
@@ -155,6 +161,27 @@ export function MarkdownFileEditorSimple({
       {/* 工具栏 */}
       <div className="flex items-center justify-between border-b p-4">
         <div className="flex h-8 items-center gap-2">
+          {fileName && (
+            <>
+              <div className="mr-4 flex items-center gap-2">
+                <File className="h-4 w-4" />
+                <span className="font-medium">{fileName}</span>
+              </div>
+              {onRefresh && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onRefresh}
+                  disabled={isRefreshing}
+                >
+                  <RefreshCw
+                    className={`mr-1 h-3 w-3 ${isRefreshing ? "animate-spin" : ""}`}
+                  />
+                  刷新
+                </Button>
+              )}
+            </>
+          )}
           <Button
             variant={viewMode === "preview" ? "default" : "outline"}
             size="sm"
