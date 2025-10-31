@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { File, FolderOpen } from "lucide-react";
 import { api } from "~/trpc/react";
-import { MarkdownFileEditorSimple } from "~/components/MarkdownFileEditorSimple";
+import MarkdownEditor from "~/components/MarkdownEditor";
 import { useSession } from "next-auth/react";
 
 interface FileNode {
@@ -94,7 +94,7 @@ export default function FilePreview() {
                       <p className="text-destructive">加载文件失败</p>
                     </div>
                   ) : fileContent !== null ? (
-                    <MarkdownFileEditorSimple
+                    <MarkdownEditor
                       workspaceId={workspaceId}
                       filePath={selectedFile.path}
                       initialContent={fileContent}
