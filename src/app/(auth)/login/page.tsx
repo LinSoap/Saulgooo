@@ -62,7 +62,7 @@ export default function LoginPage() {
       const result = await signIn("credentials", {
         email: values.email,
         password: values.password,
-        redirect: false,
+        callbackUrl: "/",
         remember: values.remember,
       });
 
@@ -75,9 +75,8 @@ export default function LoginPage() {
         if (loginPasswordRef.current) {
           loginPasswordRef.current.focus();
         }
-      } else {
-        router.push("/");
       }
+      // 如果登录成功，NextAuth 会自动跳转到 callbackUrl 指定的页面
     } catch {
       setError("登录过程中出现错误");
       toast.error("登录过程中出现错误");

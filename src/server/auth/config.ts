@@ -61,6 +61,10 @@ export const authConfig = {
       },
     }),
   ],
+  pages: {
+    signIn: "/login",
+    error: "/login",
+  },
   callbacks: {
     async session({ session, token }) {
       if (token.sub && session.user) {
