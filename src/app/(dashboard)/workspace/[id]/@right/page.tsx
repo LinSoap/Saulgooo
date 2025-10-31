@@ -96,6 +96,16 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
     },
   });
 
+  // 切换到指定会话 - 修改URL（使用数据库主键）
+  const handleSelectSession = (selectedId: string) => {
+    const newParams = new URLSearchParams(searchParams?.toString() || "");
+    newParams.set("id", selectedId);
+    const newUrl = `${pathname}?${newParams.toString()}`;
+    router.push(newUrl);
+    reset();
+    setConfirmingDelete(null);
+  };
+
   // 更新 sessions 列表
   useEffect(() => {
     if (sessionsData) {
@@ -189,16 +199,6 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
     // 移除URL中的id
     const newParams = new URLSearchParams(searchParams?.toString() || "");
     newParams.delete("id");
-    const newUrl = `${pathname}?${newParams.toString()}`;
-    router.push(newUrl);
-    reset();
-    setConfirmingDelete(null);
-  };
-
-  // 切换到指定会话 - 修改URL（使用数据库主键）
-  const handleSelectSession = (selectedId: string) => {
-    const newParams = new URLSearchParams(searchParams?.toString() || "");
-    newParams.set("id", selectedId);
     const newUrl = `${pathname}?${newParams.toString()}`;
     router.push(newUrl);
     reset();
