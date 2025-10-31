@@ -28,10 +28,16 @@ import { useSession } from "next-auth/react";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 
 interface Session {
-  sessionId: string;
+  id: string; // 数据库主键
+  sessionId: string | null; // Claude 的 sessionId
   title: string;
   createdAt: string;
   updatedAt: string;
+  status: string;
+  progress: number;
+  isActive: boolean;
+  attemptsMade: number;
+  attemptsRemaining: number;
 }
 
 interface AgentChatPageProps {
@@ -50,20 +56,14 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
 
-  // 从URL读取sessionId
-  const currentSessionId = searchParams?.get("sessionId");
+  // 从URL读取id（数据库主键）
+  const currentId = searchParams?.get("id");
 
   // 使用新的 hook
-  const {
-    messages,
-    isLoading,
-    status,
-    progress,
-    error,
-    sendQuery,
-    cancelQuery,
-    reset,
-  } = useBackgroundQuery(id ?? "", currentSessionId);
+  // id 是 workspaceId，currentId 是要加载的会话 ID（数据库主键）
+  const { messages, isLoading, status, error, sendQuery, cancelQuery, reset } =
+    useBackgroundQuery(id ?? "", currentId);
+  console.log("Page: messages", messages);
 
   // 滚动相关 refs - 必须在 messages 声明之后
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -81,10 +81,10 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
   const deleteSessionMutation = api.agent.deleteSession.useMutation({
     onSuccess: () => {
       void refetchSessions();
-      // 如果删除的是当前会话，移除URL中的sessionId
-      if (currentSessionId) {
+      // 如果删除的是当前会话，移除URL中的id
+      if (currentId) {
         const newParams = new URLSearchParams(searchParams?.toString() || "");
-        newParams.delete("sessionId");
+        newParams.delete("id");
         const newUrl = `${pathname}?${newParams.toString()}`;
         router.push(newUrl);
         reset();
@@ -169,19 +169,19 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
 
   // 开始新对话
   const handleNewConversation = () => {
-    // 移除URL中的sessionId
+    // 移除URL中的id
     const newParams = new URLSearchParams(searchParams?.toString() || "");
-    newParams.delete("sessionId");
+    newParams.delete("id");
     const newUrl = `${pathname}?${newParams.toString()}`;
     router.push(newUrl);
     reset();
     setConfirmingDelete(null);
   };
 
-  // 切换到指定会话 - 修改URL
-  const handleSelectSession = (sessionId: string) => {
+  // 切换到指定会话 - 修改URL（使用数据库主键）
+  const handleSelectSession = (selectedId: string) => {
     const newParams = new URLSearchParams(searchParams?.toString() || "");
-    newParams.set("sessionId", sessionId);
+    newParams.set("id", selectedId);
     const newUrl = `${pathname}?${newParams.toString()}`;
     router.push(newUrl);
     reset();
@@ -190,18 +190,18 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
 
   // 删除会话
   const handleDeleteSession = async (
-    sessionId: string,
+    selectedId: string,
     e: React.MouseEvent,
   ) => {
     e.stopPropagation();
 
-    if (confirmingDelete === sessionId) {
+    if (confirmingDelete === selectedId) {
       // 第二次点击，执行删除
-      await deleteSessionMutation.mutateAsync({ sessionId });
+      await deleteSessionMutation.mutateAsync({ id: selectedId });
       setConfirmingDelete(null);
     } else {
       // 第一次点击，显示确认状态
-      setConfirmingDelete(sessionId);
+      setConfirmingDelete(selectedId);
     }
   };
 
@@ -273,12 +273,10 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
                   </div>
                   {sessions.slice(0, 20).map((session) => (
                     <DropdownMenuItem
-                      key={session.sessionId}
-                      onClick={() => handleSelectSession(session.sessionId)}
+                      key={session.id}
+                      onClick={() => handleSelectSession(session.id)}
                       className={`group flex cursor-pointer items-center justify-between ${
-                        currentSessionId === session.sessionId
-                          ? "bg-accent"
-                          : ""
+                        currentId === session.id ? "bg-accent" : ""
                       }`}
                     >
                       <div className="mr-2 flex min-w-0 flex-1 flex-col items-start">
@@ -296,24 +294,22 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
                         variant="ghost"
                         size="sm"
                         className={`h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100 ${
-                          confirmingDelete === session.sessionId
+                          confirmingDelete === session.id
                             ? "bg-destructive text-destructive-foreground hover:bg-destructive/90 animate-pulse"
                             : "hover:bg-destructive/10 hover:text-destructive"
                         }`}
-                        onClick={(e) =>
-                          handleDeleteSession(session.sessionId, e)
-                        }
+                        onClick={(e) => handleDeleteSession(session.id, e)}
                         disabled={deleteSessionMutation.isPending}
                         title={
-                          confirmingDelete === session.sessionId
+                          confirmingDelete === session.id
                             ? "再次点击确认删除"
                             : "删除对话"
                         }
                       >
                         {deleteSessionMutation.isPending &&
-                        confirmingDelete === session.sessionId ? (
+                        confirmingDelete === session.id ? (
                           <Loader2 className="h-3 w-3" />
-                        ) : confirmingDelete === session.sessionId ? (
+                        ) : confirmingDelete === session.id ? (
                           <div className="flex items-center justify-center">
                             <span className="text-[10px] font-bold">✓</span>
                           </div>
@@ -351,8 +347,6 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
               <Loader2 className="h-4 w-4 animate-spin" />
               <span className="text-muted-foreground text-sm">
                 {status === "waiting" && "正在排队中..."}
-                {status === "active" &&
-                  `正在思考中... ${progress > 0 ? `${progress}%` : ""}`}
                 {status === "error" && "处理出错"}
               </span>
               {status === "active" && (
