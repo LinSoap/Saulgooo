@@ -88,4 +88,19 @@ export const authConfig = {
   secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
   // Configure trust hosts for NextAuth in production
   trustHost: true,
+  // Configure cookies for production environment
+  cookies: {
+    sessionToken: {
+      name: process.env.NODE_ENV === "production"
+        ? "__Secure-authjs.session-token"
+        : "next-auth.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+        domain: process.env.NODE_ENV === "production" ? undefined : undefined,
+      },
+    },
+  },
 } satisfies NextAuthConfig;

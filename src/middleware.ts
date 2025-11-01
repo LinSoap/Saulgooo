@@ -7,6 +7,7 @@ export default async function middleware(request: NextRequest) {
   const token = await getToken({
     req: request,
     secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
+    secureCookie: process.env.NODE_ENV === "production",
   });
 
   // 如果用户未登录且不在登录页面，重定向到登录页面
