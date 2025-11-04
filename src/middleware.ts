@@ -8,6 +8,9 @@ export default async function middleware(request: NextRequest) {
     req: request,
     secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
     secureCookie: process.env.NODE_ENV === "production",
+    cookieName: process.env.NODE_ENV === "production"
+      ? "__Secure-authjs.session-token"
+      : "next-auth.session-token",
   });
 
   // 如果用户未登录且不在登录页面，重定向到登录页面
