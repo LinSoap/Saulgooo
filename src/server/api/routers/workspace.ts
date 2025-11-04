@@ -350,4 +350,48 @@ export const workSpaceRouter = createTRPCRouter({
                 modifiedAt: newStats.mtime,
             };
         }),
+
+    // 上传文件（支持任意类型）
+    uploadFile: protectedProcedure
+        .input(z.object({
+            workspaceId: z.string().cuid(),
+            fileName: z.string().min(1).max(255),
+            directoryPath: z.string().optional().default(""),
+            content: z.string(), // base64编码的文件内容
+            mimeType: z.string().optional(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const workspace = await ctx.db.workspace.findUnique({
+                where: { id: input.workspaceId, ownerId: ctx.session.user.id },
+            });
+
+            if (!workspace) throw new Error("Workspace not found");
+
+            const basePath = join(homedir(), 'workspaces', workspace.path);
+            const directoryPath = join(basePath, input.directoryPath);
+            const filePath = join(directoryPath, input.fileName);
+
+            // 路径验证，确保在workspace目录内
+            if (!filePath.startsWith(basePath)) {
+                throw new Error("Invalid path");
+            }
+
+            // 创建目录（如果不存在）
+            await mkdir(directoryPath, { recursive: true });
+
+            // 解码base64内容并写入文件
+            const buffer = Buffer.from(input.content, 'base64');
+            await writeFile(filePath, buffer);
+
+            const stats = await stat(filePath);
+
+            return {
+                success: true,
+                fileName: input.fileName,
+                filePath: input.directoryPath ? join(input.directoryPath, input.fileName) : input.fileName,
+                size: stats.size,
+                mimeType: input.mimeType ?? 'application/octet-stream',
+                createdAt: stats.birthtime,
+            };
+        }),
 })

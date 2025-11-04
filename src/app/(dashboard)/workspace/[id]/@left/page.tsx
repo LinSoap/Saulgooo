@@ -15,11 +15,13 @@ import {
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { api } from "~/trpc/react";
-import { ArrowLeft, FolderOpen, Plus, RefreshCw } from "lucide-react";
+import { ArrowLeft, FolderOpen, Plus, RefreshCw, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FileTreeItem } from "~/components/FileTreeItem";
 import { useSession } from "next-auth/react";
+import { useRef } from "react";
+import { toast } from "sonner";
 
 interface FileNode {
   id: string;
@@ -42,6 +44,9 @@ export default function FileBrowser() {
   const { data: session } = useSession();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newFileName, setNewFileName] = useState("");
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  const [uploadDirectory, setUploadDirectory] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 从URL获取当前选中的文件
   const currentFilePath = searchParams.get("file");
@@ -66,8 +71,8 @@ export default function FileBrowser() {
     workspaceId: workspaceId,
   });
 
-  // 处理文件选择
-  const handleFileSelect = (file: FileNode) => {
+  // 处理文件选择（从文件树选择）
+  const handleFileTreeSelect = (file: FileNode) => {
     // 更新URL参数
     const newParams = new URLSearchParams(searchParams.toString());
     if (file.type === "file" && file.path) {
@@ -99,6 +104,44 @@ export default function FileBrowser() {
       initialContent:
         "# " + newFileName.replace(/\.md$/, "") + "\n\n开始编写您的文档...\n",
     });
+  };
+
+  // 上传文件
+  const uploadFileMutation = api.workspace.uploadFile.useMutation({
+    onSuccess: (data) => {
+      void refetchFileTree();
+      setIsUploadDialogOpen(false);
+      setUploadDirectory("");
+      toast.success(`文件 "${data.fileName}" 上传成功！`);
+    },
+    onError: (error) => {
+      toast.error(`上传失败: ${error.message}`);
+    },
+  });
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target?.result as string;
+      const content = base64.split(',')[1]; // 去掉data:mime;base64,前缀
+      if (!content) return;
+
+      void uploadFileMutation.mutate({
+        workspaceId: workspaceId,
+        fileName: file.name,
+        directoryPath: uploadDirectory,
+        content: content,
+        mimeType: file.type,
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
   };
 
   return (
@@ -182,6 +225,72 @@ export default function FileBrowser() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
+          <Dialog
+            open={isUploadDialogOpen}
+            onOpenChange={setIsUploadDialogOpen}
+          >
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Upload className="mr-1 h-3 w-3" />
+                上传
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>上传文件</DialogTitle>
+                <DialogDescription>
+                  选择文件上传到工作区
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="directory">目标目录（可选）</Label>
+                  <Input
+                    id="directory"
+                    placeholder="例如：uploads 或 images"
+                    value={uploadDirectory}
+                    onChange={(e) => setUploadDirectory(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>选择文件</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleUploadClick}
+                    disabled={uploadFileMutation.isPending}
+                    className="h-20 border-dashed"
+                  >
+                    <div className="text-center">
+                      <Upload className="mx-auto h-6 w-6 mb-2" />
+                      <p>
+                        {uploadFileMutation.isPending
+                          ? "上传中..."
+                          : "点击选择文件或拖拽到此处"}
+                      </p>
+                    </div>
+                  </Button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    multiple={false}
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setIsUploadDialogOpen(false)}
+                  disabled={uploadFileMutation.isPending}
+                >
+                  取消
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
@@ -202,7 +311,7 @@ export default function FileBrowser() {
                 <FileTreeItem
                   key={item.id}
                   item={item}
-                  onSelect={handleFileSelect}
+                  onSelect={handleFileTreeSelect}
                   selectedPath={selectedFile?.path}
                 />
               ))}
