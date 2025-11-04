@@ -2,7 +2,7 @@
 
 import { ChevronDown, ChevronLeft, ExternalLink } from "lucide-react";
 import { useState } from "react";
-import { MarkdownPreview } from "./MarkdownPreview";
+import { MarkdownPreview } from "~/components/shared/MarkdownPreview";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { BetaToolUseBlock } from "@anthropic-ai/sdk/resources/beta.mjs";
 

@@ -7,11 +7,10 @@ import { defineBasicExtension } from "prosekit/basic";
 import { createEditor, jsonFromHTML, type Editor } from "prosekit/core";
 import { useCallback, useEffect, useState } from "react";
 import { useDocChange, ProseKit } from "prosekit/react";
-import { Button } from "~/components/ui/button";
-import { Save, RotateCcw, Edit3, Eye, RefreshCw, File } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { markdownFromHTML, htmlFromMarkdown } from "~/lib/markdown";
-import { MarkdownPreview } from "~/components/MarkdownPreview";
+import { MarkdownPreview } from "~/components/shared/MarkdownPreview";
+import { FilePreviewHeader } from "~/components/ui/file-preview-header";
 import { api } from "~/trpc/react";
 
 function EditorWrapper({
@@ -131,6 +130,20 @@ export function MarkdownEditor({
     workspaceId,
   ]);
 
+  // 下载文件
+  const downloadFile = useCallback(() => {
+    const content = currentMarkdown;
+    const blob = new Blob([content], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName ?? "download.md";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, [currentMarkdown, fileName]);
+
   // 键盘快捷键
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -158,71 +171,24 @@ export function MarkdownEditor({
         className,
       )}
     >
-      {/* 工具栏 */}
-      <div className="flex items-center justify-between border-b p-4">
-        <div className="flex h-8 items-center gap-2">
-          {fileName && (
-            <div className="mr-4 flex items-center gap-2">
-              <File className="h-4 w-4" />
-              <span className="font-medium">{fileName}</span>
-            </div>
-          )}
-        </div>
-        <div className="flex h-8 items-center gap-2">
-          <Button
-            variant={viewMode === "preview" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("preview")}
-          >
-            <Eye className="mr-2 h-4 w-4" />
-            预览
-          </Button>
-          <Button
-            variant={viewMode === "edit" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("edit")}
-          >
-            <Edit3 className="mr-2 h-4 w-4" />
-            编辑
-          </Button>
-          {onRefresh && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onRefresh}
-              disabled={isRefreshing}
-            >
-              <RefreshCw
-                className={`mr-1 h-3 w-3 ${isRefreshing ? "animate-spin" : ""}`}
-              />
-              刷新
-            </Button>
-          )}
-          {viewMode === "edit" && (
-            <>
-              <Button
-                onClick={saveFile}
-                disabled={!hasUnsavedChange || isSaving}
-                size="sm"
-                variant="outline"
-              >
-                <Save className="mr-2 h-4 w-4" />
-                {isSaving ? "保存中..." : hasUnsavedChange ? "保存" : "已保存"}
-              </Button>
-              {hasUnsavedChange && (
-                <Button
-                  onClick={() => window.location.reload()}
-                  size="sm"
-                  variant="ghost"
-                >
-                  <RotateCcw className="mr-2 h-4 w-4" />
-                  刷新
-                </Button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
+      {/* Header */}
+      <FilePreviewHeader
+        fileName={fileName ?? ""}
+        filePath={filePath}
+        mimeType="text/markdown"
+        readOnly={false}
+        isSaving={isSaving}
+        hasUnsavedChange={hasUnsavedChange}
+        isRefreshing={isRefreshing}
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        onSave={saveFile}
+        onRefresh={onRefresh}
+        onDownload={downloadFile}
+        onRevert={() => window.location.reload()}
+        wordCount={wordCount}
+        charCount={currentMarkdown.length}
+      />
 
       {/* 内容区域 */}
       <div className="flex-1 overflow-auto">
@@ -248,24 +214,6 @@ export function MarkdownEditor({
             </div>
           </div>
         )}
-      </div>
-
-      {/* 状态栏 */}
-      <div className="bg-muted/30 border-t px-4 py-1">
-        <div className="text-muted-foreground flex items-center justify-between text-xs">
-          <div className="flex items-center gap-4">
-            <span>{filePath}</span>
-            <span>Markdown</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <span>{wordCount} 词</span>
-            <span>{currentMarkdown.length} 字符</span>
-            {viewMode === "edit" && hasUnsavedChange && (
-              <span className="text-orange-600">未保存</span>
-            )}
-            {viewMode === "edit" && <span>Ctrl+S 保存</span>}
-          </div>
-        </div>
       </div>
     </div>
   );

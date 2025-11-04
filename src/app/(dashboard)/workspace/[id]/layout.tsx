@@ -35,7 +35,7 @@ export default function WorkspaceLayout({
         {/* 中间文件预览区域 - 基于 workspaceId */}
         <ResizablePanel defaultSize={45} minSize={30}>
           <div className="bg-background/30 h-full border-r">
-            <ScrollArea className="h-full">{center}</ScrollArea>
+            {center}
           </div>
         </ResizablePanel>
 

@@ -4,20 +4,7 @@ import { mkdir, rmdir, readdir, stat, writeFile, readFile } from "fs/promises";
 import { join } from "path";
 import { homedir } from "os";
 import type { FileTreeItem } from "../types/file";
-
-// 简单的 MIME 类型检测
-function getMimeType(filePath: string): string {
-    const ext = filePath.split('.').pop()?.toLowerCase();
-    const commonTypes: Record<string, string> = {
-        'md': 'text/markdown',
-        'js': 'text/javascript',
-        'ts': 'text/typescript',
-        'json': 'application/json',
-        'png': 'image/png',
-        'jpg': 'image/jpeg'
-    };
-    return commonTypes[ext ?? ''] ?? 'text/plain';
-}
+import { getMimeType, isTextFile } from "~/lib/file-utils";
 
 export const workSpaceRouter = createTRPCRouter({
     getWorkSpaces: protectedProcedure
@@ -259,13 +246,25 @@ export const workSpaceRouter = createTRPCRouter({
 
             const stats = await stat(fullPath);
             if (!stats.isFile()) throw new Error("Not a file");
-            if (stats.size > 5 * 1024 * 1024) throw new Error("File too large");
+            if (stats.size > 10 * 1024 * 1024) throw new Error("File too large"); // 增加到10MB
+
+            // 获取 MIME 类型
+            const mimeType = getMimeType(input.filePath);
+
+            // 读取文件内容
+            const fileBuffer = await readFile(fullPath);
+
+            // 根据文件类型选择编码方式
+            const isText = isTextFile(mimeType);
+            const content = isText ? fileBuffer.toString('utf-8') : fileBuffer.toString('base64');
 
             return {
-                content: await readFile(fullPath, 'utf-8'),
+                content: content,
+                encoding: isText ? 'utf-8' : 'base64',
                 size: stats.size,
                 modifiedAt: stats.mtime,
-                mimeType: getMimeType(input.filePath)
+                mimeType: mimeType,
+                fileName: input.filePath.split('/').pop() ?? input.filePath
             };
         }),
 

@@ -13,7 +13,7 @@ import { Button } from "~/components/ui/button";
 import { Badge } from "~/components/ui/badge";
 import { Users, Calendar, ArrowRight, Plus, Settings } from "lucide-react";
 import { cn } from "~/lib/utils";
-import { WorkspaceSettingsDialog } from "~/components/workspace-settings-dialog";
+import { WorkspaceSettingsDialog } from "~/components/shared/dialogs/WorkspaceSettingsDialog";
 
 interface WorkspaceCardProps {
   id: string;

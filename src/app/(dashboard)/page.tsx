@@ -1,7 +1,7 @@
 "use client";
 
-import { WorkspaceCard } from "~/components/workspace-card";
-import { CreateWorkspaceDialog } from "~/components/create-workspace-dialog";
+import { WorkspaceCard } from "~/components/workspace/WorkspaceCard";
+import { CreateWorkspaceDialog } from "~/components/shared/dialogs/CreateWorkspaceDialog";
 import { useSession } from "next-auth/react";
 import { api } from "~/trpc/react";
 

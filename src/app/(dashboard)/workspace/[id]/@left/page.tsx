@@ -18,7 +18,7 @@ import { api } from "~/trpc/react";
 import { ArrowLeft, FolderOpen, Plus, RefreshCw, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FileTreeItem } from "~/components/FileTreeItem";
+import { FileTreeItem } from "~/components/shared/FileTreeItem";
 import { useSession } from "next-auth/react";
 import { useRef } from "react";
 import { toast } from "sonner";

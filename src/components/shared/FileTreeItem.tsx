@@ -34,10 +34,13 @@ export function FileTreeItem({
   const hasChildren = item.hasChildren && (item.children && item.children.length > 0);
 
   const handleToggle = () => {
-    if (item.type === 'directory' && hasChildren) {
-      setIsExpanded(!isExpanded);
-    }
-    if (onSelect) {
+    if (item.type === 'directory') {
+      // 文件夹只处理展开/折叠，不触发 onSelect
+      if (hasChildren) {
+        setIsExpanded(!isExpanded);
+      }
+    } else if (onSelect) {
+      // 只有文件才触发 onSelect
       onSelect(item);
     }
   };
