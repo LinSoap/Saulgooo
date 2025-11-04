@@ -7,64 +7,68 @@ import { defineBasicExtension } from "prosekit/basic";
 import { createEditor, jsonFromHTML, type Editor } from "prosekit/core";
 import { useCallback, useEffect, useState } from "react";
 import { useDocChange, ProseKit } from "prosekit/react";
+import { useParams, useSearchParams } from "next/navigation";
 import { cn } from "~/lib/utils";
 import { markdownFromHTML, htmlFromMarkdown } from "~/lib/markdown";
 import { MarkdownPreview } from "~/components/shared/MarkdownPreview";
-import { FilePreviewHeader } from "~/components/ui/file-preview-header";
-import { api } from "~/trpc/react";
+import { api, type RouterOutputs } from "~/trpc/react";
+import { Button } from "~/components/ui/button";
+import { Eye, Code2, Save } from "lucide-react";
+import { toast } from "sonner";
 
-function EditorWrapper({
+type FileContentData = RouterOutputs["workspace"]["getFileContent"];
+
+// 编辑器内容组件 - 必须在 ProseKit 上下文中
+function EditorContent({
   editor,
-  onChange,
+  onDocChange,
 }: {
-  editor: Editor | null | undefined;
-  onChange: () => void;
+  editor: Editor | null;
+  onDocChange: () => void;
 }) {
-  useDocChange(onChange, { editor: editor ?? undefined });
+  useDocChange(onDocChange, { editor: editor ?? undefined });
 
   if (!editor) return null;
 
   return (
     <div
       ref={editor?.mount}
-      className="ProseMirror min-h-full px-6 py-8 text-sm outline-none md:px-[max(4rem,calc(50%-20rem))] [&_blockquote]:my-4 [&_blockquote]:border-l-4 [&_blockquote]:border-gray-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-2 [&_code]:py-0.5 dark:[&_code]:bg-gray-800 [&_h1]:mt-8 [&_h1]:mb-4 [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:mt-6 [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-2 [&_ol]:ml-6 [&_ol]:list-decimal [&_p]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-gray-100 [&_pre]:p-4 dark:[&_pre]:bg-gray-800 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:px-4 [&_td]:py-2 [&_th]:border [&_th]:px-4 [&_th]:py-2 [&_th]:text-left [&_ul]:my-2 [&_ul]:ml-6 [&_ul]:list-disc"
+      className="ProseMirror w-full px-6 py-8 pb-20 text-sm outline-none md:px-[max(4rem,calc(50%-20rem))] [&_blockquote]:my-4 [&_blockquote]:border-l-4 [&_blockquote]:border-gray-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-2 [&_code]:py-0.5 dark:[&_code]:bg-gray-800 [&_h1]:mt-8 [&_h1]:mb-4 [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:mt-6 [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-2 [&_ol]:ml-6 [&_ol]:list-decimal [&_p]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-gray-100 [&_pre]:p-4 dark:[&_pre]:bg-gray-800 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:px-4 [&_td]:py-2 [&_th]:border [&_th]:px-4 [&_th]:py-2 [&_th]:text-left [&_ul]:my-2 [&_ul]:ml-6 [&_ul]:list-disc"
     />
   );
 }
 
-interface MarkdownFileEditorProps {
-  workspaceId: string;
-  filePath: string;
-  initialContent: string;
-  className?: string;
-  fileName?: string;
-  onRefresh?: () => void;
-  isRefreshing?: boolean;
+interface MarkdownEditorProps {
+  fileData: FileContentData;
 }
 
-export function MarkdownEditor({
-  workspaceId,
-  filePath,
-  initialContent,
-  className,
-  fileName,
-  onRefresh,
-  isRefreshing = false,
-}: MarkdownFileEditorProps) {
+export function MarkdownEditor({ fileData }: MarkdownEditorProps) {
+  const params = useParams();
+  const searchParams = useSearchParams();
+  const filePath = searchParams?.get("file") ?? "";
+  const workspaceId = params.id as string;
   const [editor, setEditor] = useState<Editor | null>(null);
   const [hasUnsavedChange, setHasUnsavedChange] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [viewMode, setViewMode] = useState<"edit" | "preview">("preview");
-  const [currentMarkdown, setCurrentMarkdown] = useState(initialContent);
+  const [currentMarkdown, setCurrentMarkdown] = useState<string>("");
+
+  // 处理文档变化
+  const handleDocChange = useCallback(() => {
+    setHasUnsavedChange(true);
+  }, []);
 
   // 更新文件内容的mutation
   const updateFileMutation = api.workspace.updateFileContent.useMutation({
     onSuccess: () => {
       setIsSaving(false);
       setHasUnsavedChange(false);
+      toast.success("文件保存成功");
     },
-    onError: () => {
+    onError: (error) => {
       setIsSaving(false);
+      console.error("Save failed:", error);
+      toast.error("文件保存失败");
     },
   });
 
@@ -74,6 +78,10 @@ export function MarkdownEditor({
 
     const extension = defineBasicExtension();
     let parsedContent = undefined;
+
+    // 从 fileData 获取初始内容
+    const initialContent =
+      fileData.encoding === "utf-8" ? fileData.content : atob(fileData.content);
 
     // 解析初始内容
     if (initialContent?.trim()) {
@@ -100,49 +108,48 @@ export function MarkdownEditor({
     return () => {
       // ProseKit会自动处理清理
     };
-  }, [initialContent, filePath]); // 添加filePath依赖确保切换文件时重新创建
-
-  // 处理内容变化
-  const handleDocChange = useCallback(() => {
-    setHasUnsavedChange(true);
-  }, []);
+  }, [fileData]);
 
   // 保存文件
   const saveFile = useCallback(async () => {
-    if (hasUnsavedChange && !isSaving && editor) {
-      setIsSaving(true);
+    if (!hasUnsavedChange) {
+      toast.info("没有更改内容");
+      return;
+    }
+
+    if (isSaving) {
+      toast.info("正在保存中...");
+      return;
+    }
+
+    if (!editor) {
+      toast.error("编辑器未准备好");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
       const html = editor.getDocHTML();
       const markdown = markdownFromHTML(html);
       setCurrentMarkdown(markdown);
 
-      void updateFileMutation.mutateAsync({
+      await updateFileMutation.mutateAsync({
         workspaceId,
         filePath,
         content: markdown,
       });
+    } catch (error) {
+      console.error("Save failed:", error);
+      toast.error("文件保存失败");
     }
   }, [
     hasUnsavedChange,
     isSaving,
     editor,
     updateFileMutation,
-    filePath,
     workspaceId,
+    filePath,
   ]);
-
-  // 下载文件
-  const downloadFile = useCallback(() => {
-    const content = currentMarkdown;
-    const blob = new Blob([content], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = fileName ?? "download.md";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, [currentMarkdown, fileName]);
 
   // 键盘快捷键
   useEffect(() => {
@@ -159,62 +166,66 @@ export function MarkdownEditor({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [hasUnsavedChange, isSaving, saveFile]);
 
-  // 获取字数
-  const wordCount = currentMarkdown
-    .split(/\s+/)
-    .filter((w) => w.length > 0).length;
-
   return (
     <div
-      className={cn(
-        "flex h-full flex-col bg-white dark:bg-gray-950",
-        className,
-      )}
+      className={cn("flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950")}
     >
       {/* Header */}
-      <FilePreviewHeader
-        fileName={fileName ?? ""}
-        filePath={filePath}
-        mimeType="text/markdown"
-        readOnly={false}
-        isSaving={isSaving}
-        hasUnsavedChange={hasUnsavedChange}
-        isRefreshing={isRefreshing}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        onSave={saveFile}
-        onRefresh={onRefresh}
-        onDownload={downloadFile}
-        onRevert={() => window.location.reload()}
-        wordCount={wordCount}
-        charCount={currentMarkdown.length}
-      />
+      <div className="bg-background/50 border-b px-4 py-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Button
+              variant={viewMode === "edit" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("edit")}
+              className="gap-2"
+            >
+              <Code2 className="h-4 w-4" />
+              编辑
+            </Button>
+            <Button
+              variant={viewMode === "preview" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("preview")}
+              className="gap-2"
+            >
+              <Eye className="h-4 w-4" />
+              预览
+            </Button>
+          </div>
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => void saveFile()}
+            disabled={!hasUnsavedChange || isSaving}
+            className="gap-2"
+          >
+            <Save className="h-4 w-4" />
+            {isSaving ? "保存中..." : "保存"}
+          </Button>
+        </div>
+      </div>
 
       {/* 内容区域 */}
-      <div className="flex-1 overflow-auto">
-        {viewMode === "edit" ? (
-          editor ? (
+      {viewMode === "edit" ? (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {editor ? (
             <ProseKit editor={editor}>
-              <div className="relative h-full w-full overflow-y-auto">
-                <EditorWrapper editor={editor} onChange={handleDocChange} />
-              </div>
+              <EditorContent editor={editor} onDocChange={handleDocChange} />
             </ProseKit>
           ) : (
             <div className="flex h-full items-center justify-center">
               <span className="text-muted-foreground">加载编辑器中...</span>
             </div>
-          )
-        ) : (
-          <div className="h-full overflow-y-auto">
-            <div className="px-6 py-8 md:px-[max(4rem,calc(50%-20rem))]">
-              <MarkdownPreview
-                content={currentMarkdown}
-                className="max-w-none"
-              />
-            </div>
+          )}
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="px-6 py-8 pb-20 md:px-[max(4rem,calc(50%-20rem))]">
+            <MarkdownPreview content={currentMarkdown} className="max-w-none" />
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
