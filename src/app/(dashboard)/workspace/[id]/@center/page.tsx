@@ -10,6 +10,7 @@ import {
   getOssFileUrl,
   type FileData,
 } from "~/lib/file-client";
+import { getFileRenderType } from "~/lib/file-utils";
 
 export default function FilePreview() {
   const params = useParams();
@@ -71,14 +72,17 @@ export default function FilePreview() {
   // 构建OSS URL
   const ossUrl = getOssFileUrl(workspaceId, filePath, { preview: true });
 
+  // 获取文件渲染类型
+  const renderType = getFileRenderType(fileData.mimeType, fileData.fileName);
+
   return (
     <div className="flex h-full flex-col">
       <FilePreviewHeader
         fileData={fileData}
         onRefresh={() => void loadFile()}
       />
-      <div className="flex-1 min-h-0">
-        {fileData.mimeType === "text/html" ? (
+      <div className="min-h-0 flex-1">
+        {renderType === "html" ? (
           // HTML文件使用iframe预览
           <iframe
             src={ossUrl}
@@ -87,10 +91,10 @@ export default function FilePreview() {
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-presentation allow-downloads"
             loading="lazy"
           />
-        ) : fileData.mimeType?.startsWith("text/") ? (
-          // 其他文本文件使用MarkdownEditor
+        ) : renderType === "text" ? (
+          // 文本文件使用MarkdownEditor
           <MarkdownEditor fileData={fileData} />
-        ) : fileData.mimeType?.startsWith("image/") ? (
+        ) : renderType === "image" ? (
           // 图片文件直接显示
           <div className="flex h-full items-center justify-center p-4">
             <img
@@ -99,7 +103,7 @@ export default function FilePreview() {
               className="max-h-full max-w-full object-contain"
             />
           </div>
-        ) : fileData.mimeType?.startsWith("video/") ? (
+        ) : renderType === "video" ? (
           // 视频文件使用video标签
           <div className="flex h-full items-center justify-center p-4">
             <video
@@ -111,7 +115,7 @@ export default function FilePreview() {
               Your browser does not support the video tag.
             </video>
           </div>
-        ) : fileData.mimeType?.startsWith("audio/") ? (
+        ) : renderType === "audio" ? (
           // 音频文件使用audio标签
           <div className="flex h-full items-center justify-center p-4">
             <audio
@@ -123,8 +127,8 @@ export default function FilePreview() {
               Your browser does not support the audio tag.
             </audio>
           </div>
-        ) : fileData.mimeType === "application/pdf" ? (
-          // PDF文件使用iframe或embed
+        ) : renderType === "pdf" ? (
+          // PDF文件使用iframe
           <iframe
             src={ossUrl}
             className="h-full w-full border-0"
@@ -134,6 +138,7 @@ export default function FilePreview() {
           // 不支持的文件类型显示下载选项
           <div className="flex h-full flex-col items-center justify-center p-4 text-gray-500">
             <div className="mb-4">Cannot preview this file type.</div>
+            <div>{fileData.mimeType}</div>
             <a
               href={getOssFileUrl(workspaceId, filePath, { download: true })}
               download={fileData.fileName}

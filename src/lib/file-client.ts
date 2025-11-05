@@ -74,10 +74,8 @@ export async function fetchFileContent(
         content = await response.text();
         encoding = 'utf-8';
     } else {
-        // 对于二进制文件，转换为 base64
-        const arrayBuffer = await response.arrayBuffer();
-        const bytes = new Uint8Array(arrayBuffer);
-        content = btoa(String.fromCharCode(...bytes));
+        // 对于二进制文件，只返回元数据，不读取内容以避免内存问题
+        content = '';
         encoding = 'base64';
     }
 
