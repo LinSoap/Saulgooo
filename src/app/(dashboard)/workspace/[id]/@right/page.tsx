@@ -74,7 +74,6 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
       // 当消息完成时，刷新 session 列表
       void refetchSessions();
     });
-  console.log("Page: messages", messages);
 
   // 滚动相关 refs - 必须在 messages 声明之后
   const messagesEndRef = useRef<HTMLDivElement>(null);

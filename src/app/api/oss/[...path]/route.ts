@@ -147,8 +147,6 @@ export async function GET(
       const encodedFileDir = fileDirParts.map(encodeURIComponent).join('/');
       const baseUrl = `/api/oss/${workspaceId}/${encodedFileDir ? encodedFileDir + '/' : ''}`;
 
-      console.log('HTML Preview - relativeFilePath:', relativeFilePath);
-      console.log('HTML Preview - baseUrl:', baseUrl);
 
       // 先移除已存在的base标签（如果有的话）
       htmlContent = htmlContent.replace(/<base[^>]*>/gi, '');

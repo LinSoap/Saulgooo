@@ -59,14 +59,9 @@ class SubscriptionManager {
   // 推送消息给特定的subscription
   emit(sessionId: string, message: PushMessage) {
     const emitter = this.subscriptions.get(sessionId);
-    console.log('🔍 SubscriptionManager emit - sessionId:', sessionId);
-    console.log('🔍 SubscriptionManager emit - message.type:', message.type);
-    console.log('🔍 SubscriptionManager emit - message.id:', message.id);
-    console.log('🔍 SubscriptionManager emit - message.sessionId:', message.sessionId);
-    console.log('🔍 SubscriptionManager emit - Has emitter:', !!emitter);
+
     if (emitter) {
       emitter(message);
-      console.log('🔍 SubscriptionManager emit - Message sent successfully');
     } else {
       console.log('🔍 SubscriptionManager emit - No emitter found for sessionId:', sessionId);
     }
@@ -311,7 +306,6 @@ export const agentRouter = createTRPCRouter({
 
       // 注册到subscription管理器
       const eventEmitter = (message: PushMessage) => {
-        console.log(message)
         if (resolveNext) {
           // 如果有等待的 Promise，直接解析
           resolveNext(message);
