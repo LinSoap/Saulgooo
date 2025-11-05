@@ -55,10 +55,11 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
   const [inputMessage, setInputMessage] = useState("");
   const [sessions, setSessions] = useState<Session[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
-  const isInitialLoadRef = useRef(true); // 跟踪是否是首次加载
 
   // 从URL读取id（数据库主键）
   const currentId = searchParams?.get("id");
+
+  const isInitialLoadRef = useRef(!currentId); // 跟踪是否是首次加载，只有当没有sessionId时才设置为true
 
   // 获取 sessions 列表
   const { data: sessionsData, refetch: refetchSessions } =
