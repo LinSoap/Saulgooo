@@ -219,7 +219,7 @@ function ToolCall({ tool }: { tool: BetaToolUseBlock }) {
               📄 {(input?.file_path as string) ?? ""}
             </div>
             <div className="min-h-0 overflow-y-auto">
-              <pre className="max-w-full font-mono text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+              <pre className="max-w-full font-mono text-sm break-all whitespace-pre-wrap text-gray-700 dark:text-gray-300">
                 {(input?.content as string) ?? ""}
               </pre>
             </div>
@@ -252,7 +252,7 @@ function ToolCall({ tool }: { tool: BetaToolUseBlock }) {
 
   if (hasContent && content) {
     return (
-      <div className="my-3">
+      <div className="my-3 max-w-full">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
           className="group flex w-full items-center justify-start font-mono text-sm text-gray-500 transition-colors hover:text-gray-700"

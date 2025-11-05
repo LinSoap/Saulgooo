@@ -351,7 +351,7 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
       </div>
 
       {/* 消息列表 */}
-      <ScrollArea ref={scrollAreaRef}>
+      <ScrollArea ref={scrollAreaRef} className="flex-1">
         <div className="flex flex-col space-y-4 p-4">
           <div className="flex flex-col p-4">
             {messages.length > 0
