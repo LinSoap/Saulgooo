@@ -24,17 +24,17 @@ export default function WorkspaceLayout({
       {/* Header可以在这里添加 */}
       <ResizablePanelGroup direction="horizontal" className="h-full flex-1">
         {/* 左侧文件浏览区域 - 基于 workspaceId */}
-        <ResizablePanel defaultSize={20} minSize={15} maxSize={30}>
-          <div className="bg-background/50 h-full border-r">
-            <ScrollArea className="h-full">{left}</ScrollArea>
+        <ResizablePanel defaultSize={20} minSize={15} maxSize={40}>
+          <div className="bg-background/50 h-full overflow-hidden border-r">
+            {left}
           </div>
         </ResizablePanel>
 
         <ResizableHandle withHandle />
 
         {/* 中间文件预览区域 - 基于 workspaceId */}
-        <ResizablePanel defaultSize={45} minSize={30}>
-          <div className="bg-background/30 h-full border-r">
+        <ResizablePanel defaultSize={45} minSize={20}>
+          <div className="bg-background/30 h-full overflow-hidden border-r">
             {center}
           </div>
         </ResizablePanel>
@@ -42,10 +42,8 @@ export default function WorkspaceLayout({
         <ResizableHandle withHandle />
 
         {/* 右侧Agent Chat区域 - 基于 sessionId */}
-        <ResizablePanel defaultSize={35} minSize={25} maxSize={50}>
-          <div className="bg-background/70 h-full">
-            <ScrollArea className="h-full">{right}</ScrollArea>
-          </div>
+        <ResizablePanel defaultSize={35} minSize={20}>
+          <div className="bg-background/70 h-full overflow-hidden">{right}</div>
         </ResizablePanel>
       </ResizablePanelGroup>
 
