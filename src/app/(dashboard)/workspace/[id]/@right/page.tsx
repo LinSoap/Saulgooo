@@ -22,7 +22,7 @@ import {
   ArrowDown,
 } from "lucide-react";
 import { api } from "~/trpc/react";
-import { MessageBubble } from "~/components/features/chat/MessageRenderer";
+import { MessageBubble } from "~/components/features/chat/MessageBubble";
 import { useBackgroundQuery } from "~/app/(dashboard)/workspace/[id]/hooks";
 import { useSession } from "next-auth/react";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
@@ -97,14 +97,17 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
   });
 
   // 切换到指定会话 - 修改URL（使用数据库主键）
-  const handleSelectSession = useCallback((selectedId: string) => {
-    const newParams = new URLSearchParams(searchParams?.toString() || "");
-    newParams.set("id", selectedId);
-    const newUrl = `${pathname}?${newParams.toString()}`;
-    router.push(newUrl);
-    reset();
-    setConfirmingDelete(null);
-  }, [searchParams, pathname, router, reset]);
+  const handleSelectSession = useCallback(
+    (selectedId: string) => {
+      const newParams = new URLSearchParams(searchParams?.toString() || "");
+      newParams.set("id", selectedId);
+      const newUrl = `${pathname}?${newParams.toString()}`;
+      router.push(newUrl);
+      reset();
+      setConfirmingDelete(null);
+    },
+    [searchParams, pathname, router, reset],
+  );
 
   // 更新 sessions 列表
   useEffect(() => {
@@ -251,7 +254,7 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
   }
 
   return (
-    <div className="flex h-screen flex-col border-l">
+    <div className="flex h-full flex-col border-l">
       {/* 对话框头部 */}
       <div className="border-b p-4">
         <div className="flex h-8 items-center justify-between">
@@ -273,7 +276,7 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
                 <History className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
+            <DropdownMenuContent align="end" className="w-[90vw] max-w-80">
               <DropdownMenuItem
                 onClick={handleNewConversation}
                 className="cursor-pointer"
@@ -348,16 +351,15 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
       </div>
 
       {/* 消息列表 */}
-      <ScrollArea ref={scrollAreaRef} className="relative flex-1">
-        <div className="space-y-4 p-4">
-          {messages.length > 0
-            ? messages.map((message: unknown, index) => (
-                <MessageBubble
-                  key={`message-${index}`}
-                  message={message as SDKMessage}
-                />
-              ))
-            : null}
+      <ScrollArea ref={scrollAreaRef}>
+        <div className="flex flex-col space-y-4 p-4">
+          <div className="flex flex-col p-4">
+            {messages.length > 0
+              ? messages.map((message: SDKMessage, index) => (
+                  <MessageBubble key={`message-${index}`} message={message} />
+                ))
+              : null}
+          </div>
 
           {isLoading && (
             <div className="flex items-center gap-2 p-4">

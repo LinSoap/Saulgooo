@@ -2,8 +2,6 @@
 
 import { ChevronDown, ChevronLeft, ExternalLink } from "lucide-react";
 import { useState } from "react";
-import { MarkdownPreview } from "~/components/shared/MarkdownPreview";
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { BetaToolUseBlock } from "@anthropic-ai/sdk/resources/beta.mjs";
 
 // 简单的工具调用组件
@@ -204,13 +202,11 @@ function ToolCall({ tool }: { tool: BetaToolUseBlock }) {
                 </button>
               </div>
             </div>
-            <div className="w-full">
-              <div className="min-w-full">
-                <div className="overflow-x-auto border-t">
-                  <pre className="bg-muted/40 overflow-x-auto p-4 font-mono text-xs whitespace-pre-wrap">
-                    <code>{todoLines}</code>
-                  </pre>
-                </div>
+            <div className="w-full min-w-0">
+              <div className="border-t">
+                <pre className="bg-muted/40 p-4 font-mono text-xs whitespace-pre-wrap">
+                  <code>{todoLines}</code>
+                </pre>
               </div>
             </div>
           </div>
@@ -218,12 +214,12 @@ function ToolCall({ tool }: { tool: BetaToolUseBlock }) {
 
       case "write":
         return (
-          <div className="mt-3 rounded-lg border bg-gray-50 p-4 dark:bg-gray-900/50">
+          <div className="mt-3 min-w-0 rounded-lg border bg-gray-50 p-4">
             <div className="mb-3 border-b pb-2 font-mono text-xs text-gray-500 dark:text-gray-400">
               📄 {(input?.file_path as string) ?? ""}
             </div>
-            <div className="max-h-96 overflow-y-auto">
-              <pre className="font-mono text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+            <div className="min-h-0 overflow-y-auto">
+              <pre className="max-w-full font-mono text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-300">
                 {(input?.content as string) ?? ""}
               </pre>
             </div>
@@ -246,11 +242,11 @@ function ToolCall({ tool }: { tool: BetaToolUseBlock }) {
     const toolName = tool.name?.toLowerCase() ?? "";
     switch (toolName) {
       case "webfetch":
-        return "bg-blue-400 dark:bg-blue-600";
+        return "bg-blue-400 ";
       case "todowrite":
-        return "bg-green-400 dark:bg-green-600";
+        return "bg-green-400 ";
       default:
-        return "bg-gray-300 dark:bg-gray-600";
+        return "bg-gray-300";
     }
   };
 
@@ -259,7 +255,7 @@ function ToolCall({ tool }: { tool: BetaToolUseBlock }) {
       <div className="my-3">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="group flex w-full items-center justify-start font-mono text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+          className="group flex w-full items-center justify-start font-mono text-sm text-gray-500 transition-colors hover:text-gray-700"
         >
           <div className="flex items-center gap-2">
             <span className={`h-2 w-2 rounded-full ${getToolColor()}`}></span>
@@ -293,74 +289,4 @@ function ToolCall({ tool }: { tool: BetaToolUseBlock }) {
   );
 }
 
-export function MessageRenderer({ message }: { message: SDKMessage }) {
-  // 渲染消息内容的辅助函数
-  const renderMessageContent = () => {
-    if (
-      message.type === "user" &&
-      typeof message.message.content === "string"
-    ) {
-      return (
-        <div className="prose prose-sm max-w-none">
-          <MarkdownPreview content={message.message.content} />
-        </div>
-      );
-    }
-    if (
-      message.type === "assistant" &&
-      Array.isArray(message.message.content)
-    ) {
-      const contentArray = message.message.content;
-      const elements: React.ReactNode[] = [];
-      let lastItemWasTool = false;
-
-      contentArray.forEach((item, index) => {
-        // 确保 item 有正确的类型
-
-        if (item.type === "text") {
-          // 如果上一个项目是工具调用，添加分隔线
-          if (lastItemWasTool && elements.length > 0) {
-            elements.push(
-              <div
-                key={`sep-${index}`}
-                className="my-4 border-t border-gray-200 dark:border-gray-700"
-              ></div>,
-            );
-          }
-          elements.push(
-            <div key={index} className="prose prose-sm max-w-none">
-              <MarkdownPreview content={item.text ?? ""} />
-            </div>,
-          );
-          lastItemWasTool = false;
-        } else if (item.type === "tool_use") {
-          elements.push(<ToolCall key={index} tool={item} />);
-          lastItemWasTool = true;
-        }
-      });
-
-      return <>{elements}</>;
-    }
-
-    return null;
-  };
-
-  return <div className="">{renderMessageContent()}</div>;
-}
-
-export function MessageBubble({ message }: { message: SDKMessage }) {
-  const isUser = message.type === "user";
-  return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div
-        className={`relative max-w-[85%] rounded-lg wrap-break-word ${
-          isUser
-            ? "bg-primary text-primary-foreground ml-auto p-3"
-            : "mr-auto px-3 py-1"
-        }`}
-      >
-        <MessageRenderer message={message} />
-      </div>
-    </div>
-  );
-}
+export { ToolCall };
