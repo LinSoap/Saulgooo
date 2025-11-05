@@ -38,11 +38,11 @@ export function MessageRenderer({ message }: { message: SDKMessage }) {
               ></div>,
             );
           }
-          //   elements.push(
-          //     <div key={index} className="prose prose-sm">
-          //       <MarkdownPreview content={item.text ?? ""} />
-          //     </div>,
-          //   );
+          elements.push(
+            <div key={index} className="prose prose-sm">
+              <MarkdownPreview content={item.text ?? ""} />
+            </div>,
+          );
           lastItemWasTool = false;
         } else if (item.type === "tool_use") {
           elements.push(<ToolCall key={index} tool={item} />);
