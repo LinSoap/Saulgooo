@@ -5,6 +5,7 @@ import { queueEvents } from "~/lib/queue";
 import { PrismaClient } from '@prisma/client';
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import type { JobState } from "bullmq";
+import type { Query } from "@anthropic-ai/claude-agent-sdk";
 
 // 业务逻辑状态类型（扩展BullMQ状态）
 export type TaskStatus = JobState | 'idle' | 'error' | 'init' | 'unknown';
@@ -45,6 +46,7 @@ type SessionWithStatus = {
 // 全局subscription管理器
 class SubscriptionManager {
   private subscriptions = new Map<string, (message: PushMessage) => void>();
+  private queries = new Map<string, Query>();  // 新增：管理查询实例
 
   // 注册subscription
   register(sessionId: string, emitter: (message: PushMessage) => void) {
@@ -70,6 +72,40 @@ class SubscriptionManager {
   // 检查subscription是否存在
   has(sessionId: string): boolean {
     return this.subscriptions.has(sessionId);
+  }
+
+  // ===== 新增：查询实例管理方法 =====
+
+  // 注册查询实例
+  registerQuery(sessionId: string, queryInstance: Query) {
+    this.queries.set(sessionId, queryInstance);
+  }
+
+  // 注销查询实例
+  unregisterQuery(sessionId: string) {
+    this.queries.delete(sessionId);
+  }
+
+  // 中断查询
+  async interruptQuery(sessionId: string): Promise<boolean> {
+    const queryInstance = this.queries.get(sessionId);
+    if (queryInstance) {
+      try {
+        await queryInstance.interrupt();
+        this.queries.delete(sessionId);
+        return true;
+      } catch (error) {
+        console.error(`Failed to interrupt query for session ${sessionId}:`, error);
+        this.queries.delete(sessionId);
+        return false;
+      }
+    }
+    return false;
+  }
+
+  // 检查是否有活跃的查询
+  hasActiveQuery(sessionId: string): boolean {
+    return this.queries.has(sessionId);
   }
 }
 
@@ -372,14 +408,39 @@ export const agentRouter = createTRPCRouter({
         throw new Error("Session not found or access denied");
       }
 
+      // 首先尝试优雅中断查询
+      const interrupted = await subscriptionManager.interruptQuery(input.id);
+
+      if (interrupted) {
+        // 成功中断，更新数据库状态
+        await prisma.agentSession.update({
+          where: { id: input.id },
+          data: {
+            bullJobId: null,
+            updatedAt: new Date()
+          }
+        });
+
+        return {
+          success: true,
+          message: 'Query interrupted gracefully',
+          method: 'interrupt'
+        };
+      }
+
+      // 如果优雅中断失败（可能任务已完成或不在当前进程中），使用原有的 job.remove()
       if (session.bullJobId) {
         const result = await cancelTask(input.id);
-        return result;
+        return {
+          ...result,
+          method: 'job_remove'
+        };
       } else {
         throw new Error("No active task to cancel");
       }
     }),
 
+  
   // 删除 session
   deleteSession: protectedProcedure
     .input(z.object({ id: z.string() }))  // 使用内部 ID

@@ -53,7 +53,6 @@ export const agentWorker = new Worker<AgentTaskData>(
 
 
       // 5. 执行查询
-
       const queryInstance = query({
         prompt: queryText,
         options: {
@@ -71,6 +70,10 @@ export const agentWorker = new Worker<AgentTaskData>(
           },
         }
       });
+
+      // 注册查询实例到 SubscriptionManager（用于优雅中断）
+      subscriptionManager.registerQuery(id, queryInstance);
+
       let realSessionId = sessionId;
 
       // 6. 处理消息流
@@ -117,7 +120,7 @@ export const agentWorker = new Worker<AgentTaskData>(
             const updatedMessages = [...currentMessages, userMessage];
 
             // 更新messages和sessionId到数据库
-            const updateResult = await prisma.agentSession.update({
+            await prisma.agentSession.update({
               where: { id: job.data.id },
               data: {
                 sessionId: message.session_id, // 更新Claude的sessionId
@@ -212,6 +215,11 @@ export const agentWorker = new Worker<AgentTaskData>(
       } catch (updateError) {
         // 重新抛出错误让 BullMQ 处理重试
         throw error;
+      }
+    } finally {
+      // 清理：注销查询实例
+      if (subscriptionManager.hasActiveQuery(id)) {
+        subscriptionManager.unregisterQuery(id);
       }
     }
   },
