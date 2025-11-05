@@ -3,6 +3,7 @@
 import { ChevronDown, ChevronLeft, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import type { BetaToolUseBlock } from "@anthropic-ai/sdk/resources/beta.mjs";
+import type { EditOutput, WriteOutput } from "~/types/tool";
 
 // 简单的工具调用组件
 function ToolCall({ tool }: { tool: BetaToolUseBlock }) {
@@ -31,6 +32,11 @@ function ToolCall({ tool }: { tool: BetaToolUseBlock }) {
       case "read":
         return {
           name: "Read",
+          params: `(${getFileName((input?.file_path as string) ?? "")})`,
+        };
+      case "edit":
+        return {
+          name: "Edit",
           params: `(${getFileName((input?.file_path as string) ?? "")})`,
         };
       case "glob":
@@ -212,43 +218,118 @@ function ToolCall({ tool }: { tool: BetaToolUseBlock }) {
           </div>
         );
 
-      case "write":
+      case "edit":
+        const editOutput = tool.input as EditOutput;
         return (
-          <div className="mt-3 min-w-0 rounded-lg border bg-gray-50 p-4">
-            <div className="mb-3 border-b pb-2 font-mono text-xs text-gray-500 dark:text-gray-400">
-              📄 {(input?.file_path as string) ?? ""}
+          <div className="my-4 w-full overflow-hidden rounded-xl border">
+            <div className="bg-muted/80 text-muted-foreground flex items-center justify-between p-3 text-xs">
+              <span className="ml-1 font-mono lowercase">✏️ edit</span>
+              <div className="flex items-center gap-2">
+                <button
+                  className="text-muted-foreground hover:text-foreground cursor-pointer p-1 transition-all"
+                  title="Copy content"
+                  type="button"
+                  onClick={() =>
+                    navigator.clipboard.writeText(editOutput.new_string)
+                  }
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect
+                      width="14"
+                      height="14"
+                      x="8"
+                      y="8"
+                      rx="2"
+                      ry="2"
+                    ></rect>
+                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+                  </svg>
+                </button>
+              </div>
             </div>
-            <div className="min-h-0 overflow-y-auto">
-              <pre className="max-w-full font-mono text-sm break-all whitespace-pre-wrap text-gray-700 dark:text-gray-300">
-                {(input?.content as string) ?? ""}
-              </pre>
+            <div className="w-full min-w-0">
+              <div className="border-t">
+                <pre className="bg-muted/40 p-4 font-mono text-xs whitespace-pre-wrap">
+                  <code className="text-red-500 line-through">
+                    {editOutput.old_string}
+                  </code>
+                </pre>
+                <pre className="bg-muted/40 p-4 font-mono text-xs whitespace-pre-wrap">
+                  <code className="text-green-700">
+                    {editOutput.new_string}
+                  </code>
+                </pre>
+              </div>
             </div>
           </div>
         );
-
+      case "write":
+        const writeOutput = tool.input as WriteOutput;
+        const content = `File: ${writeOutput?.file_path}\n\n${writeOutput?.content}`;
+        return (
+          <div className="my-4 w-full overflow-hidden rounded-xl border">
+            <div className="bg-muted/80 text-muted-foreground flex items-center justify-between p-3 text-xs">
+              <span className="ml-1 font-mono lowercase">📝 write</span>
+              <div className="flex items-center gap-2">
+                <button
+                  className="text-muted-foreground hover:text-foreground cursor-pointer p-1 transition-all"
+                  title="Copy content"
+                  type="button"
+                  onClick={() => navigator.clipboard.writeText(content)}
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect
+                      width="14"
+                      height="14"
+                      x="8"
+                      y="8"
+                      rx="2"
+                      ry="2"
+                    ></rect>
+                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="w-full min-w-0">
+              <div className="border-t">
+                <pre className="bg-muted/40 p-4 font-mono text-xs whitespace-pre-wrap">
+                  <code>{content}</code>
+                </pre>
+              </div>
+            </div>
+          </div>
+        );
       default:
         return null;
     }
   };
 
   const { name, params } = getToolInfo();
-  const hasContent = ["webfetch", "todowrite", "write"].includes(
+  const hasContent = ["webfetch", "todowrite", "write", "edit"].includes(
     tool.name?.toLowerCase() ?? "",
   );
   const content = renderToolContent();
-
-  // 获取工具颜色
-  const getToolColor = () => {
-    const toolName = tool.name?.toLowerCase() ?? "";
-    switch (toolName) {
-      case "webfetch":
-        return "bg-blue-400 ";
-      case "todowrite":
-        return "bg-green-400 ";
-      default:
-        return "bg-gray-300";
-    }
-  };
 
   if (hasContent && content) {
     return (
@@ -258,7 +339,7 @@ function ToolCall({ tool }: { tool: BetaToolUseBlock }) {
           className="group flex w-full items-center justify-start font-mono text-sm text-gray-500 transition-colors hover:text-gray-700"
         >
           <div className="flex items-center gap-2">
-            <span className={`h-2 w-2 rounded-full ${getToolColor()}`}></span>
+            <span className={`h-2 w-2 rounded-full bg-gray-300`}></span>
             <span className="text-start font-medium">
               {name}
               {params}
@@ -280,7 +361,7 @@ function ToolCall({ tool }: { tool: BetaToolUseBlock }) {
   // 简单工具只显示一行
   return (
     <div className="my-2 flex items-center gap-2 font-mono text-sm text-gray-500 dark:text-gray-400">
-      <span className={`h-2 w-2 rounded-full ${getToolColor()}`}></span>
+      <span className={`h-2 w-2 rounded-full bg-gray-300`}></span>
       <span>
         {name}
         {params}
