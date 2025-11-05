@@ -11,12 +11,11 @@ import { useParams, useSearchParams } from "next/navigation";
 import { cn } from "~/lib/utils";
 import { markdownFromHTML, htmlFromMarkdown } from "~/lib/markdown";
 import { MarkdownPreview } from "~/components/shared/MarkdownPreview";
-import { api, type RouterOutputs } from "~/trpc/react";
+import type { FileData } from "~/lib/file-client";
+import { saveFileContent } from "~/lib/file-client";
 import { Button } from "~/components/ui/button";
 import { Eye, Code2, Save } from "lucide-react";
 import { toast } from "sonner";
-
-type FileContentData = RouterOutputs["workspace"]["getFileContent"];
 
 // 编辑器内容组件 - 必须在 ProseKit 上下文中
 function EditorContent({
@@ -39,7 +38,7 @@ function EditorContent({
 }
 
 interface MarkdownEditorProps {
-  fileData: FileContentData;
+  fileData: FileData;
 }
 
 export function MarkdownEditor({ fileData }: MarkdownEditorProps) {
@@ -57,20 +56,6 @@ export function MarkdownEditor({ fileData }: MarkdownEditorProps) {
   const handleDocChange = useCallback(() => {
     setHasUnsavedChange(true);
   }, []);
-
-  // 更新文件内容的mutation
-  const updateFileMutation = api.workspace.updateFileContent.useMutation({
-    onSuccess: () => {
-      setIsSaving(false);
-      setHasUnsavedChange(false);
-      toast.success("文件保存成功");
-    },
-    onError: (error) => {
-      setIsSaving(false);
-      console.error("Save failed:", error);
-      toast.error("文件保存失败");
-    },
-  });
 
   // 初始化编辑器
   useEffect(() => {
@@ -133,23 +118,17 @@ export function MarkdownEditor({ fileData }: MarkdownEditorProps) {
       const markdown = markdownFromHTML(html);
       setCurrentMarkdown(markdown);
 
-      await updateFileMutation.mutateAsync({
-        workspaceId,
-        filePath,
-        content: markdown,
-      });
+      await saveFileContent(workspaceId, filePath, markdown, "utf-8");
+
+      setHasUnsavedChange(false);
+      toast.success("文件保存成功");
     } catch (error) {
       console.error("Save failed:", error);
       toast.error("文件保存失败");
+    } finally {
+      setIsSaving(false);
     }
-  }, [
-    hasUnsavedChange,
-    isSaving,
-    editor,
-    updateFileMutation,
-    workspaceId,
-    filePath,
-  ]);
+  }, [hasUnsavedChange, isSaving, editor, workspaceId, filePath]);
 
   // 键盘快捷键
   useEffect(() => {
@@ -167,9 +146,7 @@ export function MarkdownEditor({ fileData }: MarkdownEditorProps) {
   }, [hasUnsavedChange, isSaving, saveFile]);
 
   return (
-    <div
-      className={cn("flex min-h-0 flex-1 flex-col bg-white dark:bg-gray-950")}
-    >
+    <div className={cn("flex h-full flex-col bg-white dark:bg-gray-950")}>
       {/* Header */}
       <div className="bg-background/50 border-b px-4 py-2">
         <div className="flex items-center justify-between">
@@ -208,7 +185,7 @@ export function MarkdownEditor({ fileData }: MarkdownEditorProps) {
 
       {/* 内容区域 */}
       {viewMode === "edit" ? (
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto">
           {editor ? (
             <ProseKit editor={editor}>
               <EditorContent editor={editor} onDocChange={handleDocChange} />
@@ -220,9 +197,9 @@ export function MarkdownEditor({ fileData }: MarkdownEditorProps) {
           )}
         </div>
       ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="px-6 py-8 pb-20 md:px-[max(4rem,calc(50%-20rem))]">
-            <MarkdownPreview content={currentMarkdown} className="max-w-none" />
+        <div className="flex-1 overflow-y-auto">
+          <div className="px-6 py-8 pb-20">
+            <MarkdownPreview content={currentMarkdown} />
           </div>
         </div>
       )}

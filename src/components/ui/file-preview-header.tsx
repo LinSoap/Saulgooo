@@ -12,12 +12,10 @@ import {
   Archive,
 } from "lucide-react";
 import { toast } from "sonner";
-import { type RouterOutputs } from "~/trpc/react";
-
-type FileContentData = RouterOutputs["workspace"]["getFileContent"];
+import type { FileData } from "~/lib/file-client";
 
 interface FilePreviewHeaderProps {
-  fileData: FileContentData;
+  fileData: FileData;
   onRefresh?: () => void;
 }
 

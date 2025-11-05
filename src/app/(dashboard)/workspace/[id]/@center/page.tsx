@@ -1,10 +1,15 @@
 "use client";
 
 import { useParams, useSearchParams } from "next/navigation";
-import { api } from "~/trpc/react";
 import { useSession } from "next-auth/react";
 import { FilePreviewHeader } from "~/components/ui/file-preview-header";
 import MarkdownEditor from "~/components/workspace/MarkdownEditor";
+import { useState, useEffect, useCallback } from "react";
+import {
+  fetchFileContent,
+  getOssFileUrl,
+  type FileData,
+} from "~/lib/file-client";
 
 export default function FilePreview() {
   const params = useParams();
@@ -13,29 +18,132 @@ export default function FilePreview() {
   const filePath = searchParams?.get("file") ?? "";
   const { data: session } = useSession();
 
-  // 获取文件信息（为了获取 MIME 类型）
-  const { data: fileData, refetch } = api.workspace.getFileContent.useQuery(
-    {
-      workspaceId: workspaceId,
-      filePath: filePath,
-    },
-    {
-      enabled: !!filePath && !!session?.user,
-    },
-  );
+  const [fileData, setFileData] = useState<FileData | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  // 加载文件内容
+  const loadFile = useCallback(async () => {
+    if (!filePath || !session?.user) {
+      setFileData(null);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const data = await fetchFileContent(workspaceId, filePath);
+      setFileData(data);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error("Failed to load file"));
+      setFileData(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [workspaceId, filePath, session?.user]);
+
+  // 初始加载
+  useEffect(() => {
+    void loadFile();
+  }, [loadFile]);
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-muted-foreground">加载中...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-destructive">加载文件失败: {error.message}</p>
+      </div>
+    );
+  }
 
   if (!fileData) {
-    return;
+    return null;
   }
+
+  // 构建OSS URL
+  const ossUrl = getOssFileUrl(workspaceId, filePath, { preview: true });
 
   return (
     <div className="flex h-full flex-col">
-      <FilePreviewHeader fileData={fileData} onRefresh={() => void refetch()} />
-      {fileData.mimeType?.startsWith("text/") ? (
-        <MarkdownEditor fileData={fileData} />
-      ) : (
-        <div className="p-4 text-gray-500">Cannot preview this file type.</div>
-      )}
+      <FilePreviewHeader
+        fileData={fileData}
+        onRefresh={() => void loadFile()}
+      />
+      <div className="flex-1 min-h-0">
+        {fileData.mimeType === "text/html" ? (
+          // HTML文件使用iframe预览
+          <iframe
+            src={ossUrl}
+            className="h-full w-full border-0"
+            title={`Preview of ${fileData.fileName}`}
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-presentation allow-downloads"
+            loading="lazy"
+          />
+        ) : fileData.mimeType?.startsWith("text/") ? (
+          // 其他文本文件使用MarkdownEditor
+          <MarkdownEditor fileData={fileData} />
+        ) : fileData.mimeType?.startsWith("image/") ? (
+          // 图片文件直接显示
+          <div className="flex h-full items-center justify-center p-4">
+            <img
+              src={ossUrl}
+              alt={fileData.fileName}
+              className="max-h-full max-w-full object-contain"
+            />
+          </div>
+        ) : fileData.mimeType?.startsWith("video/") ? (
+          // 视频文件使用video标签
+          <div className="flex h-full items-center justify-center p-4">
+            <video
+              src={ossUrl}
+              controls
+              className="max-h-full max-w-full"
+              title={fileData.fileName}
+            >
+              Your browser does not support the video tag.
+            </video>
+          </div>
+        ) : fileData.mimeType?.startsWith("audio/") ? (
+          // 音频文件使用audio标签
+          <div className="flex h-full items-center justify-center p-4">
+            <audio
+              src={ossUrl}
+              controls
+              className="w-full max-w-md"
+              title={fileData.fileName}
+            >
+              Your browser does not support the audio tag.
+            </audio>
+          </div>
+        ) : fileData.mimeType === "application/pdf" ? (
+          // PDF文件使用iframe或embed
+          <iframe
+            src={ossUrl}
+            className="h-full w-full border-0"
+            title={`PDF Preview: ${fileData.fileName}`}
+          />
+        ) : (
+          // 不支持的文件类型显示下载选项
+          <div className="flex h-full flex-col items-center justify-center p-4 text-gray-500">
+            <div className="mb-4">Cannot preview this file type.</div>
+            <a
+              href={getOssFileUrl(workspaceId, filePath, { download: true })}
+              download={fileData.fileName}
+              className="rounded bg-blue-500 px-4 py-2 text-white transition-colors hover:bg-blue-600"
+            >
+              Download File
+            </a>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
