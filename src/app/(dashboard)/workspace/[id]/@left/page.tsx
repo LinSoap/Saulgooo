@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-floating-promises */
+
 "use client";
 
 import { useState } from "react";
@@ -22,6 +24,8 @@ import { FileTreeItem } from "~/components/shared/FileTreeItem";
 import { useSession } from "next-auth/react";
 import { useRef } from "react";
 import { toast } from "sonner";
+import { uploadFile } from "~/lib/file-client";
+import { ScrollArea } from "~/components/ui/scroll-area";
 
 interface FileNode {
   id: string;
@@ -86,58 +90,95 @@ export default function FileBrowser() {
   };
 
   // 创建文件
-  const createFileMutation = api.workspace.createMarkdownFile.useMutation({
-    onSuccess: () => {
+  const [isCreating, setIsCreating] = useState(false);
+
+  const handleCreateFile = async () => {
+    if (!newFileName.trim()) return;
+
+    setIsCreating(true);
+    try {
+      const fileName = newFileName.endsWith(".md")
+        ? newFileName
+        : `${newFileName}.md`;
+      const content =
+        "# " + newFileName.replace(/\.md$/, "") + "\n\n开始编写您的文档...\n";
+
+      await uploadFile(workspaceId, fileName, content, {
+        encoding: "utf-8",
+        mimeType: "text/markdown",
+      });
+
       void refetchFileTree();
       setIsCreateDialogOpen(false);
       setNewFileName("");
-    },
-  });
-
-  const handleCreateFile = () => {
-    if (!newFileName.trim()) return;
-
-    void createFileMutation.mutate({
-      workspaceId: workspaceId,
-      fileName: newFileName,
-      directoryPath: "",
-      initialContent:
-        "# " + newFileName.replace(/\.md$/, "") + "\n\n开始编写您的文档...\n",
-    });
+      toast.success(`文件 "${fileName}" 创建成功！`);
+    } catch (error) {
+      console.error("Create file error:", error);
+      toast.error(
+        `创建失败: ${error instanceof Error ? error.message : "未知错误"}`,
+      );
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   // 上传文件
-  const uploadFileMutation = api.workspace.uploadFile.useMutation({
-    onSuccess: (data) => {
-      void refetchFileTree();
-      setIsUploadDialogOpen(false);
-      setUploadDirectory("");
-      toast.success(`文件 "${data.fileName}" 上传成功！`);
-    },
-    onError: (error) => {
-      toast.error(`上传失败: ${error.message}`);
-    },
-  });
+  const [isUploading, setIsUploading] = useState(false);
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const base64 = e.target?.result as string;
-      const content = base64.split(',')[1]; // 去掉data:mime;base64,前缀
-      if (!content) return;
+    setIsUploading(true);
 
-      void uploadFileMutation.mutate({
-        workspaceId: workspaceId,
-        fileName: file.name,
-        directoryPath: uploadDirectory,
-        content: content,
-        mimeType: file.type,
+    try {
+      const reader = new FileReader();
+
+      await new Promise<void>((resolve, reject) => {
+        reader.onload = async (e) => {
+          try {
+            const base64 = e.target?.result as string;
+            const content = base64.split(",")[1]; // 去掉data:mime;base64,前缀
+            if (!content) {
+              throw new Error("Failed to read file content");
+            }
+
+            // 构建文件路径
+            const filePath = uploadDirectory
+              ? `${uploadDirectory}/${file.name}`
+              : file.name;
+
+            await uploadFile(workspaceId, filePath, content, {
+              encoding: "base64",
+              mimeType: file.type,
+            });
+
+            void refetchFileTree();
+            setIsUploadDialogOpen(false);
+            setUploadDirectory("");
+            toast.success(`文件 "${file.name}" 上传成功！`);
+            resolve();
+          } catch (error) {
+            reject(
+              new Error(
+                error instanceof Error ? error.message : "Upload failed",
+              ),
+            );
+          }
+        };
+        reader.onerror = () => reject(new Error("Failed to read file"));
+        reader.readAsDataURL(file);
       });
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      console.error("Upload error:", error);
+      toast.error(
+        `上传失败: ${error instanceof Error ? error.message : "未知错误"}`,
+      );
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleUploadClick = () => {
@@ -145,13 +186,13 @@ export default function FileBrowser() {
   };
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="border-b p-4">
-        <div className="flex h-8 items-center gap-2">
+      <div className="border-b px-2 py-4">
+        <div className="flex h-8 items-center gap-1">
           <Link href="/">
             <Button variant="ghost" size="sm">
-              <ArrowLeft className="mr-2 h-4 w-4" />
+              <ArrowLeft className="h-4 w-4" />
               返回
             </Button>
           </Link>
@@ -165,26 +206,24 @@ export default function FileBrowser() {
           )}
           <Button
             variant="outline"
-            size="sm"
+            size="icon-sm"
             onClick={() => void refetchFileTree()}
             disabled={isFileTreeFetching}
           >
             <RefreshCw
               className={`mr-1 h-3 w-3 ${isFileTreeFetching ? "animate-spin" : ""}`}
             />
-            刷新
           </Button>
           <Dialog
             open={isCreateDialogOpen}
             onOpenChange={setIsCreateDialogOpen}
           >
             <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Plus className="mr-1 h-3 w-3" />
-                新建
+              <Button variant="outline" size="icon-sm">
+                <Plus className="h-3 w-3" />
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="w-auto max-w-[95vw]">
               <DialogHeader>
                 <DialogTitle>创建 Markdown 文件</DialogTitle>
                 <DialogDescription>
@@ -218,9 +257,9 @@ export default function FileBrowser() {
                 <Button
                   type="button"
                   onClick={handleCreateFile}
-                  disabled={!newFileName.trim() || createFileMutation.isPending}
+                  disabled={!newFileName.trim() || isCreating}
                 >
-                  {createFileMutation.isPending ? "创建中..." : "创建"}
+                  {isCreating ? "创建中..." : "创建"}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -230,17 +269,14 @@ export default function FileBrowser() {
             onOpenChange={setIsUploadDialogOpen}
           >
             <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Upload className="mr-1 h-3 w-3" />
-                上传
+              <Button variant="outline" size="icon-sm">
+                <Upload className="h-3 w-3" />
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="w-auto max-w-[95vw]">
               <DialogHeader>
                 <DialogTitle>上传文件</DialogTitle>
-                <DialogDescription>
-                  选择文件上传到工作区
-                </DialogDescription>
+                <DialogDescription>选择文件上传到工作区</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
@@ -258,22 +294,21 @@ export default function FileBrowser() {
                     type="button"
                     variant="outline"
                     onClick={handleUploadClick}
-                    disabled={uploadFileMutation.isPending}
+                    disabled={isUploading}
                     className="h-20 border-dashed"
                   >
                     <div className="text-center">
-                      <Upload className="mx-auto h-6 w-6 mb-2" />
+                      <Upload className="mx-auto mb-2 h-6 w-6" />
                       <p>
-                        {uploadFileMutation.isPending
-                          ? "上传中..."
-                          : "点击选择文件或拖拽到此处"}
+                        {isUploading ? "上传中..." : "点击选择文件或拖拽到此处"}
                       </p>
                     </div>
                   </Button>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    onChange={handleFileSelect}
+                    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+                    onChange={(e) => void handleFileSelect(e)}
                     className="hidden"
                     multiple={false}
                   />
@@ -284,7 +319,7 @@ export default function FileBrowser() {
                   type="button"
                   variant="outline"
                   onClick={() => setIsUploadDialogOpen(false)}
-                  disabled={uploadFileMutation.isPending}
+                  disabled={isUploading}
                 >
                   取消
                 </Button>
@@ -295,7 +330,7 @@ export default function FileBrowser() {
       </div>
 
       {/* File Tree */}
-      <div className="min-h-0 flex-1 overflow-auto">
+      <ScrollArea className="flex-1">
         <div className="space-y-2 p-4 text-sm">
           {isFileTreeLoading ? (
             <div className="text-muted-foreground py-8 text-center">
@@ -323,7 +358,7 @@ export default function FileBrowser() {
             </div>
           )}
         </div>
-      </div>
+      </ScrollArea>
 
       {/* Footer */}
       {/* {selectedFile && (
