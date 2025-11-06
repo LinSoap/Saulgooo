@@ -1,15 +1,13 @@
 "use client";
 
-import { ChevronDown, ChevronLeft, ExternalLink } from "lucide-react";
-import { useState } from "react";
+import { ExternalLink } from "lucide-react";
 import type { BetaToolUseBlock } from "@anthropic-ai/sdk/resources/beta.mjs";
 import type { EditOutput, WriteOutput } from "~/types/tool";
 import { ToolCard } from "~/components/ui/tool-card";
+import { ToolCallItem } from "~/components/ui/tool-call-item";
 
 // 简单的工具调用组件
 function ToolCall({ tool }: { tool: BetaToolUseBlock }) {
-  const [isExpanded, setIsExpanded] = useState(true);
-
   // 提取文件名
   const getFileName = (path: string): string => {
     if (!path) return "";
@@ -136,41 +134,17 @@ function ToolCall({ tool }: { tool: BetaToolUseBlock }) {
 
   if (hasContent && content) {
     return (
-      <div className="my-3 max-w-full">
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="group flex w-full items-center justify-start font-mono text-sm text-gray-500 transition-colors hover:text-gray-700"
-        >
-          <div className="flex items-center gap-2">
-            <span className={`h-2 w-2 rounded-full bg-gray-300`}></span>
-            <span className="text-start font-medium">
-              {name}
-              {params}
-            </span>
-          </div>
-          <div className="ml-auto flex items-center gap-1">
-            {isExpanded ? (
-              <ChevronDown className="h-4 w-4 opacity-60 transition-opacity group-hover:opacity-100" />
-            ) : (
-              <ChevronLeft className="h-4 w-4 opacity-60 transition-opacity group-hover:opacity-100" />
-            )}
-          </div>
-        </button>
-        {isExpanded && content}
-      </div>
+      <ToolCallItem
+        name={name}
+        params={params}
+        content={content}
+        isExpandable={true}
+      />
     );
   }
 
   // 简单工具只显示一行
-  return (
-    <div className="my-2 flex items-center gap-2 font-mono text-sm text-gray-500 dark:text-gray-400">
-      <span className={`h-2 w-2 rounded-full bg-gray-300`}></span>
-      <span>
-        {name}
-        {params}
-      </span>
-    </div>
-  );
+  return <ToolCallItem name={name} params={params} isExpandable={false} />;
 }
 
 export { ToolCall };
