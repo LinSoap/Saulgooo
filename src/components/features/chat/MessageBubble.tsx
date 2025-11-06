@@ -34,21 +34,15 @@ export function MessageRenderer({ message }: { message: SDKMessage }) {
         if (validToolResults.length === 0) {
           return null;
         }
+        const content = validToolResults
+          .map((item) => item.content)
+          .join("\n\n");
 
         return (
           <ToolCallItem
             name="工具结果"
             params={` (${validToolResults.length})`}
-            content={
-              <ToolCard
-                title="🔧 工具结果"
-                content={JSON.stringify(
-                  validToolResults.map((item) => item.content),
-                  null,
-                  2,
-                )}
-              />
-            }
+            content={<ToolCard title="🔧 工具结果" content={content} />}
             isExpandable={true}
           />
         );
