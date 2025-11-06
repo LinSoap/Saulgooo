@@ -4,6 +4,7 @@ import { ChevronDown, ChevronLeft, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import type { BetaToolUseBlock } from "@anthropic-ai/sdk/resources/beta.mjs";
 import type { EditOutput, WriteOutput } from "~/types/tool";
+import { ToolCard } from "~/components/ui/tool-card";
 
 // 简单的工具调用组件
 function ToolCall({ tool }: { tool: BetaToolUseBlock }) {
@@ -74,85 +75,20 @@ function ToolCall({ tool }: { tool: BetaToolUseBlock }) {
         const prompt = (input?.prompt as string) ?? "No prompt available";
 
         return (
-          <div className="my-4 w-full overflow-hidden rounded-xl border">
-            <div className="bg-muted/80 text-muted-foreground flex items-center justify-between p-3 text-xs">
-              <span className="ml-1 font-mono lowercase">🌐 webfetch</span>
-              <div className="flex items-center gap-2">
-                <button
-                  className="text-muted-foreground hover:text-foreground cursor-pointer p-1 transition-all"
-                  title="Open URL"
-                  type="button"
-                  onClick={() => window.open(url, "_blank")}
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  className="text-muted-foreground hover:text-foreground cursor-pointer p-1 transition-all"
-                  title="Copy URL"
-                  type="button"
-                  onClick={() => navigator.clipboard.writeText(url)}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect
-                      width="14"
-                      height="14"
-                      x="8"
-                      y="8"
-                      rx="2"
-                      ry="2"
-                    ></rect>
-                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <div className="w-full">
-              <div className="min-w-full">
-                <div className="border-t">
-                  <div className="space-y-3 p-4">
-                    {/* Prompt Section */}
-                    <div className="space-y-1">
-                      <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                        Prompt
-                      </div>
-                      <div className="bg-muted/40 rounded-md p-3">
-                        <div className="text-foreground font-mono text-sm whitespace-pre-wrap">
-                          {prompt}
-                        </div>
-                      </div>
-                    </div>
-                    {/* URL Section */}
-                    <div className="space-y-1">
-                      <div className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
-                        URL
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="font-mono text-sm break-all text-blue-600 underline hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                        >
-                          {url}
-                        </a>
-                        <ExternalLink className="text-muted-foreground h-3 w-3 shrink-0" />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ToolCard
+            title="🌐 webfetch"
+            content={`Prompt: ${prompt}\n\nURL: ${url}`}
+            customActions={
+              <button
+                className="text-muted-foreground hover:text-foreground cursor-pointer p-1 transition-all"
+                title="Open URL"
+                type="button"
+                onClick={() => window.open(url, "_blank")}
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </button>
+            }
+          />
         );
 
       case "todowrite":
@@ -173,153 +109,20 @@ function ToolCall({ tool }: { tool: BetaToolUseBlock }) {
               .join("\n")
           : "No todos available";
 
-        return (
-          <div className="my-4 w-full overflow-hidden rounded-xl border">
-            <div className="bg-muted/80 text-muted-foreground flex items-center justify-between p-3 text-xs">
-              <span className="ml-1 font-mono lowercase">📋 todowrite</span>
-              <div className="flex items-center gap-2">
-                <button
-                  className="text-muted-foreground hover:text-foreground cursor-pointer p-1 transition-all"
-                  title="Copy todos"
-                  type="button"
-                  onClick={() => navigator.clipboard.writeText(todoLines)}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect
-                      width="14"
-                      height="14"
-                      x="8"
-                      y="8"
-                      rx="2"
-                      ry="2"
-                    ></rect>
-                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <div className="w-full min-w-0">
-              <div className="border-t">
-                <pre className="bg-muted/40 p-4 font-mono text-xs whitespace-pre-wrap">
-                  <code>{todoLines}</code>
-                </pre>
-              </div>
-            </div>
-          </div>
-        );
+        return <ToolCard title="📋 todowrite" content={todoLines} />;
 
       case "edit":
         const editOutput = tool.input as EditOutput;
         return (
-          <div className="my-4 w-full overflow-hidden rounded-xl border">
-            <div className="bg-muted/80 text-muted-foreground flex items-center justify-between p-3 text-xs">
-              <span className="ml-1 font-mono lowercase">✏️ edit</span>
-              <div className="flex items-center gap-2">
-                <button
-                  className="text-muted-foreground hover:text-foreground cursor-pointer p-1 transition-all"
-                  title="Copy content"
-                  type="button"
-                  onClick={() =>
-                    navigator.clipboard.writeText(editOutput.new_string)
-                  }
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect
-                      width="14"
-                      height="14"
-                      x="8"
-                      y="8"
-                      rx="2"
-                      ry="2"
-                    ></rect>
-                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <div className="w-full min-w-0">
-              <div className="border-t">
-                <pre className="bg-muted/40 p-4 font-mono text-xs whitespace-pre-wrap">
-                  <code className="text-red-500 line-through">
-                    {editOutput.old_string}
-                  </code>
-                </pre>
-                <pre className="bg-muted/40 p-4 font-mono text-xs whitespace-pre-wrap">
-                  <code className="text-green-700">
-                    {editOutput.new_string}
-                  </code>
-                </pre>
-              </div>
-            </div>
-          </div>
+          <ToolCard
+            title="✏️ edit"
+            content={`${editOutput.old_string}\n\n${editOutput.new_string}`}
+          />
         );
       case "write":
         const writeOutput = tool.input as WriteOutput;
         const content = `File: ${writeOutput?.file_path}\n\n${writeOutput?.content}`;
-        return (
-          <div className="my-4 w-full overflow-hidden rounded-xl border">
-            <div className="bg-muted/80 text-muted-foreground flex items-center justify-between p-3 text-xs">
-              <span className="ml-1 font-mono lowercase">📝 write</span>
-              <div className="flex items-center gap-2">
-                <button
-                  className="text-muted-foreground hover:text-foreground cursor-pointer p-1 transition-all"
-                  title="Copy content"
-                  type="button"
-                  onClick={() => navigator.clipboard.writeText(content)}
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="14"
-                    height="14"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect
-                      width="14"
-                      height="14"
-                      x="8"
-                      y="8"
-                      rx="2"
-                      ry="2"
-                    ></rect>
-                    <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <div className="w-full min-w-0">
-              <div className="border-t">
-                <pre className="bg-muted/40 p-4 font-mono text-xs whitespace-pre-wrap">
-                  <code>{content}</code>
-                </pre>
-              </div>
-            </div>
-          </div>
-        );
+        return <ToolCard title="📝 write" content={content} />;
       default:
         return null;
     }
