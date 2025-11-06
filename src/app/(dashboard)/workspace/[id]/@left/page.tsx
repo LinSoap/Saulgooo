@@ -197,9 +197,9 @@ export default function FileBrowser() {
             </Button>
           </Link>
           {workspace && (
-            <div className="flex-1">
-              <h3 className="font-semibold">{workspace.name}</h3>
-              <p className="text-muted-foreground text-xs">
+            <div className="min-w-0 flex-1">
+              <h3 className="truncate font-semibold">{workspace.name}</h3>
+              <p className="text-muted-foreground truncate text-xs">
                 {workspace.description}
               </p>
             </div>
