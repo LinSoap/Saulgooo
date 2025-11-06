@@ -94,7 +94,12 @@ export function useBackgroundQuery(
             }
           } else if (data.status === 'failed') {
             setIsLoading(false);
-            setError(data.error ?? '任务执行失败');
+            // error字段只在failed消息中存在
+            if ('error' in data && data.error) {
+              setError(data.error);
+            } else {
+              setError('任务执行失败');
+            }
           }
         }
 

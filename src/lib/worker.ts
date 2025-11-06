@@ -8,6 +8,7 @@ import { join } from 'path';
 import { homedir } from 'os';
 import { redisConnection } from './queue';
 import { subscriptionManager } from '~/server/api/routers/agent';
+import type { TaskStatus } from './types/status';
 
 const prisma = new PrismaClient();
 
@@ -105,12 +106,19 @@ export const agentWorker = new Worker<AgentTaskData>(
       });
 
       // 注册查询实例到 SubscriptionManager（用于优雅中断）
+      console.log(`🔍 Registering query for session ${id}, sessionId: ${sessionId}`);
       subscriptionManager.registerQuery(id, queryInstance);
 
       let realSessionId = sessionId;
 
       // 6. 处理消息流
       for await (const message of queryInstance) {
+        // 🔍 在循环开始时检查是否被中断
+        if (!subscriptionManager.hasActiveQuery(id)) {
+          console.log(`⚠️ Query interrupted for session ${id}, breaking out of message loop`);
+          break;
+        }
+
         // 更新任务进度
         await job.updateProgress(50);
         if (message.type === 'system' && message.subtype === 'init') {
@@ -142,7 +150,7 @@ export const agentWorker = new Worker<AgentTaskData>(
               id: job.data.id, // 使用数据库主键
               sessionId: currentSession.sessionId, // Claude的sessionId
               messages: updatedMessages,
-              status: 'running', // 添加状态
+              status: 'running' as TaskStatus, // 使用统一的TaskStatus
               timestamp: new Date()
             });
           }
@@ -161,7 +169,7 @@ export const agentWorker = new Worker<AgentTaskData>(
               id: job.data.id,
               sessionId: message.session_id,
               messages: updatedMessages,
-              status: 'running',  // 添加状态
+              status: 'running' as TaskStatus,
               timestamp: new Date()
             });
           }
@@ -179,7 +187,7 @@ export const agentWorker = new Worker<AgentTaskData>(
               id: job.data.id,
               sessionId: message.session_id,
               messages: updatedMessages,
-              status: 'running',  // 添加状态
+              status: 'running' as TaskStatus,
               timestamp: new Date()
             });
           }
@@ -198,14 +206,12 @@ export const agentWorker = new Worker<AgentTaskData>(
               id: job.data.id,
               sessionId: message.session_id,
               messages: updatedMessages,
-              status: success ? 'completed' : 'failed', // 添加状态
+              status: (success ? 'completed' : 'failed') as TaskStatus,
               timestamp: new Date()
             });
           }
         }
       }
-
-      console.log(`✅ Job ${job.id} completed successfully`);
 
       // 返回结果 - 只返回基本信息，消息数据通过 watchQuery 从数据库获取
       return {
@@ -215,7 +221,6 @@ export const agentWorker = new Worker<AgentTaskData>(
       };
 
     } catch (error) {
-      console.error(`❌ Job ${job.id} failed:`, error);
 
       // 推送失败状态
       subscriptionManager.emit(id, {
@@ -223,7 +228,7 @@ export const agentWorker = new Worker<AgentTaskData>(
         id,
         sessionId: null, // 错误时可能没有 sessionId
         messages: [], // 或获取当前消息
-        status: 'failed',
+        status: 'failed' as TaskStatus,
         error: error instanceof Error ? error.message : String(error),
         timestamp: new Date()
       });
@@ -242,6 +247,7 @@ export const agentWorker = new Worker<AgentTaskData>(
       }
     } finally {
       // 清理：注销查询实例
+      console.log(`🔍 Cleaning up query for session ${id}`);
       if (subscriptionManager.hasActiveQuery(id)) {
         subscriptionManager.unregisterQuery(id);
       }
