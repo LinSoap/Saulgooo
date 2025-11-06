@@ -1,6 +1,25 @@
 import { agentQueue } from './queue';
 import { PrismaClient } from '@prisma/client';
 import { createId } from '@paralleldrive/cuid2';
+import type { TaskStatus } from './types/status';
+
+// 定义SessionWithStatus类型（避免循环导入）
+type SessionWithStatus = {
+  id: string;
+  sessionId: string | null;
+  title: string;
+  bullJobId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  status: TaskStatus;
+  progress: number;
+  isActive: boolean;
+  attemptsMade: number;
+  attemptsRemaining: number;
+  failedReason: string | null;
+  processedAt?: number | null;
+  finishedAt?: number | null;
+} & Record<string, unknown>;
 
 const prisma = new PrismaClient();
 
@@ -121,7 +140,7 @@ export async function getTaskStatus(id: string) {
   if (!session.bullJobId) {
     return {
       ...session,
-      status: 'idle' as const,
+      status: 'idle' as TaskStatus,
       progress: 0,
       isActive: false,
       attemptsMade: 0,
@@ -135,7 +154,7 @@ export async function getTaskStatus(id: string) {
     if (!job) {
       return {
         ...session,
-        status: 'completed' as const,
+        status: 'completed' as TaskStatus,
         progress: 100,
         isActive: false,
         attemptsMade: 3,
@@ -143,30 +162,46 @@ export async function getTaskStatus(id: string) {
       };
     }
 
-    const state = await job.getState();
+    const bullState = await job.getState();
     const progress = typeof job.progress === 'number' ? job.progress : 0;
     const attemptsMade = job.attemptsMade ?? 0;
     const attemptsRemaining = Math.max(0, (job.opts?.attempts ?? 3) - attemptsMade);
 
+    // BullMQ状态映射到我们的4种状态（内部转换，不暴露给外部）
+    let status: TaskStatus;
+    if (bullState === 'active' || bullState === 'waiting') {
+      status = 'running';
+    } else if (bullState === 'completed') {
+      status = 'completed';
+    } else if (bullState === 'failed') {
+      status = 'failed';
+    } else {
+      status = 'idle';
+    }
+
     return {
       ...session,
-      status: state,
+      status,
       progress,
-      isActive: state === 'active',
+      isActive: bullState === 'active',
       attemptsMade,
       attemptsRemaining,
       failedReason: job.failedReason,
+      processedAt: job.processedOn ?? null,
+      finishedAt: job.finishedOn ?? null,
     };
   } catch (error) {
     console.error('Error getting job status:', error);
     return {
       ...session,
-      status: 'error' as const,
+      status: 'failed' as TaskStatus,
       progress: 0,
       isActive: false,
       attemptsMade: 0,
       attemptsRemaining: 0,
       failedReason: error instanceof Error ? error.message : 'Unknown error',
+      processedAt: null,
+      finishedAt: null,
     };
   }
 }
@@ -226,7 +261,16 @@ export async function getWorkspaceSessionsWithStatus(workspaceId: string) {
     .map(session => session.bullJobId)
     .filter((jobId): jobId is string => jobId !== null);
 
-  const jobStatuses = new Map<string, any>();
+  const jobStatuses = new Map<string, {
+    status: TaskStatus;
+    progress: number;
+    isActive: boolean;
+    attemptsMade: number;
+    attemptsRemaining: number;
+    failedReason: string | null;
+    processedAt: number | null;
+    finishedAt: number | null;
+  }>();
 
   if (activeJobIds.length > 0) {
     const jobs = await Promise.allSettled(
@@ -237,23 +281,40 @@ export async function getWorkspaceSessionsWithStatus(workspaceId: string) {
       if (result.status === 'fulfilled' && result.value) {
         const job = result.value;
         try {
-          const state = await job.getState();
+          const bullState = await job.getState();
+
+          // BullMQ状态映射到我们的4种状态
+          let status: TaskStatus;
+          if (bullState === 'active' || bullState === 'waiting') {
+            status = 'running';
+          } else if (bullState === 'completed') {
+            status = 'completed';
+          } else if (bullState === 'failed') {
+            status = 'failed';
+          } else {
+            status = 'idle';
+          }
+
           jobStatuses.set(job.id!, {
-            status: state,
+            status,
             progress: typeof job.progress === 'number' ? job.progress : 0,
-            isActive: state === 'active',
+            isActive: bullState === 'active',
             attemptsMade: job.attemptsMade ?? 0,
             attemptsRemaining: Math.max(0, (job.opts?.attempts ?? 3) - (job.attemptsMade ?? 0)),
             failedReason: job.failedReason,
+            processedAt: job.processedOn ?? null,
+            finishedAt: job.finishedOn ?? null,
           });
         } catch (error) {
           jobStatuses.set(job.id!, {
-            status: 'error',
+            status: 'failed' as TaskStatus,
             progress: 0,
             isActive: false,
             attemptsMade: 0,
             attemptsRemaining: 0,
             failedReason: error instanceof Error ? error.message : 'Unknown error',
+            processedAt: null,
+            finishedAt: null,
           });
         }
       }
@@ -261,23 +322,27 @@ export async function getWorkspaceSessionsWithStatus(workspaceId: string) {
   }
 
   // 构建结果
-  return sessions.map(session => {
+  const results: SessionWithStatus[] = sessions.map(session => {
     if (session.bullJobId && jobStatuses.has(session.bullJobId)) {
       return {
         ...session,
         ...jobStatuses.get(session.bullJobId)!,
-      };
+      } as SessionWithStatus;
     }
 
     // 没有活跃任务的会话
     return {
       ...session,
-      status: 'idle' as const,
+      status: 'idle' as TaskStatus,
       progress: 0,
       isActive: false,
       attemptsMade: 0,
       attemptsRemaining: 3,
       failedReason: null,
-    };
+      processedAt: null,
+      finishedAt: null,
+    } as SessionWithStatus;
   });
+
+  return results;
 }
