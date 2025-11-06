@@ -35,7 +35,12 @@ export function MessageRenderer({ message }: { message: SDKMessage }) {
           return null;
         }
         const content = validToolResults
-          .map((item) => item.content)
+          .map((item) => {
+            if (typeof item.content === "string") {
+              return item.content;
+            }
+            return JSON.stringify(item.content, null, 2);
+          })
           .join("\n\n");
 
         return (
