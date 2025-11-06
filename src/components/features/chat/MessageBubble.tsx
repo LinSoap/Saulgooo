@@ -21,14 +21,12 @@ export function MessageRenderer({ message }: { message: SDKMessage }) {
         const toolResults = contentArray.filter(
           (item) => item.type === "tool_result",
         );
-        console.log("Tool Results:", toolResults);
 
         // 过滤掉 content 为空的工具结果
         const validToolResults = toolResults.filter(
           (item) =>
             typeof item.content === "string" && item.content.trim() !== "",
         );
-        console.log("Valid Tool Results:", validToolResults);
 
         // 如果没有有效的工具结果，则不渲染
         if (validToolResults.length === 0) {

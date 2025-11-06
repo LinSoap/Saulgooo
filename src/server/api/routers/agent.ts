@@ -4,11 +4,10 @@ import { addAgentTask, getTaskStatus, cancelTask, getWorkspaceSessionsWithStatus
 import { queueEvents } from "~/lib/queue";
 import { PrismaClient } from '@prisma/client';
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { JobState } from "bullmq";
 import type { Query } from "@anthropic-ai/claude-agent-sdk";
 
-// 业务逻辑状态类型（扩展BullMQ状态）
-export type TaskStatus = JobState | 'idle' | 'error' | 'init' | 'unknown';
+// 业务逻辑状态类型
+export type TaskStatus = 'idle' | 'running' | 'completed' | 'failed';
 
 // 推送消息类型（与前端契约）
 // 注意：这个类型必须与 watchQuery 实际 yield 的数据完全匹配
@@ -23,6 +22,7 @@ type PushMessage = {
   timestamp?: Date;
   title?: string;
   createdAt?: Date | string;  // Date 或 ISO 字符串
+  error?: string;  // 错误信息
 };
 
 // 会话状态信息类型
@@ -144,7 +144,7 @@ queueEvents.on('waiting', ({ jobId }) => {
         type: 'waiting',
         id: session.id,
         sessionId: session.sessionId,
-        status: 'waiting',
+        status: 'running',  // 等待中也是运行状态
         messages,
         timestamp: new Date()
       });
@@ -167,7 +167,7 @@ queueEvents.on('active', ({ jobId, prev: _prev }) => {
         type: 'active',
         id: session.id,
         sessionId: session.sessionId,
-        status: 'active',
+        status: 'running',  // 活跃状态就是运行中
         messages,
         timestamp: new Date()
       });
@@ -243,7 +243,7 @@ queueEvents.on('progress', ({ jobId, data }) => {
         type: 'active',
         id: session.id,
         sessionId: session.sessionId,
-        status: 'active',
+        status: 'running',  // 进度更新也是运行中
         progress: typeof data === 'number' ? data : 0,
         messages,
         timestamp: new Date()
@@ -305,7 +305,12 @@ export const agentRouter = createTRPCRouter({
       // 如果有活跃任务，获取真实状态
       if (session.bullJobId) {
         try {
-          currentTaskStatus = await getTaskStatus(id);
+          const taskResult = await getTaskStatus(id);
+          // 将 BullMQ 状态映射到我们的简化状态
+          const status = taskResult.status === 'active' || taskResult.status === 'waiting'
+            ? 'running' as TaskStatus
+            : taskResult.status as TaskStatus;
+          currentTaskStatus = { status, progress: taskResult.progress };
           jobId = session.bullJobId;
         } catch (error) {
           console.error('Error getting task status:', error);

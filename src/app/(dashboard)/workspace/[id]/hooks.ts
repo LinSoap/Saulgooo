@@ -76,29 +76,34 @@ export function useBackgroundQuery(
           setMessages(data.messages);
         }
 
-        // 更新状态
-        setStatus(data.status ?? 'unknown');
 
-        // 如果没有活跃任务，停止加载状态
-        if (!data.status || data.status === 'idle') {
-          setIsLoading(false);
-          // 不要 return，继续监听后续消息
+        // 处理状态更新 - 直接从 data 中获取
+        if (data.status) {
+          setStatus(data.status);
+
+          // 根据状态更新 loading 和 error
+          if (data.status === 'running') {
+            setIsLoading(true);
+            setError(null);
+          } else if (data.status === 'completed') {
+            setIsLoading(false);
+            setError(null);
+            // 当消息完成时，刷新 session 列表
+            if (onMessageCompleted) {
+              onMessageCompleted();
+            }
+          } else if (data.status === 'failed') {
+            setIsLoading(false);
+            setError(data.error ?? '任务执行失败');
+          }
         }
 
-        // 处理错误状态
-        if (data.status === 'failed') {
-          setError('任务执行失败');
-          setIsLoading(false);
-        } else if (data.status === 'completed') {
-          setIsLoading(false);
-          setError(null);
-          // 当消息完成时，刷新 session 列表
-          if (onMessageCompleted) {
-            onMessageCompleted();
-          }
-        } else if (data.status === 'active') {
+        // 原有的状态处理逻辑保持不变（兼容旧逻辑）
+        if (data.status === 'running') {
           setIsLoading(true);
           setError(null);
+        } else if (!data.status || data.status === 'idle') {
+          setIsLoading(false);
         }
       },
       onError: (err) => {
@@ -107,7 +112,7 @@ export function useBackgroundQuery(
         const errorMessage = err instanceof Error ? err.message : '订阅连接错误';
         setError(errorMessage);
         setIsLoading(false);
-        setStatus('error');
+        setStatus('failed');
       },
       onComplete: () => {
         console.log('Subscription completed');
@@ -123,7 +128,7 @@ export function useBackgroundQuery(
     try {
       setIsLoading(true);
       setError(null);
-      setStatus('waiting');
+      setStatus('running');
 
       // 启动任务 - 传入数据库 session ID
       const result = await startQueryMutation.mutateAsync({
@@ -147,8 +152,6 @@ export function useBackgroundQuery(
       // 如果URL中的id与返回的id不同，更新URL
       const currentUrlId = searchParams.get('id');
 
-      console.log('✅ Query started:', result);
-      console.log(currentUrlId)
       if (currentUrlId !== result.id) {
         updateIdInUrl(result.id);
       }
@@ -158,7 +161,7 @@ export function useBackgroundQuery(
       console.error('Failed to start query:', error);
       setError(error?.message ?? '启动任务失败');
       setIsLoading(false);
-      setStatus('error');
+      setStatus('failed');
     }
   }, [workspaceId, isLoading, startQueryMutation, id, searchParams, updateIdInUrl]);
 

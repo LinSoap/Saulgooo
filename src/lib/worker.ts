@@ -142,6 +142,7 @@ export const agentWorker = new Worker<AgentTaskData>(
               id: job.data.id, // 使用数据库主键
               sessionId: currentSession.sessionId, // Claude的sessionId
               messages: updatedMessages,
+              status: 'running', // 添加状态
               timestamp: new Date()
             });
           }
@@ -155,11 +156,12 @@ export const agentWorker = new Worker<AgentTaskData>(
 
           if (result) {
             const { currentSession, updatedMessages } = result;
-            subscriptionManager.emit(currentSession.id, {
+            subscriptionManager.emit(job.data.id, {  // 使用 job.data.id
               type: 'message_update',
-              id: currentSession.id,
+              id: job.data.id,
               sessionId: message.session_id,
               messages: updatedMessages,
+              status: 'running',  // 添加状态
               timestamp: new Date()
             });
           }
@@ -172,11 +174,12 @@ export const agentWorker = new Worker<AgentTaskData>(
 
           if (result) {
             const { currentSession, updatedMessages } = result;
-            subscriptionManager.emit(currentSession.id, {
+            subscriptionManager.emit(job.data.id, {  // 使用 job.data.id
               type: 'message_update',
-              id: currentSession.id,
+              id: job.data.id,
               sessionId: message.session_id,
               messages: updatedMessages,
+              status: 'running',  // 添加状态
               timestamp: new Date()
             });
           }
@@ -188,12 +191,14 @@ export const agentWorker = new Worker<AgentTaskData>(
           );
 
           if (result) {
-            const { currentSession, updatedMessages } = result;
-            subscriptionManager.emit(currentSession.id, {
+            const { updatedMessages } = result;
+            const success = message.subtype === 'success';
+            subscriptionManager.emit(job.data.id, {  // 使用 job.data.id
               type: 'message_update',
-              id: currentSession.id,
+              id: job.data.id,
               sessionId: message.session_id,
               messages: updatedMessages,
+              status: success ? 'completed' : 'failed', // 添加状态
               timestamp: new Date()
             });
           }
@@ -211,6 +216,17 @@ export const agentWorker = new Worker<AgentTaskData>(
 
     } catch (error) {
       console.error(`❌ Job ${job.id} failed:`, error);
+
+      // 推送失败状态
+      subscriptionManager.emit(id, {
+        type: 'message_update',
+        id,
+        sessionId: null, // 错误时可能没有 sessionId
+        messages: [], // 或获取当前消息
+        status: 'failed',
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date()
+      });
 
       // 更新错误信息到数据库
       try {

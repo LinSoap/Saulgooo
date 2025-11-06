@@ -365,10 +365,10 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
             <div className="flex items-center gap-2 p-4">
               <Loader2 className="h-4 w-4 animate-spin" />
               <span className="text-muted-foreground text-sm">
-                {status === "waiting" && "正在排队中..."}
-                {status === "error" && "处理出错"}
+                {status === "running" && "正在执行..."}
+                {status === "failed" && "执行失败"}
               </span>
-              {status === "active" && (
+              {status === "running" && (
                 <Button
                   variant="outline"
                   size="sm"
@@ -417,15 +417,15 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
                 void handleSendMessage();
               }
             }}
-            disabled={isLoading || status === "active"}
+            disabled={isLoading || status === "running"}
             className="flex-1"
           />
           <Button
             onClick={handleSendMessage}
-            disabled={!inputMessage.trim() || isLoading || status === "active"}
+            disabled={!inputMessage.trim() || isLoading || status === "running"}
             size="icon"
           >
-            {isLoading || status === "active" ? (
+            {isLoading || status === "running" ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
               <Send className="h-4 w-4" />

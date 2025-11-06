@@ -101,7 +101,7 @@ export async function addAgentTask({
   return {
     id: mutableId, // 返回数据库主键
     jobId: job.id,
-    status: 'waiting' as const, // BullMQ 新任务的初始状态是 'waiting'
+    status: 'running' as const, // 任务进入运行状态
   };
 }
 
