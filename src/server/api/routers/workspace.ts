@@ -57,12 +57,25 @@ export const workSpaceRouter = createTRPCRouter({
             }),
         )
         .mutation(async ({ ctx, input }) => {
-            // 生成简单的工作区路径：用户ID-工作区名称
+            // 检查用户是否已经有一个同名的工作空间
+            const existingWorkspace = await ctx.db.workspace.findFirst({
+                where: {
+                    ownerId: ctx.session.user.id,
+                    name: input.name,
+                },
+            });
+
+            if (existingWorkspace) {
+                throw new Error(`您已经有一个名为 "${input.name}" 的工作空间，请使用不同的名称`);
+            }
+
+            // 生成简单的工作区路径：用户ID-工作区名称-时间戳
             const sanitizedName = input.name
                 .toLowerCase()
                 .replace(/\s+/g, '-')
                 .replace(/[^a-z0-9-]/g, '');
-            const path = `${ctx.session.user.id}-${sanitizedName}`;
+            const timestamp = Date.now();
+            const path = `${ctx.session.user.id}-${sanitizedName}-${timestamp}`;
             const workspacePath = join(homedir(), 'workspaces', path);
             const groupName = ctx.session.user.name + "-" + input.name;
 
