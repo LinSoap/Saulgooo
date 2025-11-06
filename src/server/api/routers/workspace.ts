@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { mkdir, rmdir, readdir, stat } from "fs/promises";
+import { mkdir, rmdir, readdir, stat, writeFile } from "fs/promises";
 import { join } from "path";
 import { homedir } from "os";
 import type { FileTreeItem } from "../types/file";
@@ -68,6 +68,48 @@ export const workSpaceRouter = createTRPCRouter({
 
             // 创建文件夹
             await mkdir(workspacePath, { recursive: true });
+
+            // 创建 CLAUDE.md 文件
+            const claudeMdPath = join(workspacePath, 'CLAUDE.md');
+            const claudeMdContent = `# ${input.name}
+
+${input.description ?? '这是一个新的工作空间'}
+
+## 📋 重要提醒
+
+**⚠️ 请务必修改此文件！**
+
+此 \`CLAUDE.md\` 文件用于管理工作区的工作逻辑和项目信息。请根据您的具体需求更新以下内容：
+
+- 项目说明：详细描述项目的目标和功能
+- 开发指南：配置环境、项目结构、使用说明等
+- 工作流程：团队协作规范和开发流程
+
+## 项目说明
+
+请在这里添加项目的详细说明...
+
+## 开发指南
+
+### 环境配置
+
+### 项目结构
+
+### 使用说明
+
+## 工作流程
+
+### 开发规范
+
+### 协作流程
+
+### 注意事项
+
+---
+*此文件由系统自动创建于 ${new Date().toISOString()}*
+*请及时更新此文件以反映项目的实际情况*
+`;
+            await writeFile(claudeMdPath, claudeMdContent, 'utf-8');
 
             // 创建数据库记录
             const workspace = await ctx.db.workspace.create({
@@ -222,4 +264,4 @@ export const workSpaceRouter = createTRPCRouter({
             };
         }),
 
-  })
+})
