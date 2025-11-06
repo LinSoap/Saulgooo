@@ -49,54 +49,54 @@ class SubscriptionManager {
   private queries = new Map<string, Query>();  // 新增：管理查询实例
 
   // 注册subscription
-  register(sessionId: string, emitter: (message: PushMessage) => void) {
-    this.subscriptions.set(sessionId, emitter);
+  register(id: string, emitter: (message: PushMessage) => void) {
+    this.subscriptions.set(id, emitter);
   }
 
   // 注销subscription
-  unregister(sessionId: string) {
-    this.subscriptions.delete(sessionId);
+  unregister(id: string) {
+    this.subscriptions.delete(id);
   }
 
   // 推送消息给特定的subscription
-  emit(sessionId: string, message: PushMessage) {
-    const emitter = this.subscriptions.get(sessionId);
+  emit(id: string, message: PushMessage) {
+    const emitter = this.subscriptions.get(id);
 
     if (emitter) {
       emitter(message);
     } else {
-      console.log('🔍 SubscriptionManager emit - No emitter found for sessionId:', sessionId);
+      console.log('🔍 SubscriptionManager emit - No emitter found for id:', id);
     }
   }
 
   // 检查subscription是否存在
-  has(sessionId: string): boolean {
-    return this.subscriptions.has(sessionId);
+  has(id: string): boolean {
+    return this.subscriptions.has(id);
   }
 
   // ===== 新增：查询实例管理方法 =====
 
   // 注册查询实例
-  registerQuery(sessionId: string, queryInstance: Query) {
-    this.queries.set(sessionId, queryInstance);
+  registerQuery(id: string, queryInstance: Query) {
+    this.queries.set(id, queryInstance);
   }
 
   // 注销查询实例
-  unregisterQuery(sessionId: string) {
-    this.queries.delete(sessionId);
+  unregisterQuery(id: string) {
+    this.queries.delete(id);
   }
 
   // 中断查询
-  async interruptQuery(sessionId: string): Promise<boolean> {
-    const queryInstance = this.queries.get(sessionId);
+  async interruptQuery(id: string): Promise<boolean> {
+    const queryInstance = this.queries.get(id);
     if (queryInstance) {
       try {
         await queryInstance.interrupt();
-        this.queries.delete(sessionId);
+        this.queries.delete(id);
         return true;
       } catch (error) {
-        console.error(`Failed to interrupt query for session ${sessionId}:`, error);
-        this.queries.delete(sessionId);
+        console.error(`Failed to interrupt query for session ${id}:`, error);
+        this.queries.delete(id);
         return false;
       }
     }
@@ -104,8 +104,8 @@ class SubscriptionManager {
   }
 
   // 检查是否有活跃的查询
-  hasActiveQuery(sessionId: string): boolean {
-    return this.queries.has(sessionId);
+  hasActiveQuery(id: string): boolean {
+    return this.queries.has(id);
   }
 }
 
