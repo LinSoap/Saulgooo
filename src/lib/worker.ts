@@ -89,6 +89,7 @@ export const agentWorker = new Worker<AgentTaskData>(
         options: {
           maxTurns: 30,
           permissionMode: 'bypassPermissions',
+          settingSources: ['project'],
           // 如果有 sessionId，恢复对话
           resume: sessionId ?? undefined,
           cwd,
@@ -97,6 +98,7 @@ export const agentWorker = new Worker<AgentTaskData>(
             preset: "claude_code",
             append: ` - 始终在workspace目录下操作，严格遵守文件读写权限，不要尝试访问未授权的文件或目录。
               - workspace目录是你能够访问的唯一文件系统位置。
+              - 必须使用中文回复用户。
               - 禁止在非workspace目录下读写文件。`,
           },
         }
