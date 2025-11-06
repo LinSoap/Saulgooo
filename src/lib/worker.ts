@@ -1,6 +1,7 @@
 import { Worker } from 'bullmq';
 import type { Job } from 'bullmq';
 import { PrismaClient } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { join } from 'path';
@@ -9,6 +10,36 @@ import { redisConnection } from './queue';
 import { subscriptionManager } from '~/server/api/routers/agent';
 
 const prisma = new PrismaClient();
+
+// 公共方法：更新会话消息（只负责数据库操作）
+async function updateSessionMessages(
+  where: Prisma.AgentSessionWhereUniqueInput,
+  newMessage: SDKMessage,
+  additionalData?: Record<string, unknown>
+) {
+  const currentSession = await prisma.agentSession.findUnique({
+    where,
+    select: { messages: true, id: true, sessionId: true }
+  });
+
+  if (!currentSession) return null;
+
+  const messagesStr = typeof currentSession.messages === 'string'
+    ? currentSession.messages
+    : '[]';
+  const currentMessages = JSON.parse(messagesStr) as SDKMessage[];
+  const updatedMessages = [...currentMessages, newMessage];
+
+  await prisma.agentSession.update({
+    where,
+    data: {
+      messages: JSON.stringify(updatedMessages),
+      ...additionalData
+    }
+  });
+
+  return { currentSession, updatedMessages };
+}
 
 // 定义任务数据类型
 interface AgentTaskData {
@@ -23,7 +54,7 @@ interface AgentTaskData {
 export const agentWorker = new Worker<AgentTaskData>(
   'agent-tasks',
   async (job: Job<AgentTaskData>) => {
-    const { id, sessionId, query: queryText, workspaceId, userId } = job.data;
+    const { id, sessionId, query: queryText, workspaceId } = job.data;
 
     console.log(`🚀 Starting job ${job.id} for session ${id}`);
 
@@ -77,10 +108,9 @@ export const agentWorker = new Worker<AgentTaskData>(
       let realSessionId = sessionId;
 
       // 6. 处理消息流
-      let messageCount = 0;
       for await (const message of queryInstance) {
-        messageCount++;
-
+        // 更新任务进度
+        await job.updateProgress(50);
         if (message.type === 'system' && message.subtype === 'init') {
           const sessionId = message.session_id
 
@@ -95,44 +125,20 @@ export const agentWorker = new Worker<AgentTaskData>(
           }
 
           realSessionId = sessionId;
-          // 不再需要收集消息到本地数组，消息已保存到数据库
 
-          // await prisma.agentSession.create({
-          //   data: {
-          //     sessionId,
-          //     workspaceId,
-          //     userId,
-          //     title: queryText.slice(0, 30),
-          //     messages: JSON.stringify([userMessage]),
-          //   }
-          // });
-          const currentSession = await prisma.agentSession.findUnique({
-            where: { id: job.data.id },
-            select: { messages: true, sessionId: true, id: true }
-          });
+          const result = await updateSessionMessages(
+            { id: job.data.id },
+            userMessage,
+            { sessionId: message.session_id }
+          );
 
-          if (currentSession) {
-            // 统一处理：数据库中 messages 始终是 JSON 字符串
-            const messagesStr = typeof currentSession.messages === 'string'
-              ? currentSession.messages
-              : '[]'; // 兜底处理，正常情况下不会走到这里
-            const currentMessages = JSON.parse(messagesStr) as SDKMessage[];
-            const updatedMessages = [...currentMessages, userMessage];
-
-            // 更新messages和sessionId到数据库
-            await prisma.agentSession.update({
-              where: { id: job.data.id },
-              data: {
-                sessionId: message.session_id, // 更新Claude的sessionId
-                messages: JSON.stringify(updatedMessages),
-              }
-            });
-
+          if (result) {
+            const { currentSession, updatedMessages } = result;
             // 推送消息更新 - 使用数据库主键作为id
             subscriptionManager.emit(job.data.id, {
               type: 'message_update',
               id: job.data.id, // 使用数据库主键
-              sessionId: message.session_id, // Claude的sessionId
+              sessionId: currentSession.sessionId, // Claude的sessionId
               messages: updatedMessages,
               timestamp: new Date()
             });
@@ -140,55 +146,55 @@ export const agentWorker = new Worker<AgentTaskData>(
 
         }
         if (message.type === 'user') {
-          // 消息已通过数据库更新，无需本地收集
+          const result = await updateSessionMessages(
+            { sessionId: message.session_id },
+            message
+          );
+
+          if (result) {
+            const { currentSession, updatedMessages } = result;
+            subscriptionManager.emit(currentSession.id, {
+              type: 'message_update',
+              id: currentSession.id,
+              sessionId: message.session_id,
+              messages: updatedMessages,
+              timestamp: new Date()
+            });
+          }
         }
         if (message.type === "assistant") {
-          // 消息已通过数据库更新，无需本地收集
+          const result = await updateSessionMessages(
+            { sessionId: message.session_id },
+            message
+          );
 
-          // 获取当前session的messages
-          const currentSession = await prisma.agentSession.findUnique({
-            where: { sessionId: message.session_id },
-            select: { messages: true, id: true, sessionId: true }
-          });
-
-          if (currentSession) {
-            // 统一处理：数据库中 messages 始终是 JSON 字符串
-            const messagesStr = typeof currentSession.messages === 'string'
-              ? currentSession.messages
-              : '[]'; // 兜底处理，正常情况下不会走到这里
-            const currentMessages = JSON.parse(messagesStr) as SDKMessage[];
-            const updatedMessages = [...currentMessages, message];
-
-            await prisma.agentSession.update({
-              where: { sessionId: message.session_id },
-              data: {
-                messages: JSON.stringify(updatedMessages),
-              }
+          if (result) {
+            const { currentSession, updatedMessages } = result;
+            subscriptionManager.emit(currentSession.id, {
+              type: 'message_update',
+              id: currentSession.id,
+              sessionId: message.session_id,
+              messages: updatedMessages,
+              timestamp: new Date()
             });
-
-            // 推送消息更新 - 需要先获取数据库主键id
-            const sessionWithId = await prisma.agentSession.findUnique({
-              where: { sessionId: message.session_id },
-              select: { id: true }
-            });
-            if (sessionWithId) {
-              subscriptionManager.emit(sessionWithId.id, {
-                type: 'message_update',
-                id: sessionWithId.id, // 使用数据库主键
-                sessionId: message.session_id, // Claude的sessionId
-                messages: updatedMessages,
-                timestamp: new Date()
-              });
-            }
           }
         }
         if (message.type === "result") {
-          // 消息已通过数据库更新，无需本地收集
-        }
+          const result = await updateSessionMessages(
+            { sessionId: message.session_id },
+            message
+          );
 
-        // 更新任务进度
-        if (message.type === 'assistant') {
-          await job.updateProgress(50);
+          if (result) {
+            const { currentSession, updatedMessages } = result;
+            subscriptionManager.emit(currentSession.id, {
+              type: 'message_update',
+              id: currentSession.id,
+              sessionId: message.session_id,
+              messages: updatedMessages,
+              timestamp: new Date()
+            });
+          }
         }
       }
 
@@ -212,7 +218,7 @@ export const agentWorker = new Worker<AgentTaskData>(
             updatedAt: new Date()
           }
         });
-      } catch (updateError) {
+      } catch {
         // 重新抛出错误让 BullMQ 处理重试
         throw error;
       }

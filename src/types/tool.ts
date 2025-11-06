@@ -168,13 +168,13 @@ export interface NotebookFileOutput {
     cells: Array<{
         cell_type: 'code' | 'markdown';
         source: string;
-        outputs?: any[];
+        outputs?: unknown[];
         execution_count?: number;
     }>;
     /**
      * 笔记本元数据
      */
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
 }
 
 /**
@@ -325,7 +325,7 @@ export interface WebSearchOutput {
         /**
          * 如果可用的其他元数据
          */
-        metadata?: Record<string, any>;
+        metadata?: Record<string, unknown>;
     }>;
     /**
      * 结果总数
