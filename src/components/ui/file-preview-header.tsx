@@ -17,15 +17,20 @@ import type { FileData } from "~/lib/file-client";
 interface FilePreviewHeaderProps {
   fileData: FileData;
   onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 export function FilePreviewHeader({
   fileData,
   onRefresh,
+  isRefreshing: externalIsRefreshing,
 }: FilePreviewHeaderProps) {
   const { fileName, mimeType, size } = fileData;
   const [isDownloading, setIsDownloading] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [internalIsRefreshing, setInternalIsRefreshing] = useState(false);
+
+  // 使用外部传入的 isRefreshing 状态，如果没有则使用内部状态
+  const isRefreshing = externalIsRefreshing ?? internalIsRefreshing;
 
   // 获取文件图标
   const getFileIcon = (mimeType?: string) => {
@@ -56,7 +61,9 @@ export function FilePreviewHeader({
 
   // 处理刷新
   const handleRefresh = async () => {
-    setIsRefreshing(true);
+    if (!externalIsRefreshing) {
+      setInternalIsRefreshing(true);
+    }
     try {
       if (onRefresh) {
         onRefresh();
@@ -66,7 +73,9 @@ export function FilePreviewHeader({
       console.error("Refresh failed:", error);
       toast.error("刷新失败");
     } finally {
-      setIsRefreshing(false);
+      if (!externalIsRefreshing) {
+        setInternalIsRefreshing(false);
+      }
     }
   };
 

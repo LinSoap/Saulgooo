@@ -22,31 +22,42 @@ export default function FilePreview() {
   const [fileData, setFileData] = useState<FileData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // 加载文件内容
-  const loadFile = useCallback(async () => {
-    if (!filePath || !session?.user) {
-      setFileData(null);
-      return;
-    }
+  const loadFile = useCallback(
+    async (noCache = false) => {
+      if (!filePath || !session?.user) {
+        setFileData(null);
+        return;
+      }
 
-    setIsLoading(true);
-    setError(null);
+      setIsLoading(true);
+      setError(null);
 
-    try {
-      const data = await fetchFileContent(workspaceId, filePath);
-      setFileData(data);
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error("Failed to load file"));
-      setFileData(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [workspaceId, filePath, session?.user]);
+      try {
+        const data = await fetchFileContent(workspaceId, filePath, { noCache });
+        setFileData(data);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error("Failed to load file"));
+        setFileData(null);
+      } finally {
+        setIsLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [workspaceId, filePath, session?.user],
+  );
 
   // 初始加载
   useEffect(() => {
     void loadFile();
+  }, [loadFile]);
+
+  // 刷新处理函数
+  const handleRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    void loadFile(true); // 刷新时禁用缓存
   }, [loadFile]);
 
   if (isLoading) {
@@ -79,7 +90,8 @@ export default function FilePreview() {
     <div className="flex h-full flex-col">
       <FilePreviewHeader
         fileData={fileData}
-        onRefresh={() => void loadFile()}
+        onRefresh={handleRefresh}
+        isRefreshing={isRefreshing}
       />
       <div className="min-h-0 flex-1">
         {renderType === "html" ? (

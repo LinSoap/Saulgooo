@@ -41,16 +41,30 @@ export async function fetchFileContent(
     filePath: string,
     options?: {
         preview?: boolean;
+        noCache?: boolean;
     }
 ): Promise<FileData> {
     const url = getOssFileUrl(workspaceId, filePath, options);
 
-    const response = await fetch(url, {
+    const fetchOptions: RequestInit = {
         method: 'GET',
         headers: {
             'Accept': '*/*',
         },
-    });
+    };
+
+    // 禁用缓存
+    if (options?.noCache) {
+        fetchOptions.cache = 'no-store';
+        fetchOptions.headers = {
+            ...fetchOptions.headers,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0',
+        };
+    }
+
+    const response = await fetch(url, fetchOptions);
 
     if (!response.ok) {
         throw new Error(`Failed to fetch file: ${response.statusText}`);

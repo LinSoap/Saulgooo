@@ -207,7 +207,9 @@ export default function FileBrowser() {
           <Button
             variant="outline"
             size="icon-sm"
-            onClick={() => void refetchFileTree()}
+            onClick={() => {
+              void refetchFileTree({ cancelRefetch: true });
+            }}
             disabled={isFileTreeFetching}
           >
             <RefreshCw
