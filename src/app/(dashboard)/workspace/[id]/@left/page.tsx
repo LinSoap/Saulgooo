@@ -24,7 +24,7 @@ import { FileTreeItem } from "~/components/shared/FileTreeItem";
 import { useSession } from "next-auth/react";
 import { useRef } from "react";
 import { toast } from "sonner";
-import { uploadFile } from "~/lib/file-client";
+import { uploadFile } from "~/lib/file";
 import { ScrollArea } from "~/components/ui/scroll-area";
 
 interface FileNode {
@@ -309,7 +309,6 @@ export default function FileBrowser() {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    // eslint-disable-next-line @typescript-eslint/no-floating-promises
                     onChange={(e) => void handleFileSelect(e)}
                     className="hidden"
                     multiple={false}

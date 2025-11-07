@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -14,7 +13,6 @@ import { Toaster } from "~/components/ui/sonner";
 import { toast } from "sonner";
 
 export default function LoginPage() {
-  const router = useRouter();
   // Separate loading states: login uses local loading, register uses mutation's loading
   const [loginLoading, setLoginLoading] = useState(false);
   const [error, setError] = useState("");
@@ -104,8 +102,10 @@ export default function LoginPage() {
   // Update loginPasswordRef when form field ref changes
   useEffect(() => {
     const fieldRef = loginPasswordRegister.ref as unknown;
-    if (fieldRef && typeof fieldRef === 'object' && 'current' in fieldRef) {
-      loginPasswordRef.current = (fieldRef as React.RefObject<HTMLInputElement>).current;
+    if (fieldRef && typeof fieldRef === "object" && "current" in fieldRef) {
+      loginPasswordRef.current = (
+        fieldRef as React.RefObject<HTMLInputElement>
+      ).current;
     }
   }, [loginPasswordRegister]);
 

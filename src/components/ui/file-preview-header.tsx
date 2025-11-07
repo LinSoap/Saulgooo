@@ -12,7 +12,7 @@ import {
   Archive,
 } from "lucide-react";
 import { toast } from "sonner";
-import type { FileData } from "~/lib/file-client";
+import type { FileData } from "~/lib/file";
 
 interface FilePreviewHeaderProps {
   fileData: FileData;

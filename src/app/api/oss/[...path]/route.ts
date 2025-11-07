@@ -5,7 +5,7 @@ import { db } from "~/server/db";
 import { join } from "path";
 import { homedir } from "os";
 import { stat, readFile, writeFile, mkdir } from "fs/promises";
-import { getMimeType } from "~/lib/file-utils";
+import { getMimeType } from "~/lib/file";
 
 export async function GET(
   request: NextRequest,

@@ -1,27 +1,13 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { addAgentTask, getTaskStatus, cancelTask, getWorkspaceSessionsWithStatus } from "~/lib/queue-utils";
+import { addAgentTask, getTaskStatus, cancelTask, getWorkspaceSessionsWithStatus } from "~/lib/queue-service";
 import { PrismaClient } from '@prisma/client';
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
-import type { Query } from "@anthropic-ai/claude-agent-sdk";
-import type { TaskStatus } from "~/lib/types/status";
+import type { SDKMessage, Query } from "@anthropic-ai/claude-agent-sdk";
+import type { Message } from "~/types/subscription";
+import type { TaskStatus } from "~/types/status";
 
 // 导出TaskStatus供其他模块使用
-export type { TaskStatus } from "~/lib/types/status";
-
-// 推送消息类型（与前端契约）
-type Message = {
-  type: 'init' | 'message_update' | 'completed' | 'failed';
-  id: string;  // 数据库内部 ID
-  sessionId: string | null;  // Claude 的 sessionId
-  status?: TaskStatus;  // 使用统一的TaskStatus
-  progress?: number;
-  messages?: SDKMessage[];  // 最新消息
-  title?: string;
-  createdAt?: Date;
-  timestamp?: Date;
-  error?: string;  // 错误信息，用于failed状态
-};
+export type { TaskStatus } from "~/types/status";
 
 
 // 简化的subscription管理器
@@ -102,11 +88,12 @@ export const agentRouter = createTRPCRouter({
         query: input.query,
       });
 
-  
+
       return {
         id: result.id, // 返回数据库 session ID
         jobId: result.jobId,
-        status: result.status
+        sessionId: result.sessionId,
+        status: 'idle' as TaskStatus // 新创建的任务初始状态为 idle
       };
     }),
 
@@ -136,7 +123,9 @@ export const agentRouter = createTRPCRouter({
       if (session.bullJobId) {
         try {
           const taskResult = await getTaskStatus(id);
-          status = taskResult.status;  // 已经是TaskStatus类型，不需要转换
+          if (taskResult) {
+            status = taskResult.status;  // 已经是TaskStatus类型，不需要转换
+          }
         } catch {
           status = 'idle';
         }
@@ -196,9 +185,9 @@ export const agentRouter = createTRPCRouter({
     .input(z.object({
       workspaceId: z.string()
     }))
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       // 使用 BullMQ 工具函数获取带状态的会话列表
-      return await getWorkspaceSessionsWithStatus(input.workspaceId);
+      return await getWorkspaceSessionsWithStatus(input.workspaceId, ctx.session.user.id);
     }),
 
   // 取消任务
@@ -240,7 +229,7 @@ export const agentRouter = createTRPCRouter({
       if (session.bullJobId) {
         const result = await cancelTask(input.id);
         return {
-          ...result,
+          success: result,
           method: 'job_remove'
         };
       } else {

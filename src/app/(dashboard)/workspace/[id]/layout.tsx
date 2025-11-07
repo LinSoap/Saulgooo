@@ -3,7 +3,6 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "~/components/ui/resizable";
-import { ScrollArea } from "~/components/ui/scroll-area";
 
 // Next.js 并行路由的props是固定的
 interface WorkspaceLayoutProps {

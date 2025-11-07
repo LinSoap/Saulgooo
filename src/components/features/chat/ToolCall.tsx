@@ -2,7 +2,7 @@
 
 import { ExternalLink } from "lucide-react";
 import type { BetaToolUseBlock } from "@anthropic-ai/sdk/resources/beta.mjs";
-import type { EditOutput, WriteOutput } from "~/types/tool";
+import type { EditOutput, WriteOutput } from "~/types/tools";
 import { ToolCard } from "~/components/ui/tool-card";
 import { ToolCallItem } from "~/components/ui/tool-call-item";
 

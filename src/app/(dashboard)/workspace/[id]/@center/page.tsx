@@ -9,8 +9,9 @@ import {
   fetchFileContent,
   getOssFileUrl,
   type FileData,
-} from "~/lib/file-client";
-import { getFileRenderType } from "~/lib/file-utils";
+  getFileRenderType,
+} from "~/lib/file";
+import Image from "next/image";
 
 export default function FilePreview() {
   const params = useParams();
@@ -109,10 +110,13 @@ export default function FilePreview() {
         ) : renderType === "image" ? (
           // 图片文件直接显示
           <div className="flex h-full items-center justify-center p-4">
-            <img
+            <Image
               src={ossUrl}
               alt={fileData.fileName}
+              width={800}
+              height={600}
               className="max-h-full max-w-full object-contain"
+              unoptimized
             />
           </div>
         ) : renderType === "video" ? (
