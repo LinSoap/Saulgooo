@@ -127,6 +127,45 @@
   }
 }
 
+/* 修复 ScrollArea 内容溢出问题 */
+@layer utilities {
+  /* 修复 ScrollArea 内部的 table 布局导致的宽度溢出 */
+  [data-radix-scroll-area-viewport] > div {
+    min-width: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    display: block !important;
+    table-layout: fixed !important;
+  }
+
+  /* 确保工具卡片在 ScrollArea 内正确收缩 */
+  [data-radix-scroll-area-viewport] [class*="rounded-xl border"] {
+    max-width: 100% !important;
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+
+  /* 修复长文本内容导致的宽度问题 */
+  [data-radix-scroll-area-viewport] pre {
+    max-width: 100% !important;
+    word-break: break-all !important;
+    overflow-wrap: break-word !important;
+    min-width: 0 !important;
+  }
+
+  /* 强制所有内容在 ScrollArea 内适配宽度 */
+  [data-radix-scroll-area-viewport] * {
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* 特别处理工具结果容器 */
+  [data-radix-scroll-area-viewport] .self-start {
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+}
+
 /* 修复 Streamdown 双主题渲染问题 */
 /* 只显示当前主题的代码块,隐藏另一个 */
 @layer utilities {
@@ -134,7 +173,7 @@
   :root:not(.dark) [data-streamdown="code-block"].dark\:block {
     display: none !important;
   }
-  
+
   /* 深色模式:隐藏浅色主题的代码块 */
   :root.dark [data-streamdown="code-block"].dark\:hidden {
     display: none !important;
