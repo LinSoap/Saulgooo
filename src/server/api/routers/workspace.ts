@@ -4,6 +4,19 @@ import { mkdir, rmdir, readdir, stat, writeFile } from "fs/promises";
 import { join } from "path";
 import { homedir } from "os";
 import type { FileTreeItem } from "../types/file";
+import chokidar, { type FSWatcher } from "chokidar";
+
+// 文件变化事件类型
+interface FileChangeEvent {
+    workspaceId: string;
+    event: 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir';
+    path: string;
+    timestamp: number;
+}
+
+// 简单的文件监听器管理
+const watchers = new Map<string, FSWatcher>();
+const subscribers = new Map<string, Set<(event: FileChangeEvent) => void>>();
 
 export const workSpaceRouter = createTRPCRouter({
     getWorkSpaces: protectedProcedure
@@ -275,6 +288,119 @@ ${input.description ?? '这是一个新的工作空间'}
                 tree: tree,
                 rootPath: basePath
             };
+        }),
+
+    // 监听工作区文件变化
+    watchFiles: protectedProcedure
+        .input(z.object({
+            workspaceId: z.string(),
+        }))
+        .subscription(async function* ({ ctx, input }) {
+            const { workspaceId } = input;
+
+            // 获取工作区路径
+            const workspace = await ctx.db.workspace.findUnique({
+                where: { id: workspaceId, ownerId: ctx.session.user.id }
+            });
+
+            if (!workspace) {
+                throw new Error("Workspace not found");
+            }
+
+            const workspacePath = join(homedir(), 'workspaces', workspace.path);
+
+            // 文件变化队列
+            const eventQueue: FileChangeEvent[] = [];
+            let hasNewEvent = false;
+
+            // 定义事件处理器
+            const handler = (event: FileChangeEvent) => {
+                eventQueue.push(event);
+                hasNewEvent = true;
+            };
+
+            // 如果已经有监听器，添加新订阅者
+            if (watchers.has(workspaceId)) {
+                const subs = subscribers.get(workspaceId) ?? new Set();
+                subs.add(handler);
+                subscribers.set(workspaceId, subs);
+            } else {
+                // 创建新监听器
+                const watcher = chokidar.watch(workspacePath, {
+                    ignored: ['.git', 'node_modules', '.next', 'dist'],
+                    ignoreInitial: true,
+                    awaitWriteFinish: {
+                        stabilityThreshold: 300,
+                        pollInterval: 100
+                    }
+                });
+
+                // 订阅者列表
+                subscribers.set(workspaceId, new Set([handler]));
+
+                // 监听文件变化
+                watcher.on('all', (event, path) => {
+                    const relativePath = path.replace(workspacePath + '/', '');
+                    const changeEvent: FileChangeEvent = {
+                        workspaceId,
+                        event: event as FileChangeEvent['event'],
+                        path: relativePath,
+                        timestamp: Date.now()
+                    };
+
+                    // 通知所有订阅者
+                    const subs = subscribers.get(workspaceId);
+                    if (subs) {
+                        subs.forEach(sub => sub(changeEvent));
+                    }
+                });
+
+                watcher.on('error', (error: unknown) => {
+                    // 收窄错误类型，避免 ESLint 抱怨 unsafe-assignment / unsafe-call
+                    if (error instanceof Error) {
+                        console.error(`[FileWatcher] Error in workspace ${workspaceId}:`, error);
+                    } else {
+                        console.error(`[FileWatcher] Error in workspace ${workspaceId}:`, String(error));
+                    }
+                });
+
+                watchers.set(workspaceId, watcher);
+            }
+
+            try {
+                while (true) {
+                    // 等待新事件
+                    if (hasNewEvent && eventQueue.length > 0) {
+                        const event = eventQueue.shift()!;
+                        hasNewEvent = eventQueue.length > 0;
+                        yield event;
+                    } else {
+                        // 每1秒检查一次
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                }
+            } finally {
+                // 清理订阅者
+                const subs = subscribers.get(workspaceId);
+                if (subs) {
+                    subs.delete(handler);
+                    if (subs.size === 0) {
+                        subscribers.delete(workspaceId);
+                        const watcher = watchers.get(workspaceId);
+                        if (watcher) {
+                            // 如果 watcher 支持 close 方法则调用（保持类型安全）
+                            try {
+                                if (typeof watcher.close === 'function') {
+                                    void watcher.close();
+                                }
+                            } catch {
+                                // 忽略 close 抛出的错误
+                            }
+                            watchers.delete(workspaceId);
+                        }
+                    }
+                }
+            }
         }),
 
 })
