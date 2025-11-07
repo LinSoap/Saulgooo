@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { mkdir, rmdir, readdir, stat, writeFile } from "fs/promises";
+import { mkdir, rmdir, readdir, stat, writeFile, rename, unlink } from "fs/promises";
 import { join } from "path";
 import { homedir } from "os";
 import type { FileTreeItem } from "../types/file";
@@ -400,6 +400,93 @@ ${input.description ?? '这是一个新的工作空间'}
                         }
                     }
                 }
+            }
+        }),
+
+    // 删除文件或文件夹
+    deleteFile: protectedProcedure
+        .input(z.object({
+            workspaceId: z.string(),
+            path: z.string(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { workspaceId, path } = input;
+
+            // 获取工作区路径
+            const workspace = await ctx.db.workspace.findUnique({
+                where: { id: workspaceId, ownerId: ctx.session.user.id }
+            });
+
+            if (!workspace) {
+                throw new Error("Workspace not found");
+            }
+
+            const workspacePath = join(homedir(), 'workspaces', workspace.path);
+            const fullPath = join(workspacePath, path);
+
+            try {
+                const stats = await stat(fullPath);
+
+                if (stats.isDirectory()) {
+                    await rmdir(fullPath, { recursive: true });
+                } else {
+                    await unlink(fullPath);
+                }
+
+                return { success: true, message: `已成功删除: ${path}` };
+            } catch (error) {
+                console.error(`Failed to delete ${path}:`, error);
+                throw new Error(`删除失败: ${error instanceof Error ? error.message : '未知错误'}`);
+            }
+        }),
+
+    // 重命名文件或文件夹
+    renameFile: protectedProcedure
+        .input(z.object({
+            workspaceId: z.string(),
+            oldPath: z.string(),
+            newPath: z.string(),
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { workspaceId, oldPath, newPath } = input;
+
+            // 获取工作区路径
+            const workspace = await ctx.db.workspace.findUnique({
+                where: { id: workspaceId, ownerId: ctx.session.user.id }
+            });
+
+            if (!workspace) {
+                throw new Error("Workspace not found");
+            }
+
+            const workspacePath = join(homedir(), 'workspaces', workspace.path);
+            const oldFullPath = join(workspacePath, oldPath);
+            const newFullPath = join(workspacePath, newPath);
+
+            try {
+                // 检查新路径是否已存在
+                try {
+                    const stats = await stat(newFullPath);
+                    // 如果能获取到状态，说明文件已存在
+                    if (stats) {
+                        throw new Error("目标路径已存在");
+                    }
+                } catch (statError) {
+                    // 检查是否是"文件不存在"的错误
+                    if (statError instanceof Error && 'code' in statError && statError.code !== 'ENOENT') {
+                        // 如果不是 ENOENT (文件不存在) 错误，则抛出
+                        throw statError;
+                    }
+                    // ENOENT 错误表示文件不存在，这是正常的，继续执行
+                }
+
+                // 执行重命名
+                await rename(oldFullPath, newFullPath);
+
+                return { success: true, message: `已成功重命名: ${oldPath} → ${newPath}` };
+            } catch (error) {
+                console.error(`Failed to rename ${oldPath} to ${newPath}:`, error);
+                throw new Error(`重命名失败: ${error instanceof Error ? error.message : '未知错误'}`);
             }
         }),
 
