@@ -359,6 +359,8 @@ export default function FileBrowser() {
                   item={item}
                   onSelect={handleFileTreeSelect}
                   selectedPath={selectedFile?.path}
+                  workspaceId={workspaceId}
+                  onFileDeleted={() => void refetchFileTree()}
                 />
               ))}
             </div>
