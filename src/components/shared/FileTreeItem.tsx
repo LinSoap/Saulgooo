@@ -8,7 +8,7 @@ interface FileTreeItem {
   id: string;
   name: string;
   path: string;
-  type: 'file' | 'directory';
+  type: "file" | "directory";
   size: number;
   modifiedAt: Date;
   createdAt: Date;
@@ -28,17 +28,17 @@ export function FileTreeItem({
   item,
   level = 0,
   onSelect,
-  selectedPath
+  selectedPath,
 }: FileTreeItemProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const hasChildren = item.hasChildren && (item.children && item.children.length > 0);
+  const hasChildren =
+    item.hasChildren && item.children && item.children.length > 0;
+  const isDirectory = item.type === "directory";
 
   const handleToggle = () => {
-    if (item.type === 'directory') {
-      // 文件夹只处理展开/折叠，不触发 onSelect
-      if (hasChildren) {
-        setIsExpanded(!isExpanded);
-      }
+    if (isDirectory) {
+      // 所有文件夹都可以展开/折叠
+      setIsExpanded(!isExpanded);
     } else if (onSelect) {
       // 只有文件才触发 onSelect
       onSelect(item);
@@ -46,7 +46,7 @@ export function FileTreeItem({
   };
 
   const getFileIcon = () => {
-    if (item.type === 'directory') {
+    if (isDirectory) {
       return isExpanded ? (
         <ChevronDown className="h-4 w-4" />
       ) : (
@@ -57,7 +57,7 @@ export function FileTreeItem({
   };
 
   const getFolderIcon = () => {
-    if (item.type === 'directory') {
+    if (isDirectory) {
       return <Folder className="h-4 w-4" />;
     }
     return null;
@@ -67,30 +67,37 @@ export function FileTreeItem({
     <div>
       <div
         className={cn(
-          "flex cursor-pointer items-center gap-1 rounded-sm px-2 py-1 text-sm hover:bg-accent",
+          "hover:bg-accent flex cursor-pointer items-center gap-1 rounded-sm px-2 py-1 text-sm",
           selectedPath === item.path && "bg-accent",
-          level > 0 && `pl-${2 + level * 4}`
+          level > 0 && `pl-${2 + level * 4}`,
         )}
         style={{ paddingLeft: `${8 + level * 16}px` }}
         onClick={handleToggle}
       >
-        {item.type === 'directory' && (
-          <span className="mr-1">{getFileIcon()}</span>
-        )}
+        {isDirectory && <span className="mr-1">{getFileIcon()}</span>}
         <span className="mr-1">{getFolderIcon()}</span>
         <span className="flex-1 truncate">{item.name}</span>
       </div>
-      {item.type === 'directory' && isExpanded && item.children && (
+      {isDirectory && isExpanded && (
         <div>
-          {item.children.map((child) => (
-            <FileTreeItem
-              key={child.id}
-              item={child}
-              level={level + 1}
-              onSelect={onSelect}
-              selectedPath={selectedPath}
-            />
-          ))}
+          {hasChildren &&
+            item.children?.map((child) => (
+              <FileTreeItem
+                key={child.id}
+                item={child}
+                level={level + 1}
+                onSelect={onSelect}
+                selectedPath={selectedPath}
+              />
+            ))}
+          {!hasChildren && (
+            <div
+              className="text-muted-foreground py-2 pr-2 pl-4 text-xs italic"
+              style={{ paddingLeft: `${8 + (level + 1) * 16}px` }}
+            >
+              空文件夹
+            </div>
+          )}
         </div>
       )}
     </div>
