@@ -1,9 +1,10 @@
+"use client";
+
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "~/components/ui/resizable";
-
 // Next.js 并行路由的props是固定的
 interface WorkspaceLayoutProps {
   children: React.ReactNode; // 主要的page.tsx内容

@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { api } from "~/trpc/react";
 import { MessageBubble } from "~/components/features/chat/MessageBubble";
-import { useBackgroundQuery } from "~/app/(dashboard)/workspace/[id]/hooks";
+import { useBackgroundQuery } from "~/hooks/use-background-query";
 import { useSession } from "next-auth/react";
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 

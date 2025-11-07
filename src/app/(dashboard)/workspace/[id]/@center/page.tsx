@@ -12,6 +12,7 @@ import {
   getFileRenderType,
 } from "~/lib/file";
 import Image from "next/image";
+import { useFileWatcher } from "~/hooks/use-file-watcher";
 
 export default function FilePreview() {
   const params = useParams();
@@ -23,42 +24,50 @@ export default function FilePreview() {
   const [fileData, setFileData] = useState<FileData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // 加载文件内容
-  const loadFile = useCallback(
-    async (noCache = false) => {
-      if (!filePath || !session?.user) {
-        setFileData(null);
-        return;
-      }
+  const loadFile = useCallback(async (noCache = false) => {
+    if (!filePath || !session?.user) {
+      setFileData(null);
+      return;
+    }
 
-      setIsLoading(true);
-      setError(null);
+    setIsLoading(true);
+    setError(null);
 
-      try {
-        const data = await fetchFileContent(workspaceId, filePath, { noCache });
-        setFileData(data);
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error("Failed to load file"));
-        setFileData(null);
-      } finally {
-        setIsLoading(false);
-        setIsRefreshing(false);
-      }
-    },
-    [workspaceId, filePath, session?.user],
-  );
+    try {
+      const data = await fetchFileContent(workspaceId, filePath, { noCache });
+      setFileData(data);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error("Failed to load file"));
+      setFileData(null);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [workspaceId, filePath, session?.user]);
 
   // 初始加载
   useEffect(() => {
     void loadFile();
   }, [loadFile]);
 
+  // 使用文件监听
+  useFileWatcher(
+    workspaceId,
+    // 文件树变化回调（不关心）
+    undefined,
+    // 文件内容变化回调
+    (changedFilePath) => {
+      // 如果是当前文件，刷新预览
+      if (changedFilePath === filePath) {
+        void loadFile(true);
+      }
+    }
+  );
+
   // 刷新处理函数
   const handleRefresh = useCallback(() => {
-    setIsRefreshing(true);
-    void loadFile(true); // 刷新时禁用缓存
+    void loadFile(true);
   }, [loadFile]);
 
   if (isLoading) {
@@ -92,7 +101,6 @@ export default function FilePreview() {
       <FilePreviewHeader
         fileData={fileData}
         onRefresh={handleRefresh}
-        isRefreshing={isRefreshing}
       />
       <div className="min-h-0 flex-1">
         {renderType === "html" ? (

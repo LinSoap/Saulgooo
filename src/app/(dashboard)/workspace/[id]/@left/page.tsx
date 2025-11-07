@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
-
 "use client";
 
 import { useState } from "react";
@@ -26,6 +24,7 @@ import { useRef } from "react";
 import { toast } from "sonner";
 import { uploadFile } from "~/lib/file";
 import { ScrollArea } from "~/components/ui/scroll-area";
+import { useFileWatcher } from "~/hooks/use-file-watcher";
 
 interface FileNode {
   id: string;
@@ -74,6 +73,15 @@ export default function FileBrowser() {
   } = api.workspace.getFileTree.useQuery({
     workspaceId: workspaceId,
   });
+
+  // 使用文件监听
+  useFileWatcher(
+    workspaceId,
+    // 文件树变化回调
+    () => {
+      void refetchFileTree();
+    },
+  );
 
   // 处理文件选择（从文件树选择）
   const handleFileTreeSelect = (file: FileNode) => {
@@ -242,7 +250,7 @@ export default function FileBrowser() {
                     onChange={(e) => setNewFileName(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
-                        handleCreateFile();
+                        void handleCreateFile();
                       }
                     }}
                   />
@@ -309,7 +317,9 @@ export default function FileBrowser() {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    onChange={(e) => void handleFileSelect(e)}
+                    onChange={(e) => {
+                      void handleFileSelect(e);
+                    }}
                     className="hidden"
                     multiple={false}
                   />
