@@ -118,6 +118,12 @@ export async function processAgentTask(job: Job<AgentTaskData>) {
       if (message.type === 'system' && message.subtype === 'init') {
         const sessionId = message.session_id;
 
+        await updateSessionMessages(
+          { id: job.data.id },
+          message,
+          { sessionId: message.session_id }
+        );
+
         const userMessage: SDKUserMessage = {
           type: "user",
           message: {
