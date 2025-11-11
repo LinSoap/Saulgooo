@@ -3,8 +3,8 @@
 import { use, useState, useEffect, useRef, useCallback } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
 import { ScrollArea } from "~/components/ui/scroll-area";
+import { ChatInput } from "~/components/chat/ChatInput";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -406,32 +406,15 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
 
       {/* 输入框 */}
       <div className="border-t p-4">
-        <div className="flex gap-2">
-          <Input
-            value={inputMessage}
-            onChange={(e) => setInputMessage(e.target.value)}
-            placeholder="输入您的问题..."
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
-                e.preventDefault();
-                void handleSendMessage();
-              }
-            }}
-            disabled={isLoading || status === "running"}
-            className="flex-1"
-          />
-          <Button
-            onClick={handleSendMessage}
-            disabled={!inputMessage.trim() || isLoading || status === "running"}
-            size="icon"
-          >
-            {isLoading || status === "running" ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
+        <ChatInput
+          value={inputMessage}
+          onChange={setInputMessage}
+          onSend={handleSendMessage}
+          disabled={isLoading || status === "running"}
+          isLoading={isLoading || status === "running"}
+          workspaceId={id}
+          placeholder="输入 @ 来引用文件..."
+        />
       </div>
     </div>
   );

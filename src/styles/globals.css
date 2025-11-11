@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "prosekit/basic/style.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -178,4 +179,25 @@
   :root.dark [data-streamdown="code-block"].dark\:hidden {
     display: none !important;
   }
+}
+
+/* ProseKit 占位符样式 */
+.ProseMirror[data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  pointer-events: none;
+  color: hsl(var(--muted-foreground));
+  float: left;
+  height: 0;
+}
+
+.ProseMirror[data-placeholder].ProseMirror-focused:empty::before {
+  color: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* ProseKit mention 样式 */
+.ProseMirror span[data-mention] {
+  color: hsl(var(--primary));
+  background-color: hsl(var(--primary) / 0.1);
+  border-radius: 4px;
+  padding: 0 2px;
 }
