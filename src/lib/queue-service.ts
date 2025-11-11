@@ -99,16 +99,20 @@ export async function getTaskStatus(sessionId: string): Promise<SessionWithStatu
   let failedReason = null;
 
   if (session.bullJobId) {
-    try {
-      const job = await agentQueue.getJob(session.bullJobId);
-      if (job) {
+    const job = await agentQueue.getJob(session.bullJobId);
+    if (job) {
+      try {
         jobState = await job.getState();
         jobProgress = typeof job.progress === 'number' ? job.progress : 0;
         attemptsMade = job.attemptsMade ?? 0;
         failedReason = job.failedReason;
+      } catch {
+        // Job 状态获取失败，根据消息判断
+        jobState = hasMessages(session.messages) ? 'completed' : 'failed';
       }
-    } catch (error) {
-      console.error('Failed to get job status:', error);
+    } else {
+      // Job 已被清理，根据消息判断
+      jobState = hasMessages(session.messages) ? 'completed' : 'failed';
     }
   }
 
@@ -202,24 +206,28 @@ export async function getWorkspaceSessionsWithStatus(
     attemptsMade: number;
     failedReason: string | null;
   }> = [];
+
   if (jobIds.length > 0) {
-    try {
-      const jobPromises = jobIds.map(jobId => agentQueue.getJob(jobId));
-      const allJobs = await Promise.all(jobPromises);
-      const jobs = allJobs.filter((job): job is Job => job !== null);
+    const allJobs = await Promise.all(jobIds.map(id => agentQueue.getJob(id)));
+    const jobs = allJobs.filter((job): job is Job => job !== null);
 
-      const statePromises = jobs.map(async job => ({
-        job,
-        state: await job.getState(),
-        progress: typeof job.progress === 'number' ? job.progress : 0,
-        attemptsMade: job.attemptsMade ?? 0,
-        failedReason: job.failedReason,
-      }));
+    const jobStates = await Promise.all(
+      jobs.map(async job => {
+        try {
+          return {
+            job,
+            state: await job.getState(),
+            progress: typeof job.progress === 'number' ? job.progress : 0,
+            attemptsMade: job.attemptsMade ?? 0,
+            failedReason: job.failedReason,
+          };
+        } catch {
+          return null;
+        }
+      })
+    );
 
-      activeJobs.push(...await Promise.all(statePromises));
-    } catch (error) {
-      console.error('Failed to get active jobs:', error);
-    }
+    activeJobs.push(...jobStates.filter((job): job is NonNullable<typeof job> => job !== null));
   }
 
   return sessions.map((session) => {
@@ -239,10 +247,11 @@ export async function getWorkspaceSessionsWithStatus(
         case 'completed': status = 'completed'; break;
         case 'failed': status = 'failed'; break;
       }
-      progress = typeof activeJob.progress === 'number' ? activeJob.progress : 0;
+      progress = activeJob.progress;
       attemptsMade = activeJob.attemptsMade;
       failedReason = activeJob.failedReason;
     } else if (session.bullJobId) {
+      // Job 已被清理，根据消息判断状态
       status = hasMessages(session.messages) ? 'completed' : 'failed';
     }
 
