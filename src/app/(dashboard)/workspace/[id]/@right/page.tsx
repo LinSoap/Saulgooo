@@ -14,7 +14,6 @@ import {
 } from "~/components/ui/dropdown-menu";
 import {
   Bot,
-  Send,
   Loader2,
   MessageSquarePlus,
   History,
@@ -23,9 +22,13 @@ import {
 } from "lucide-react";
 import { api } from "~/trpc/react";
 import { MessageBubble } from "~/components/features/chat/MessageBubble";
+import { SystemInfo } from "~/components/chat/SystemInfo";
 import { useBackgroundQuery } from "~/hooks/use-background-query";
 import { useSession } from "next-auth/react";
-import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import type {
+  SDKMessage,
+  SDKSystemMessage,
+} from "@anthropic-ai/claude-agent-sdk";
 
 interface Session {
   id: string; // 数据库主键
@@ -245,6 +248,18 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
     }
   };
 
+  // 查找系统初始化消息
+  const getSystemMessage = (): SDKSystemMessage | null => {
+    return (
+      messages.find(
+        (msg): msg is SDKSystemMessage =>
+          msg.type === "system" && msg.subtype === "init",
+      ) ?? null
+    );
+  };
+
+  const systemMessage = getSystemMessage();
+
   if (!session?.user) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -263,90 +278,94 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
             <h3 className="font-semibold">工作区助手</h3>
           </div>
 
-          {/* 会话管理下拉菜单 */}
-          <DropdownMenu
-            onOpenChange={(open) => {
-              if (!open) {
-                setConfirmingDelete(null);
-              }
-            }}
-          >
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <History className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-[90vw] max-w-80">
-              <DropdownMenuItem
-                onClick={handleNewConversation}
-                className="cursor-pointer"
-              >
-                <MessageSquarePlus className="mr-2 h-4 w-4" />
-                发起新对话
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
+          <div className="flex gap-1">
+            {systemMessage && <SystemInfo systemMessage={systemMessage} />}
 
-              {sessions.length > 0 ? (
-                <>
-                  <div className="text-muted-foreground px-2 py-1.5 text-sm font-medium">
-                    历史对话
-                  </div>
-                  {sessions.slice(0, 20).map((session) => (
-                    <DropdownMenuItem
-                      key={session.id}
-                      onClick={() => handleSelectSession(session.id)}
-                      className={`group flex cursor-pointer items-center justify-between ${
-                        currentId === session.id ? "bg-accent" : ""
-                      }`}
-                    >
-                      <div className="mr-2 flex min-w-0 flex-1 flex-col items-start">
-                        <span
-                          className="max-w-[260px] truncate text-sm font-medium"
-                          title={session.title}
-                        >
-                          {session.title}
-                        </span>
-                        <span className="text-muted-foreground text-xs">
-                          {formatDate(session.updatedAt)}
-                        </span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className={`h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100 ${
-                          confirmingDelete === session.id
-                            ? "bg-destructive text-destructive-foreground hover:bg-destructive/90 animate-pulse"
-                            : "hover:bg-destructive/10 hover:text-destructive"
+            <DropdownMenu
+              onOpenChange={(open) => {
+                if (!open) {
+                  setConfirmingDelete(null);
+                }
+              }}
+            >
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <History className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-[90vw] max-w-80">
+                <DropdownMenuItem
+                  onClick={handleNewConversation}
+                  className="cursor-pointer"
+                >
+                  <MessageSquarePlus className="mr-2 h-4 w-4" />
+                  发起新对话
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+
+                {sessions.length > 0 ? (
+                  <>
+                    <div className="text-muted-foreground px-2 py-1.5 text-sm font-medium">
+                      历史对话
+                    </div>
+                    {sessions.slice(0, 20).map((session) => (
+                      <DropdownMenuItem
+                        key={session.id}
+                        onClick={() => handleSelectSession(session.id)}
+                        className={`group flex cursor-pointer items-center justify-between ${
+                          currentId === session.id ? "bg-accent" : ""
                         }`}
-                        onClick={(e) => handleDeleteSession(session.id, e)}
-                        disabled={deleteSessionMutation.isPending}
-                        title={
-                          confirmingDelete === session.id
-                            ? "再次点击确认删除"
-                            : "删除对话"
-                        }
                       >
-                        {deleteSessionMutation.isPending &&
-                        confirmingDelete === session.id ? (
-                          <Loader2 className="h-3 w-3" />
-                        ) : confirmingDelete === session.id ? (
-                          <div className="flex items-center justify-center">
-                            <span className="text-[10px] font-bold">✓</span>
-                          </div>
-                        ) : (
-                          <Trash2 className="h-3 w-3" />
-                        )}
-                      </Button>
-                    </DropdownMenuItem>
-                  ))}
-                </>
-              ) : (
-                <div className="text-muted-foreground px-2 py-4 text-center text-sm">
-                  暂无历史对话
-                </div>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+                        <div className="mr-2 flex min-w-0 flex-1 flex-col items-start">
+                          <span
+                            className="max-w-[260px] truncate text-sm font-medium"
+                            title={session.title}
+                          >
+                            {session.title}
+                          </span>
+                          <span className="text-muted-foreground text-xs">
+                            {formatDate(session.updatedAt)}
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={`h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100 ${
+                            confirmingDelete === session.id
+                              ? "bg-destructive text-destructive-foreground hover:bg-destructive/90 animate-pulse"
+                              : "hover:bg-destructive/10 hover:text-destructive"
+                          }`}
+                          onClick={(e) => handleDeleteSession(session.id, e)}
+                          disabled={deleteSessionMutation.isPending}
+                          title={
+                            confirmingDelete === session.id
+                              ? "再次点击确认删除"
+                              : "删除对话"
+                          }
+                        >
+                          {deleteSessionMutation.isPending &&
+                          confirmingDelete === session.id ? (
+                            <Loader2 className="h-3 w-3" />
+                          ) : confirmingDelete === session.id ? (
+                            <div className="flex items-center justify-center">
+                              <span className="text-[10px] font-bold">✓</span>
+                            </div>
+                          ) : (
+                            <Trash2 className="h-3 w-3" />
+                          )}
+                        </Button>
+                      </DropdownMenuItem>
+                    ))}
+                  </>
+                ) : (
+                  <div className="text-muted-foreground px-2 py-4 text-center text-sm">
+                    暂无历史对话
+                  </div>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+          {/* 会话管理下拉菜单 */}
         </div>
       </div>
 
