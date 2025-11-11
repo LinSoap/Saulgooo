@@ -5,6 +5,7 @@ import { join } from "path";
 import { homedir } from "os";
 import type { FileTreeItem } from "../types/file";
 import chokidar, { type FSWatcher } from "chokidar";
+import { getMimeType } from "~/lib/file";
 
 // 文件变化事件类型
 interface FileChangeEvent {
@@ -488,6 +489,120 @@ ${input.description ?? '这是一个新的工作空间'}
                 console.error(`Failed to rename ${oldPath} to ${newPath}:`, error);
                 throw new Error(`重命名失败: ${error instanceof Error ? error.message : '未知错误'}`);
             }
+        }),
+
+    // 搜索工作区文件
+    searchFiles: protectedProcedure
+        .input(z.object({
+            workspaceId: z.string().cuid(),
+            query: z.string().optional(),
+            limit: z.number().optional().default(20),
+        }))
+        .query(async ({ ctx, input }) => {
+            const { workspaceId, query, limit } = input;
+
+            // 验证workspace存在且用户有权限访问
+            const workspace = await ctx.db.workspace.findUnique({
+                where: {
+                    id: workspaceId,
+                    ownerId: ctx.session.user.id,
+                },
+            });
+
+            if (!workspace?.path) {
+                throw new Error("Workspace not found");
+            }
+
+            // 构建工作区基础路径
+            const basePath = join(homedir(), "workspaces", workspace.path);
+
+            // 递归搜索文件
+            async function searchFiles(dir: string, depth = 0): Promise<Array<{
+                name: string;
+                path: string;
+                type: string;
+                size: number;
+                modifiedAt: Date;
+            }>> {
+                const maxDepth = 5; // 限制搜索深度
+                if (depth > maxDepth) return [];
+
+                const results: Array<{
+                    name: string;
+                    path: string;
+                    type: string;
+                    size: number;
+                    modifiedAt: Date;
+                }> = [];
+
+                try {
+                    const entries = await readdir(dir, { withFileTypes: true });
+
+                    for (const entry of entries) {
+                        const fullPath = join(dir, entry.name);
+                        const relativePath = fullPath.replace(basePath + "/", "");
+
+                        // 跳过隐藏文件和目录
+                        if (entry.name.startsWith(".")) continue;
+
+                        // 跳过 node_modules 等常见目录
+                        if (["node_modules", ".git", ".next", "dist", "build"].includes(entry.name)) continue;
+
+                        try {
+                            const stats = await stat(fullPath);
+
+                            if (entry.isFile()) {
+                                // 检查文件名是否匹配查询
+                                if (query && !entry.name.toLowerCase().includes(query.toLowerCase())) {
+                                    continue;
+                                }
+
+                                // 获取 MIME 类型 - 使用已有的 getMimeType 函数
+                                const mimeType = getMimeType(fullPath);
+
+                                results.push({
+                                    name: entry.name,
+                                    path: relativePath,
+                                    type: mimeType,
+                                    size: stats.size,
+                                    modifiedAt: stats.mtime,
+                                });
+                            } else if (entry.isDirectory()) {
+                                // 递归搜索子目录
+                                const subResults = await searchFiles(fullPath, depth + 1);
+                                results.push(...subResults);
+                            }
+                        } catch (error) {
+                            // 忽略无法访问的文件/目录
+                            console.warn(`Cannot access ${fullPath}:`, error);
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`Cannot read directory ${dir}:`, error);
+                }
+
+                return results;
+            }
+
+            const files = await searchFiles(basePath);
+
+            // 按修改时间排序，最新的在前
+            files.sort((a, b) => b.modifiedAt.getTime() - a.modifiedAt.getTime());
+
+            // 限制返回数量
+            const limitedFiles = files.slice(0, limit);
+
+            return {
+                files: limitedFiles.map(file => ({
+                    id: file.path,
+                    name: file.name,
+                    path: file.path,
+                    type: file.type,
+                    size: file.size,
+                    modifiedAt: file.modifiedAt.toISOString(),
+                })),
+                total: files.length,
+            };
         }),
 
 })
