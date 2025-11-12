@@ -432,7 +432,8 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
           disabled={isLoading || status === "running"}
           isLoading={isLoading || status === "running"}
           workspaceId={id}
-          placeholder="输入 @ 来引用文件..."
+          placeholder="输入 @ 来引用文件，输入 / 来选择命令..."
+          slashCommands={systemMessage?.slash_commands ?? []}
         />
       </div>
     </div>

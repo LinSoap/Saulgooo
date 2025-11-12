@@ -7,7 +7,7 @@ export function defineChatExtension() {
   return union(
     defineBasicExtension(),
     definePlaceholder({
-      placeholder: "输入 @ 来引用文件...",
+      placeholder: "输入 @ 来引用文件，输入 / 来选择命令...",
     }),
     defineMention(),
   );
