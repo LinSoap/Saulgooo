@@ -127,7 +127,7 @@ export function ChatInput({
         <div
           ref={editorRef}
           className={cn(
-            "border-input bg-background ring-offset-background relative max-h-32 min-h-10 overflow-y-auto rounded-md border px-3 py-2 text-sm",
+            "border-input bg-background ring-offset-background relative max-h-32 min-h-10 overflow-y-auto rounded-md border pl-3 pr-12 py-2 text-sm",
             "focus-within:ring-ring focus-within:ring-2 focus-within:ring-offset-2 focus-within:outline-none",
             "disabled:cursor-not-allowed disabled:opacity-50",
             disabled && "cursor-not-allowed opacity-50",
