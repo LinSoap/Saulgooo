@@ -124,6 +124,7 @@ export function FileMenu({
     <AutocompletePopover
       regex={/@[\p{L}\p{N}_-]*$/u}
       className="relative z-50 box-border block max-h-80 min-w-80 overflow-auto rounded-lg border border-gray-200 bg-white whitespace-nowrap shadow-lg select-none dark:border-gray-800 dark:bg-gray-950"
+      style={{ position: 'absolute', bottom: '100%', marginBottom: '0.25rem' }}
       onQueryChange={onQueryChange}
       onOpenChange={onOpenChange}
     >
