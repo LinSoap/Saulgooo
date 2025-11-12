@@ -49,10 +49,12 @@ export default function FileBrowser() {
   const searchParams = useSearchParams();
   const workspaceId = params.id as string;
   const { data: session } = useSession();
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const [newFileName, setNewFileName] = useState("");
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [uploadDirectory, setUploadDirectory] = useState("");
+  const [isCreateFolderDialogOpen, setIsCreateFolderDialogOpen] =
+    useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [createFolderDirectory, setCreateFolderDirectory] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 空白区域右键菜单状态
@@ -106,39 +108,6 @@ export default function FileBrowser() {
     // 使用查询参数，URL格式应该是: /workspace/[id]?file=[filePath]&sessionId=[sessionId]
     const newUrl = `/workspace/${workspaceId}?${newParams.toString()}`;
     router.push(newUrl);
-  };
-
-  // 创建文件
-  const [isCreating, setIsCreating] = useState(false);
-
-  const handleCreateFile = async () => {
-    if (!newFileName.trim()) return;
-
-    setIsCreating(true);
-    try {
-      const fileName = newFileName.endsWith(".md")
-        ? newFileName
-        : `${newFileName}.md`;
-      const content =
-        "# " + newFileName.replace(/\.md$/, "") + "\n\n开始编写您的文档...\n";
-
-      await uploadFile(workspaceId, fileName, content, {
-        encoding: "utf-8",
-        mimeType: "text/markdown",
-      });
-
-      void refetchFileTree();
-      setIsCreateDialogOpen(false);
-      setNewFileName("");
-      toast.success(`文件 "${fileName}" 创建成功！`);
-    } catch (error) {
-      console.error("Create file error:", error);
-      toast.error(
-        `创建失败: ${error instanceof Error ? error.message : "未知错误"}`,
-      );
-    } finally {
-      setIsCreating(false);
-    }
   };
 
   // 上传文件
@@ -204,10 +173,80 @@ export default function FileBrowser() {
     fileInputRef.current?.click();
   };
 
+  // 创建文件夹
+  const handleCreateFolder = async () => {
+    if (!newFolderName.trim()) {
+      toast.error("文件夹名不能为空");
+      return;
+    }
+
+    if (newFolderName.includes("/") || newFolderName.includes("\\")) {
+      toast.error("文件夹名不能包含斜杠");
+      return;
+    }
+
+    try {
+      const folderPath = createFolderDirectory
+        ? `${createFolderDirectory}/${newFolderName}`
+        : newFolderName;
+
+      // 使用 uploadFile 创建一个空的目录标记文件
+      await uploadFile(workspaceId, `${folderPath}/.gitkeep`, "", {
+        encoding: "utf-8",
+        mimeType: "text/plain",
+      });
+
+      void refetchFileTree();
+      setIsCreateFolderDialogOpen(false);
+      setNewFolderName("");
+      setCreateFolderDirectory("");
+      toast.success(`文件夹 "${newFolderName}" 创建成功！`);
+    } catch (error) {
+      console.error("Create folder error:", error);
+      toast.error(
+        `创建失败: ${error instanceof Error ? error.message : "未知错误"}`,
+      );
+    }
+  };
+
+  // 打开创建文件夹对话框
+  const openCreateFolderDialog = (directory?: string) => {
+    setCreateFolderDirectory(directory || "");
+    setIsCreateFolderDialogOpen(true);
+  };
+
+  // 处理上传到指定文件夹
+  const handleUploadToFolder = (folderPath: string) => {
+    setUploadDirectory(folderPath);
+    setIsUploadDialogOpen(true);
+  };
+
+  // 处理下载文件
+  const handleDownloadFile = async (filePath: string) => {
+    // TODO: 实现下载功能
+    toast.info(`下载功能待实现: ${filePath}`);
+  };
+
   // 处理空白区域右键菜单
   const handleBlankContextMenu = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
+
+    // 获取当前选中的文件的目录
+    const getCurrentDirectory = () => {
+      if (selectedFile?.path) {
+        // 如果是文件，获取其所在目录
+        const lastSlashIndex = selectedFile.path.lastIndexOf("/");
+        if (lastSlashIndex > 0) {
+          return selectedFile.path.substring(0, lastSlashIndex);
+        }
+        // 如果在根目录，返回空字符串
+        return "";
+      }
+      return "";
+    };
+
+    const currentDir = getCurrentDirectory();
 
     const options: ContextMenuOption[] = [
       {
@@ -218,17 +257,18 @@ export default function FileBrowser() {
         },
       },
       {
-        label: "上传",
+        label: "上传文件",
         icon: <Upload className="h-4 w-4" />,
         onClick: () => {
+          setUploadDirectory(currentDir);
           setIsUploadDialogOpen(true);
         },
       },
       {
-        label: "创建",
-        icon: <Plus className="h-4 w-4" />,
+        label: "新建文件夹",
+        icon: <FolderOpen className="h-4 w-4" />,
         onClick: () => {
-          setIsCreateDialogOpen(true);
+          openCreateFolderDialog(currentDir);
         },
       },
     ];
@@ -272,56 +312,6 @@ export default function FileBrowser() {
             />
           </Button>
           <Dialog
-            open={isCreateDialogOpen}
-            onOpenChange={setIsCreateDialogOpen}
-          >
-            <DialogTrigger asChild>
-              <Button variant="outline" size="icon-sm">
-                <Plus className="h-3 w-3" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="w-auto max-w-[95vw]">
-              <DialogHeader>
-                <DialogTitle>创建 Markdown 文件</DialogTitle>
-                <DialogDescription>
-                  创建一个新的 Markdown 文件
-                </DialogDescription>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="fileName">文件名</Label>
-                  <Input
-                    id="fileName"
-                    placeholder="例如：README.md"
-                    value={newFileName}
-                    onChange={(e) => setNewFileName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        void handleCreateFile();
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsCreateDialogOpen(false)}
-                >
-                  取消
-                </Button>
-                <Button
-                  type="button"
-                  onClick={handleCreateFile}
-                  disabled={!newFileName.trim() || isCreating}
-                >
-                  {isCreating ? "创建中..." : "创建"}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-          <Dialog
             open={isUploadDialogOpen}
             onOpenChange={setIsUploadDialogOpen}
           >
@@ -333,7 +323,18 @@ export default function FileBrowser() {
             <DialogContent className="w-auto max-w-[95vw]">
               <DialogHeader>
                 <DialogTitle>上传文件</DialogTitle>
-                <DialogDescription>选择文件上传到工作区</DialogDescription>
+                <DialogDescription>
+                  选择文件上传到工作区
+                  {uploadDirectory && (
+                    <span className="text-muted-foreground">
+                      （目标目录：
+                      <code className="bg-muted rounded px-1 py-0.5 text-xs">
+                        {uploadDirectory}
+                      </code>
+                      ）
+                    </span>
+                  )}
+                </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
@@ -409,6 +410,9 @@ export default function FileBrowser() {
                     selectedPath={selectedFile?.path}
                     workspaceId={workspaceId}
                     onFileDeleted={() => void refetchFileTree()}
+                    onCreateFolderIn={openCreateFolderDialog}
+                    onUploadToFolder={handleUploadToFolder}
+                    onDownloadFile={handleDownloadFile}
                   />
                 ))}
               </div>
@@ -446,6 +450,62 @@ export default function FileBrowser() {
           onClose={() => setContextMenu(null)}
         />
       )}
+
+      {/* 创建文件夹对话框 */}
+      <Dialog
+        open={isCreateFolderDialogOpen}
+        onOpenChange={setIsCreateFolderDialogOpen}
+      >
+        <DialogContent className="w-auto max-w-[95vw]">
+          <DialogHeader>
+            <DialogTitle>创建文件夹</DialogTitle>
+            <DialogDescription>
+              创建一个新的文件夹
+              {createFolderDirectory && (
+                <span className="text-muted-foreground">
+                  （位置：
+                  <code className="bg-muted rounded px-1 py-0.5 text-xs">
+                    {createFolderDirectory}
+                  </code>
+                  ）
+                </span>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="folderName">文件夹名</Label>
+              <Input
+                id="folderName"
+                placeholder="例如：images 或 docs"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    void handleCreateFolder();
+                  }
+                }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsCreateFolderDialogOpen(false)}
+            >
+              取消
+            </Button>
+            <Button
+              type="button"
+              onClick={handleCreateFolder}
+              disabled={!newFolderName.trim()}
+            >
+              创建
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

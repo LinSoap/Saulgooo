@@ -8,6 +8,8 @@ import {
   Folder,
   Trash2,
   Edit3,
+  Download,
+  Upload,
 } from "lucide-react";
 import { cn } from "~/lib/utils";
 import {
@@ -39,6 +41,9 @@ interface FileTreeItemProps {
   selectedPath?: string;
   workspaceId: string;
   onFileDeleted?: () => void;
+  onCreateFolderIn?: (folderPath: string) => void;
+  onUploadToFolder?: (folderPath: string) => void;
+  onDownloadFile?: (filePath: string) => void;
 }
 
 export function FileTreeItem({
@@ -48,6 +53,9 @@ export function FileTreeItem({
   selectedPath,
   workspaceId,
   onFileDeleted,
+  onCreateFolderIn,
+  onUploadToFolder,
+  onDownloadFile,
 }: FileTreeItemProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [contextMenu, setContextMenu] = useState<{
@@ -164,13 +172,41 @@ export function FileTreeItem({
           icon: <Edit3 className="h-4 w-4" />,
           onClick: startRenaming,
         },
-        {
-          label: "删除",
-          icon: <Trash2 className="h-4 w-4" />,
-          className: "text-destructive focus:text-destructive",
-          onClick: () => setOperation({ type: "delete", item }),
-        },
       ];
+
+      // 如果是文件，添加下载选项
+      if (!isDirectory && onDownloadFile) {
+        options.push({
+          label: "下载",
+          icon: <Download className="h-4 w-4" />,
+          onClick: () => onDownloadFile(item.path),
+        });
+      }
+
+      // 如果是文件夹，添加上传和创建选项
+      if (isDirectory) {
+        if (onUploadToFolder) {
+          options.push({
+            label: "上传文件",
+            icon: <Upload className="h-4 w-4" />,
+            onClick: () => onUploadToFolder(item.path),
+          });
+        }
+        if (onCreateFolderIn) {
+          options.push({
+            label: "新建文件夹",
+            icon: <Folder className="h-4 w-4" />,
+            onClick: () => onCreateFolderIn(item.path),
+          });
+        }
+      }
+
+      options.push({
+        label: "删除",
+        icon: <Trash2 className="h-4 w-4" />,
+        className: "text-destructive focus:text-destructive",
+        onClick: () => setOperation({ type: "delete", item }),
+      });
 
       setContextMenu({
         x: rect.left + rect.width / 2 - 80,
@@ -270,6 +306,9 @@ export function FileTreeItem({
                 selectedPath={selectedPath}
                 workspaceId={workspaceId}
                 onFileDeleted={onFileDeleted}
+                onCreateFolderIn={onCreateFolderIn}
+                onUploadToFolder={onUploadToFolder}
+                onDownloadFile={onDownloadFile}
               />
             ))}
           {!hasChildren && (
