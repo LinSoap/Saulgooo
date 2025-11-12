@@ -7,6 +7,7 @@ import { ProseKit, useDocChange } from "prosekit/react";
 import { createEditor, type Editor } from "prosekit/core";
 import { defineChatExtension } from "~/lib/prosekit-extensions";
 import { FileMenu } from "./FileMenu";
+import { CommandMenu } from "./CommandMenu";
 import { useFileQuery } from "~/hooks/use-file-query";
 import { cn } from "~/lib/utils";
 
@@ -19,6 +20,7 @@ interface ChatInputProps {
   workspaceId: string;
   placeholder?: string;
   className?: string;
+  slashCommands?: string[];
 }
 
 // 编辑器内部组件，用于访问 ProseKit 上下文
@@ -59,9 +61,11 @@ export function ChatInput({
   workspaceId,
   placeholder = "输入您的问题...",
   className,
+  slashCommands = [],
 }: ChatInputProps) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [justSelectedFromAutocomplete, setJustSelectedFromAutocomplete] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
 
   const editor = useMemo(() => {
@@ -105,10 +109,18 @@ export function ChatInput({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
+
+      // 如果刚刚从自动完成菜单选择了项目，不发送消息
+      if (justSelectedFromAutocomplete) {
+        setJustSelectedFromAutocomplete(false);
+        return;
+      }
+
       handleSend();
     }
   };
 
+  
   return (
     <div className={cn("relative", className)}>
       <ProseKit editor={editor}>
@@ -134,6 +146,12 @@ export function ChatInput({
           loading={loading}
           onQueryChange={setQuery}
           onOpenChange={setOpen}
+          onFileSelected={() => setJustSelectedFromAutocomplete(true)}
+        />
+
+        <CommandMenu
+          commands={slashCommands}
+          onCommandSelected={() => setJustSelectedFromAutocomplete(true)}
         />
       </ProseKit>
 

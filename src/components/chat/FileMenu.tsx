@@ -27,6 +27,7 @@ interface FileMenuProps {
   loading?: boolean;
   onQueryChange?: (query: string) => void;
   onOpenChange?: (open: boolean) => void;
+  onFileSelected?: () => void;
 }
 
 export function FileMenu({
@@ -34,6 +35,7 @@ export function FileMenu({
   loading,
   onQueryChange,
   onOpenChange,
+  onFileSelected,
 }: FileMenuProps) {
   const editor = useEditor<Union<[MentionExtension, BasicExtension]>>();
 
@@ -49,6 +51,16 @@ export function FileMenu({
 
     // 在后面插入一个空格
     editor.commands.insertText({ text: " " });
+
+    // 关闭自动完成菜单
+    if (onOpenChange) {
+      onOpenChange(false);
+    }
+
+    // 通知父组件文件已被选中
+    if (onFileSelected) {
+      onFileSelected();
+    }
   };
 
   // 根据文件类型获取图标
