@@ -214,7 +214,14 @@ export function FileTreeItem({
         options,
       });
     },
-    [startRenaming, item],
+    [
+      startRenaming,
+      item,
+      isDirectory,
+      onCreateFolderIn,
+      onDownloadFile,
+      onUploadToFolder,
+    ],
   );
 
   const executeOperation = useCallback(async () => {

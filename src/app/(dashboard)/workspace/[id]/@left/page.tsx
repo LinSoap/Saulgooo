@@ -14,8 +14,15 @@ import {
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
 import { api } from "~/trpc/react";
-import { ArrowLeft, FolderOpen, Plus, RefreshCw, Upload } from "lucide-react";
+import { ArrowLeft, FolderOpen, RefreshCw, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FileTreeItem } from "~/components/shared/FileTreeItem";
@@ -211,7 +218,7 @@ export default function FileBrowser() {
 
   // 打开创建文件夹对话框
   const openCreateFolderDialog = (directory?: string) => {
-    setCreateFolderDirectory(directory || "");
+    setCreateFolderDirectory(directory ?? "");
     setIsCreateFolderDialogOpen(true);
   };
 
@@ -225,6 +232,26 @@ export default function FileBrowser() {
   const handleDownloadFile = async (filePath: string) => {
     // TODO: 实现下载功能
     toast.info(`下载功能待实现: ${filePath}`);
+  };
+
+  // 获取所有文件夹路径
+  const getAllFolderPaths = (items: FileNode[]): string[] => {
+    const paths: string[] = [];
+
+    const traverse = (nodes: FileNode[]) => {
+      for (const node of nodes) {
+        if (node.type === "directory") {
+          // node.path 已经是完整路径，直接使用
+          paths.push(node.path);
+          if (node.children) {
+            traverse(node.children);
+          }
+        }
+      }
+    };
+
+    traverse(items);
+    return paths.sort();
   };
 
   // 处理空白区域右键菜单
@@ -320,7 +347,7 @@ export default function FileBrowser() {
                 <Upload className="h-3 w-3" />
               </Button>
             </DialogTrigger>
-            <DialogContent className="w-auto max-w-[95vw]">
+            <DialogContent className="w-2xl">
               <DialogHeader>
                 <DialogTitle>上传文件</DialogTitle>
                 <DialogDescription>
@@ -338,13 +365,26 @@ export default function FileBrowser() {
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
-                  <Label htmlFor="directory">目标目录（可选）</Label>
-                  <Input
-                    id="directory"
-                    placeholder="例如：uploads 或 images"
-                    value={uploadDirectory}
-                    onChange={(e) => setUploadDirectory(e.target.value)}
-                  />
+                  <Label htmlFor="directory">目标目录</Label>
+                  <Select
+                    value={uploadDirectory || "__root__"}
+                    onValueChange={(value) =>
+                      setUploadDirectory(value === "__root__" ? "" : value)
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="选择目标目录（留空为根目录）" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__root__">根目录</SelectItem>
+                      {fileTreeData?.tree &&
+                        getAllFolderPaths(fileTreeData.tree).map((path) => (
+                          <SelectItem key={path} value={path}>
+                            {path}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid gap-2">
                   <Label>选择文件</Label>
