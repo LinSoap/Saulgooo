@@ -25,6 +25,10 @@ import { toast } from "sonner";
 import { uploadFile } from "~/lib/file";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { useFileWatcher } from "~/hooks/use-file-watcher";
+import {
+  ContextMenu,
+  type ContextMenuOption,
+} from "~/components/ui/context-menu";
 
 interface FileNode {
   id: string;
@@ -50,6 +54,13 @@ export default function FileBrowser() {
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [uploadDirectory, setUploadDirectory] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 空白区域右键菜单状态
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    options: ContextMenuOption[];
+  } | null>(null);
 
   // 从URL获取当前选中的文件
   const currentFilePath = searchParams.get("file");
@@ -191,6 +202,42 @@ export default function FileBrowser() {
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
+  };
+
+  // 处理空白区域右键菜单
+  const handleBlankContextMenu = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const options: ContextMenuOption[] = [
+      {
+        label: "刷新",
+        icon: <RefreshCw className="h-4 w-4" />,
+        onClick: () => {
+          void refetchFileTree({ cancelRefetch: true });
+        },
+      },
+      {
+        label: "上传",
+        icon: <Upload className="h-4 w-4" />,
+        onClick: () => {
+          setIsUploadDialogOpen(true);
+        },
+      },
+      {
+        label: "创建",
+        icon: <Plus className="h-4 w-4" />,
+        onClick: () => {
+          setIsCreateDialogOpen(true);
+        },
+      },
+    ];
+
+    setContextMenu({
+      x: event.clientX,
+      y: event.clientY,
+      options,
+    });
   };
 
   return (
@@ -341,37 +388,39 @@ export default function FileBrowser() {
       </div>
 
       {/* File Tree */}
-      <ScrollArea className="flex-1">
-        <div className="space-y-2 p-4 text-sm">
-          {isFileTreeLoading ? (
-            <div className="text-muted-foreground py-8 text-center">
-              <p>加载中...</p>
-            </div>
-          ) : fileTreeError ? (
-            <div className="text-destructive py-8 text-center">
-              <p>加载文件树失败</p>
-            </div>
-          ) : fileTreeData?.tree && fileTreeData.tree.length > 0 ? (
-            <div>
-              {fileTreeData.tree.map((item) => (
-                <FileTreeItem
-                  key={item.id}
-                  item={item}
-                  onSelect={handleFileTreeSelect}
-                  selectedPath={selectedFile?.path}
-                  workspaceId={workspaceId}
-                  onFileDeleted={() => void refetchFileTree()}
-                />
-              ))}
-            </div>
-          ) : (
-            <div className="text-muted-foreground py-8 text-center">
-              <FolderOpen className="mx-auto mb-2 h-8 w-8" />
-              <p>暂无文件</p>
-            </div>
-          )}
-        </div>
-      </ScrollArea>
+      <div className="flex-1" onContextMenu={handleBlankContextMenu}>
+        <ScrollArea className="h-full">
+          <div className="space-y-2 p-4 text-sm">
+            {isFileTreeLoading ? (
+              <div className="text-muted-foreground py-8 text-center">
+                <p>加载中...</p>
+              </div>
+            ) : fileTreeError ? (
+              <div className="text-destructive py-8 text-center">
+                <p>加载文件树失败</p>
+              </div>
+            ) : fileTreeData?.tree && fileTreeData.tree.length > 0 ? (
+              <div>
+                {fileTreeData.tree.map((item) => (
+                  <FileTreeItem
+                    key={item.id}
+                    item={item}
+                    onSelect={handleFileTreeSelect}
+                    selectedPath={selectedFile?.path}
+                    workspaceId={workspaceId}
+                    onFileDeleted={() => void refetchFileTree()}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="text-muted-foreground py-8 text-center">
+                <FolderOpen className="mx-auto mb-2 h-8 w-8" />
+                <p>暂无文件</p>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
+      </div>
 
       {/* Footer */}
       {/* {selectedFile && (
@@ -387,6 +436,16 @@ export default function FileBrowser() {
           <div>路径: {selectedFile.path}</div>
         </div>
       )} */}
+
+      {/* 空白区域右键菜单 */}
+      {contextMenu && (
+        <ContextMenu
+          options={contextMenu.options}
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 }
