@@ -429,7 +429,10 @@ export default function FileBrowser() {
       </div>
 
       {/* File Tree */}
-      <div className="flex-1" onContextMenu={handleBlankContextMenu}>
+      <div
+        className="flex-1 overflow-hidden"
+        onContextMenu={handleBlankContextMenu}
+      >
         <ScrollArea className="h-full">
           <div className="space-y-2 p-4 text-sm">
             {isFileTreeLoading ? (
