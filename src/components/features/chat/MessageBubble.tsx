@@ -99,7 +99,11 @@ export function MessageBubble({ message }: { message: SDKMessage }) {
     isUser &&
     Array.isArray(message.message.content) &&
     message.message.content.some((item) => item.type === "tool_result");
-  const alignRight = isUser && !isToolResult;
+  const isText =
+    isUser &&
+    Array.isArray(message.message.content) &&
+    message.message.content.every((item) => item.type === "text");
+  const alignRight = isUser && !isToolResult && !isText;
   return (
     <div className={` ${alignRight ? "self-end" : "self-start"}`}>
       <div
@@ -108,6 +112,7 @@ export function MessageBubble({ message }: { message: SDKMessage }) {
         }`}
       >
         <div className="max-w-full">
+          {/* {JSON.stringify(message)} */}
           <MessageRenderer message={message} />
         </div>
       </div>
