@@ -77,8 +77,8 @@ export function FileTreeItem({
   const itemRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const deleteFileMutation = api.workspace.deleteFile.useMutation();
-  const renameFileMutation = api.workspace.renameFile.useMutation();
+  const deleteFileMutation = api.file.deleteFile.useMutation();
+  const renameFileMutation = api.file.renameFile.useMutation();
 
   const handleDelete = useCallback(
     async (item: FileTreeItem) => {

@@ -5,14 +5,10 @@ import { useSession } from "next-auth/react";
 import { FilePreviewHeader } from "~/components/ui/file-preview-header";
 import MarkdownEditor from "~/components/workspace/MarkdownEditor";
 import { useState, useEffect, useCallback } from "react";
-import {
-  fetchFileContent,
-  getOssFileUrl,
-  type FileData,
-  getFileRenderType,
-} from "~/lib/file";
+import { getOssFileUrl, type FileData, getFileRenderType } from "~/lib/file";
 import Image from "next/image";
 import { useFileWatcher } from "~/hooks/use-file-watcher";
+import { api } from "~/trpc/react";
 
 export default function FilePreview() {
   const params = useParams();
@@ -25,26 +21,34 @@ export default function FilePreview() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
+  const utils = api.useUtils();
+
   // 加载文件内容
-  const loadFile = useCallback(async (noCache = false) => {
-    if (!filePath || !session?.user) {
-      setFileData(null);
-      return;
-    }
+  const loadFile = useCallback(
+    async (_noCache = false) => {
+      if (!filePath || !session?.user) {
+        setFileData(null);
+        return;
+      }
 
-    setIsLoading(true);
-    setError(null);
+      setIsLoading(true);
+      setError(null);
 
-    try {
-      const data = await fetchFileContent(workspaceId, filePath, { noCache });
-      setFileData(data);
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error("Failed to load file"));
-      setFileData(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [workspaceId, filePath, session?.user]);
+      try {
+        const data = await utils.file.fetchFileContent.fetch({
+          workspaceId,
+          filePath,
+        });
+        setFileData(data);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error("Failed to load file"));
+        setFileData(null);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [workspaceId, filePath, session?.user, utils],
+  );
 
   // 初始加载
   useEffect(() => {
@@ -62,7 +66,7 @@ export default function FilePreview() {
       if (changedFilePath === filePath) {
         void loadFile(true);
       }
-    }
+    },
   );
 
   // 刷新处理函数
@@ -98,10 +102,7 @@ export default function FilePreview() {
 
   return (
     <div className="flex h-full flex-col">
-      <FilePreviewHeader
-        fileData={fileData}
-        onRefresh={handleRefresh}
-      />
+      <FilePreviewHeader fileData={fileData} onRefresh={handleRefresh} />
       <div className="min-h-0 flex-1">
         {renderType === "html" ? (
           // HTML文件使用iframe预览

@@ -29,7 +29,6 @@ import { FileTreeItem } from "~/components/shared/FileTreeItem";
 import { useSession } from "next-auth/react";
 import { useRef } from "react";
 import { toast } from "sonner";
-import { uploadFile } from "~/lib/file";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { useFileWatcher } from "~/hooks/use-file-watcher";
 import {
@@ -90,7 +89,7 @@ export default function FileBrowser() {
     isFetching: isFileTreeFetching,
     error: fileTreeError,
     refetch: refetchFileTree,
-  } = api.workspace.getFileTree.useQuery({
+  } = api.file.getFileTree.useQuery({
     workspaceId: workspaceId,
   });
 
@@ -145,15 +144,15 @@ export default function FileBrowser() {
               ? `${uploadDirectory}/${file.name}`
               : file.name;
 
-            await uploadFile(workspaceId, filePath, content, {
+            // 使用 tRPC mutation 上传文件
+            uploadFileMutation.mutate({
+              workspaceId,
+              filePath,
+              content,
               encoding: "base64",
               mimeType: file.type,
             });
 
-            void refetchFileTree();
-            setIsUploadDialogOpen(false);
-            setUploadDirectory("");
-            toast.success(`文件 "${file.name}" 上传成功！`);
             resolve();
           } catch (error) {
             reject(
@@ -171,7 +170,6 @@ export default function FileBrowser() {
       toast.error(
         `上传失败: ${error instanceof Error ? error.message : "未知错误"}`,
       );
-    } finally {
       setIsUploading(false);
     }
   };
@@ -179,6 +177,38 @@ export default function FileBrowser() {
   const handleUploadClick = () => {
     fileInputRef.current?.click();
   };
+
+  // 上传文件的 mutation
+  const uploadFileMutation = api.file.uploadFile.useMutation({
+    onSuccess: () => {
+      void refetchFileTree();
+      setIsUploadDialogOpen(false);
+      setUploadDirectory("");
+      toast.success(`文件上传成功！`);
+    },
+    onError: (error) => {
+      console.error("Upload error:", error);
+      toast.error(`上传失败: ${error.message}`);
+    },
+    onSettled: () => {
+      setIsUploading(false);
+    },
+  });
+
+  // 创建文件夹的 mutation
+  const createFolderMutation = api.file.createFolder.useMutation({
+    onSuccess: () => {
+      void refetchFileTree();
+      setIsCreateFolderDialogOpen(false);
+      setNewFolderName("");
+      setCreateFolderDirectory("");
+      toast.success(`文件夹 "${newFolderName}" 创建成功！`);
+    },
+    onError: (error) => {
+      console.error("Create folder error:", error);
+      toast.error(`创建失败: ${error.message}`);
+    },
+  });
 
   // 创建文件夹
   const handleCreateFolder = async () => {
@@ -192,28 +222,14 @@ export default function FileBrowser() {
       return;
     }
 
-    try {
-      const folderPath = createFolderDirectory
-        ? `${createFolderDirectory}/${newFolderName}`
-        : newFolderName;
+    const folderPath = createFolderDirectory
+      ? `${createFolderDirectory}/${newFolderName}`
+      : newFolderName;
 
-      // 使用 uploadFile 创建一个空的目录标记文件
-      await uploadFile(workspaceId, `${folderPath}/.gitkeep`, "", {
-        encoding: "utf-8",
-        mimeType: "text/plain",
-      });
-
-      void refetchFileTree();
-      setIsCreateFolderDialogOpen(false);
-      setNewFolderName("");
-      setCreateFolderDirectory("");
-      toast.success(`文件夹 "${newFolderName}" 创建成功！`);
-    } catch (error) {
-      console.error("Create folder error:", error);
-      toast.error(
-        `创建失败: ${error instanceof Error ? error.message : "未知错误"}`,
-      );
-    }
+    createFolderMutation.mutate({
+      workspaceId,
+      folderPath,
+    });
   };
 
   // 打开创建文件夹对话框
@@ -542,9 +558,9 @@ export default function FileBrowser() {
             <Button
               type="button"
               onClick={handleCreateFolder}
-              disabled={!newFolderName.trim()}
+              disabled={!newFolderName.trim() || createFolderMutation.isPending}
             >
-              创建
+              {createFolderMutation.isPending ? "创建中..." : "创建"}
             </Button>
           </DialogFooter>
         </DialogContent>

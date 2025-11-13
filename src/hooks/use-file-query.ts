@@ -43,7 +43,7 @@ export function useFileQuery({ workspaceId, query, enabled, limit = 10 }: UseFil
       const fetchFiles = async () => {
         try {
           // 使用 tRPC 查询
-          const result = await utils.workspace.searchFiles.fetch({
+          const result = await utils.file.searchFiles.fetch({
             workspaceId,
             query: query ?? undefined,
             limit,

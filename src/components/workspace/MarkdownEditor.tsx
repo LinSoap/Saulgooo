@@ -12,10 +12,10 @@ import { cn } from "~/lib/utils";
 import { markdownFromHTML, htmlFromMarkdown } from "~/lib/markdown";
 import { MarkdownPreview } from "~/components/shared/MarkdownPreview";
 import type { FileData } from "~/lib/file";
-import { saveFileContent } from "~/lib/file";
 import { Button } from "~/components/ui/button";
 import { Eye, Code2, Save } from "lucide-react";
 import { toast } from "sonner";
+import { api } from "~/trpc/react";
 
 // 编辑器内容组件 - 必须在 ProseKit 上下文中
 function EditorContent({
@@ -51,6 +51,8 @@ export function MarkdownEditor({ fileData }: MarkdownEditorProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [viewMode, setViewMode] = useState<"edit" | "preview">("preview");
   const [currentMarkdown, setCurrentMarkdown] = useState<string>("");
+
+  const saveFileMutation = api.file.saveFileContent.useMutation();
 
   // 处理文档变化
   const handleDocChange = useCallback(() => {
@@ -118,7 +120,12 @@ export function MarkdownEditor({ fileData }: MarkdownEditorProps) {
       const markdown = markdownFromHTML(html);
       setCurrentMarkdown(markdown);
 
-      await saveFileContent(workspaceId, filePath, markdown, "utf-8");
+      await saveFileMutation.mutateAsync({
+        workspaceId,
+        filePath,
+        content: markdown,
+        encoding: "utf-8",
+      });
 
       setHasUnsavedChange(false);
       toast.success("文件保存成功");
@@ -128,7 +135,14 @@ export function MarkdownEditor({ fileData }: MarkdownEditorProps) {
     } finally {
       setIsSaving(false);
     }
-  }, [hasUnsavedChange, isSaving, editor, workspaceId, filePath]);
+  }, [
+    hasUnsavedChange,
+    isSaving,
+    editor,
+    workspaceId,
+    filePath,
+    saveFileMutation,
+  ]);
 
   // 键盘快捷键
   useEffect(() => {

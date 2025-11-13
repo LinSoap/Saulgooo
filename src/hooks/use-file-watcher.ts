@@ -13,7 +13,7 @@ export function useFileWatcher(
     onFileTreeChange?: () => void,
     onFileContentChange?: (filePath: string) => void
 ) {
-    api.workspace.watchFiles.useSubscription(
+    api.file.watchFiles.useSubscription(
         { workspaceId },
         {
             onData: (data: FileChangeEvent) => {
@@ -28,7 +28,7 @@ export function useFileWatcher(
                     onFileContentChange?.(data.path);
                 }
             },
-            onError: (error) => {
+            onError: (error: unknown) => {
                 console.error("[FileWatcher] Subscription error:", error);
             },
         },
