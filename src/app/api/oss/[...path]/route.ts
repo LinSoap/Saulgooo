@@ -4,8 +4,20 @@ import { auth } from "~/server/auth";
 import { db } from "~/server/db";
 import { join } from "path";
 import { homedir } from "os";
-import { stat, readFile, writeFile, mkdir } from "fs/promises";
+import { stat, readFile } from "fs/promises";
 import { getMimeType } from "~/lib/file";
+
+/**
+ * OSS API Route - 仅用于文件下载
+ *
+ * 职责：
+ * - GET: 读取文件内容（用于编辑器预览和下载）
+ * - OPTIONS: CORS 预检请求
+ *
+ * 注意：
+ * - 文件上传、创建文件夹、删除、重命名等操作已迁移到 tRPC file router
+ * - 文件保存功能也已迁移到 tRPC file router.saveFileContent
+ */
 
 export async function GET(
   request: NextRequest,
@@ -191,91 +203,8 @@ export async function GET(
   }
 }
 
-// 上传新文件
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
-) {
-  try {
-    const resolvedParams = await params;
-    // 验证用户身份
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // 从路径中提取workspaceId和文件路径
-    if (resolvedParams.path.length < 2) {
-      return NextResponse.json({ error: "Invalid path" }, { status: 400 });
-    }
-
-    const [workspaceId, ...filePathParts] = resolvedParams.path;
-    const relativeFilePath = filePathParts.join("/");
-
-    // 验证workspace存在且用户有权限访问
-    const workspace = await db.workspace.findUnique({
-      where: {
-        id: workspaceId,
-        ownerId: session.user.id,
-      },
-    });
-
-    if (!workspace?.path) {
-      return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
-    }
-
-    // 构建文件绝对路径
-    const basePath = join(homedir(), "workspaces", workspace.path);
-    const absoluteFilePath = join(basePath, relativeFilePath);
-
-    // 安全检查：确保文件在workspace目录内
-    if (!absoluteFilePath.startsWith(basePath)) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
-    }
-
-    // 检查文件是否已存在
-    const fileExists = await stat(absoluteFilePath).catch(() => null);
-    if (fileExists) {
-      return NextResponse.json({ error: "File already exists" }, { status: 409 });
-    }
-
-    // 确保目录存在
-    const directory = absoluteFilePath.substring(0, absoluteFilePath.lastIndexOf('/'));
-    await mkdir(directory, { recursive: true });
-
-    // 读取请求体内容
-    const content = await request.text();
-    const encoding = request.headers.get('X-Content-Encoding') ?? 'utf-8';
-
-    // 根据编码保存文件
-    if (encoding === 'base64') {
-      // base64 编码的二进制文件
-      const buffer = Buffer.from(content, 'base64');
-      await writeFile(absoluteFilePath, buffer);
-    } else {
-      // UTF-8 文本文件
-      await writeFile(absoluteFilePath, content, 'utf-8');
-    }
-
-    // 获取文件信息
-    const fileStats = await stat(absoluteFilePath);
-
-    return NextResponse.json({
-      success: true,
-      fileName: relativeFilePath.split('/').pop() ?? relativeFilePath,
-      filePath: relativeFilePath,
-      size: fileStats.size,
-      createdAt: fileStats.birthtime,
-    });
-
-  } catch (error) {
-    console.error("OSS Upload Error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
-}
+// 注意：POST 和 PATCH 方法已迁移到 tRPC file router
+// 这里仅保留 GET、PUT 和 OPTIONS 方法
 
 // 支持OPTIONS请求（用于CORS预检）
 export async function OPTIONS(_request: NextRequest) {
@@ -283,94 +212,11 @@ export async function OPTIONS(_request: NextRequest) {
     status: 200,
     headers: {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, PUT, POST, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
       "Access-Control-Allow-Headers": "Range, Content-Type, X-Content-Encoding, X-File-MimeType",
       "Access-Control-Max-Age": "86400",
     },
   });
 }
 
-// 保存文件内容
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ path: string[] }> }
-) {
-  try {
-    const resolvedParams = await params;
-    // 验证用户身份
-    const session = await auth();
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // 从路径中提取workspaceId和文件路径
-    if (resolvedParams.path.length < 2) {
-      return NextResponse.json({ error: "Invalid path" }, { status: 400 });
-    }
-
-    const [workspaceId, ...filePathParts] = resolvedParams.path;
-    const relativeFilePath = filePathParts.join("/");
-
-    // 验证workspace存在且用户有权限访问
-    const workspace = await db.workspace.findUnique({
-      where: {
-        id: workspaceId,
-        ownerId: session.user.id,
-      },
-    });
-
-    if (!workspace?.path) {
-      return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
-    }
-
-    // 构建文件绝对路径
-    const basePath = join(homedir(), "workspaces", workspace.path);
-    const absoluteFilePath = join(basePath, relativeFilePath);
-
-    // 安全检查：确保文件在workspace目录内
-    if (!absoluteFilePath.startsWith(basePath)) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
-    }
-
-    // 检查文件是否存在
-    const fileExists = await stat(absoluteFilePath).catch(() => null);
-    if (!fileExists) {
-      return NextResponse.json({ error: "File not found" }, { status: 404 });
-    }
-
-    // 确保是文件而不是目录
-    if (!fileExists.isFile()) {
-      return NextResponse.json({ error: "Not a file" }, { status: 400 });
-    }
-
-    // 读取请求体内容
-    const content = await request.text();
-    const encoding = request.headers.get('X-Content-Encoding') ?? 'utf-8';
-
-    // 根据编码保存文件
-    if (encoding === 'base64') {
-      // base64 编码的二进制文件
-      const buffer = Buffer.from(content, 'base64');
-      await writeFile(absoluteFilePath, buffer);
-    } else {
-      // UTF-8 文本文件
-      await writeFile(absoluteFilePath, content, 'utf-8');
-    }
-
-    // 获取更新后的文件信息
-    const newStats = await stat(absoluteFilePath);
-
-    return NextResponse.json({
-      success: true,
-      size: newStats.size,
-      modifiedAt: newStats.mtime,
-    });
-
-  } catch (error) {
-    console.error("OSS Save Error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
-  }
-}
+// 注意：PUT 方法已迁移到 tRPC file router.saveFileContent
