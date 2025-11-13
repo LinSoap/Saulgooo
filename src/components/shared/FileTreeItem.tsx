@@ -350,9 +350,9 @@ export function FileTreeItem({
             确定要删除{operation.item?.type === "directory" ? "文件夹" : "文件"}{" "}
             &ldquo;{operation.item?.name}&rdquo;吗？
             {operation.item?.type === "directory" && (
-              <div className="text-destructive mt-1">
+              <span className="text-destructive mt-1 block">
                 警告：删除文件夹将同时删除其中所有内容！
-              </div>
+              </span>
             )}
           </>
         }
