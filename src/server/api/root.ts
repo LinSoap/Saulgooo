@@ -1,6 +1,7 @@
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 import { authRouter } from "~/server/api/routers/auth";
 import { workSpaceRouter } from "./routers/workspace";
+import { fileRouter } from "./routers/file";
 import { agentRouter } from "./routers/agent";
 
 /**
@@ -11,6 +12,7 @@ import { agentRouter } from "./routers/agent";
 export const appRouter = createTRPCRouter({
   auth: authRouter,
   workspace: workSpaceRouter,
+  file: fileRouter,
   agent: agentRouter,
 });
 
