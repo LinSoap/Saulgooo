@@ -62,14 +62,17 @@ export async function processAgentTask(job: Job<AgentTaskData>) {
   console.log(`🚀 Starting job ${job.id} for session ${id}`);
 
   try {
-    // 1. 更新任务状态为运行中
-    await prisma.agentSession.update({
-      where: { id },
-      data: {
-        bullJobId: job.id,
-        updatedAt: new Date(),
-      }
-    });
+    // 1. 更新任务状态为运行中（先清理可能已有相同 bullJobId 的 session，防止唯一约束冲突）
+    await prisma.$transaction([
+      prisma.agentSession.updateMany({ where: { bullJobId: job.id }, data: { bullJobId: null } }),
+      prisma.agentSession.update({
+        where: { id },
+        data: {
+          bullJobId: job.id,
+          updatedAt: new Date(),
+        }
+      })
+    ]);
 
     // 2. 获取工作区路径
     const workspace = await prisma.workspace.findUnique({

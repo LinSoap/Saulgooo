@@ -76,10 +76,11 @@ export async function addAgentTask({
     { attempts: 3, backoff: { type: 'exponential', delay: 2000 } }
   );
 
-  await prisma.agentSession.update({
-    where: { id: mutableId },
-    data: { bullJobId: job.id! }
-  });
+  // 将 bullJobId 分配给当前 session 前，先清理数据库中可能已有相同 bullJobId 的记录，避免唯一约束冲突
+  await prisma.$transaction([
+    prisma.agentSession.updateMany({ where: { bullJobId: job.id! }, data: { bullJobId: null } }),
+    prisma.agentSession.update({ where: { id: mutableId }, data: { bullJobId: job.id! } })
+  ]);
 
   return { id: mutableId, jobId: job.id, sessionId: session?.sessionId };
 }
@@ -209,7 +210,7 @@ export async function getWorkspaceSessionsWithStatus(
 
   if (jobIds.length > 0) {
     const allJobs = await Promise.all(jobIds.map(id => agentQueue.getJob(id)));
-    const jobs = allJobs.filter((job): job is Job => job !== null);
+    const jobs = allJobs.filter((job): job is Job => job != null);
 
     const jobStates = await Promise.all(
       jobs.map(async job => {
