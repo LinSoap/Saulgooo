@@ -98,7 +98,13 @@ export async function processAgentTask(job: Job<AgentTaskData>) {
         systemPrompt: {
           type: "preset",
           preset: "claude_code",
-          append: ` - 始终在workspace目录下操作，使用中文回复。`
+          append: `
+           - 始终在workspace目录下操作，使用中文回复。
+           - 对于workspace以外的文件路径，拒绝访问并说明原因。
+           - 如果需要创建文件，请确保文件路径在workspace目录下。
+           - 如果需要运行命令，请确保命令不会破坏系统环境。
+           - 若需要安装node依赖，请使用pnpm进行安装。
+           `
         },
       }
     });
