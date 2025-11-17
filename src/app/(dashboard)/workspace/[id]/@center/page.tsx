@@ -94,20 +94,25 @@ export default function FilePreview() {
     return null;
   }
 
-  // 构建OSS URL
-  const ossUrl = getOssFileUrl(workspaceId, filePath, { preview: true });
+  // 统一使用OSS API获取文件URL
+  const fileUrl = getOssFileUrl(workspaceId, filePath, { preview: true });
 
   // 获取文件渲染类型
   const renderType = getFileRenderType(fileData.mimeType, fileData.fileName);
 
   return (
     <div className="flex h-full flex-col">
-      <FilePreviewHeader fileData={fileData} onRefresh={handleRefresh} />
+      <FilePreviewHeader
+        fileData={fileData}
+        onRefresh={handleRefresh}
+        workspaceId={workspaceId}
+        filePath={filePath}
+      />
       <div className="min-h-0 flex-1">
         {renderType === "html" ? (
           // HTML文件使用iframe预览
           <iframe
-            src={ossUrl}
+            src={fileUrl}
             className="h-full w-full border-0"
             title={`Preview of ${fileData.fileName}`}
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals allow-presentation allow-downloads"
@@ -120,7 +125,7 @@ export default function FilePreview() {
           // 图片文件直接显示
           <div className="flex h-full items-center justify-center p-4">
             <Image
-              src={ossUrl}
+              src={fileUrl}
               alt={fileData.fileName}
               width={800}
               height={600}
@@ -132,7 +137,7 @@ export default function FilePreview() {
           // 视频文件使用video标签
           <div className="flex h-full items-center justify-center p-4">
             <video
-              src={ossUrl}
+              src={fileUrl}
               controls
               className="max-h-full max-w-full"
               title={fileData.fileName}
@@ -144,7 +149,7 @@ export default function FilePreview() {
           // 音频文件使用audio标签
           <div className="flex h-full items-center justify-center p-4">
             <audio
-              src={ossUrl}
+              src={fileUrl}
               controls
               className="w-full max-w-md"
               title={fileData.fileName}
@@ -155,7 +160,7 @@ export default function FilePreview() {
         ) : renderType === "pdf" ? (
           // PDF文件使用iframe
           <iframe
-            src={ossUrl}
+            src={fileUrl}
             className="h-full w-full border-0"
             title={`PDF Preview: ${fileData.fileName}`}
           />

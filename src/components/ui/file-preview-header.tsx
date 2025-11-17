@@ -18,12 +18,17 @@ interface FilePreviewHeaderProps {
   fileData: FileData;
   onRefresh?: () => void;
   isRefreshing?: boolean;
+  // workspaceId和filePath现在必需
+  workspaceId: string;
+  filePath: string;
 }
 
 export function FilePreviewHeader({
   fileData,
   onRefresh,
   isRefreshing: externalIsRefreshing,
+  workspaceId,
+  filePath,
 }: FilePreviewHeaderProps) {
   const { fileName, mimeType, size } = fileData;
   const [isDownloading, setIsDownloading] = useState(false);
@@ -79,34 +84,25 @@ export function FilePreviewHeader({
     }
   };
 
-  // 处理下载
+  // 处理下载 - 简化版本，只通过API下载
   const handleDownload = async () => {
+    if (!workspaceId || !filePath) {
+      toast.error("缺少必要参数，无法下载");
+      return;
+    }
+
     setIsDownloading(true);
     try {
-      // 根据编码方式转换数据为 Blob
-      let blob: Blob;
-      if (fileData.encoding === "utf-8") {
-        blob = new Blob([fileData.content], { type: fileData.mimeType });
-      } else {
-        // base64 编码
-        const binaryString = atob(fileData.content);
-        const bytes = new Uint8Array(binaryString.length);
-        for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-        }
-        blob = new Blob([bytes], { type: fileData.mimeType });
-      }
+      // 统一使用API下载路径
+      const encodedPath = filePath.split('/').map(encodeURIComponent).join('/');
+      const downloadUrl = `/api/oss/${workspaceId}/${encodedPath}?download=true`;
 
-      // 创建下载链接
-      const url = window.URL.createObjectURL(blob);
+      // 触发下载
       const a = document.createElement("a");
-      a.href = url;
+      a.href = downloadUrl;
       a.download = fileData.fileName;
       document.body.appendChild(a);
       a.click();
-
-      // 清理资源
-      window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
       toast.success("文件下载成功");

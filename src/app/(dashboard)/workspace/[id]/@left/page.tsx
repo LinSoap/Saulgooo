@@ -246,8 +246,24 @@ export default function FileBrowser() {
 
   // 处理下载文件
   const handleDownloadFile = async (filePath: string) => {
-    // TODO: 实现下载功能
-    toast.info(`下载功能待实现: ${filePath}`);
+    try {
+      // 使用统一的下载路径
+      const encodedPath = filePath.split('/').map(encodeURIComponent).join('/');
+      const downloadUrl = `/api/oss/${workspaceId}/${encodedPath}?download=true`;
+
+      // 触发下载
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      a.download = filePath.split('/').pop() || "file";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      toast.success("文件已开始下载");
+    } catch (error) {
+      console.error("Download failed:", error);
+      toast.error("下载失败");
+    }
   };
 
   // 获取所有文件夹路径

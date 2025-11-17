@@ -80,6 +80,7 @@ export async function GET(
     // 读取文件内容
     const fileBuffer = await readFile(absoluteFilePath);
     const mimeType = getMimeType(relativeFilePath);
+    const fileName = relativeFilePath.split("/").pop() ?? "file";
 
     // 构建响应头
     const headers: Record<string, string> = {
@@ -88,35 +89,13 @@ export async function GET(
       "Accept-Ranges": "bytes",
     };
 
-    // 如果是下载模式，设置Content-Disposition头
-    if (isDownload) {
-      const fileName = relativeFilePath.split("/").pop() ?? "file";
-      headers["Content-Disposition"] = `attachment; filename="${encodeURIComponent(fileName)}"`;
-    }
-
-    // 对于HTML文件，添加安全头以防止XSS攻击
-    if (mimeType === "text/html") {
-      // CSP策略允许同源和HTTPS资源，允许内联脚本和样式
-      headers["Content-Security-Policy"] =
-        "default-src 'self' https:; " +
-        "script-src 'self' 'unsafe-inline' https:; " +
-        "style-src 'self' 'unsafe-inline' https:; " +
-        "img-src 'self' data: blob: https:; " +
-        "connect-src 'self' https:; " +
-        "font-src 'self' https:; " +
-        "media-src 'self' https:; " +
-        "frame-src 'none'; " +
-        "object-src 'none'; " +
-        "base-uri 'self'; " +
-        "form-action 'self' https:;";
-
-      // 防止MIME类型嗅探
-      headers["X-Content-Type-Options"] = "nosniff";
-
-      // 限制iframe嵌入（仅在预览模式下允许）
-      if (!isPreview) {
-        headers["X-Frame-Options"] = "DENY";
-      }
+    // 改进的Content-Disposition头处理（RFC 6266标准）
+    if (isDownload || isPreview) {
+      // 使用更兼容的文件名编码方式
+      // RFC 6266 标准格式，支持中文文件名
+      const encodedFileName = encodeURIComponent(fileName).replace(/['()]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+      const utf8FileName = Buffer.from(fileName, 'utf-8').toString('latin1');
+      headers["Content-Disposition"] = `${isDownload ? 'attachment' : 'inline'}; filename="${utf8FileName}"; filename*=UTF-8''${encodedFileName}`;
     }
 
     // 添加CORS头，允许前端访问
@@ -134,7 +113,7 @@ export async function GET(
       // 验证范围
       if (start >= 0 && end < fileStats.size && start <= end) {
         const chunkSize = (end - start) + 1;
-        const chunk = fileBuffer.slice(start, end + 1);
+        const chunk = fileBuffer.subarray(start, end + 1);
 
         headers["Content-Range"] = `bytes ${start}-${end}/${fileStats.size}`;
         headers["Content-Length"] = String(chunkSize);
@@ -147,55 +126,41 @@ export async function GET(
       }
     }
 
-    // 设置Content-Length
-    headers["Content-Length"] = String(fileBuffer.length);
-
-    // 对于HTML文件，修改内容添加base标签以正确解析相对路径
-    if (mimeType === "text/html") {
+    // 对于HTML预览，需要特殊处理以支持相对路径
+    if (isPreview && mimeType === 'text/html') {
+      // 简单的HTML处理 - 只添加base标签
       let htmlContent = fileBuffer.toString('utf-8');
 
-      // 构建base URL：移除文件名，保留目录路径
+      // 构建base URL
       const fileDirParts = relativeFilePath.split('/').slice(0, -1);
-      const encodedFileDir = fileDirParts.map(encodeURIComponent).join('/');
-      const baseUrl = `/api/oss/${workspaceId}/${encodedFileDir ? encodedFileDir + '/' : ''}`;
+      const baseUrl = `/api/oss/${workspaceId}${fileDirParts.length > 0 ? '/' + fileDirParts.map(encodeURIComponent).join('/') : ''}/`;
 
-
-      // 先移除已存在的base标签（如果有的话）
-      htmlContent = htmlContent.replace(/<base[^>]*>/gi, '');
-
-      // 在<head>标签后添加base标签，如果没有head标签则在html或body前添加
-      if (/<head[^>]*>/i.test(htmlContent)) {
+      // 添加base标签（如果不存在）
+      if (!htmlContent.includes('<base')) {
         htmlContent = htmlContent.replace(
-          /<head[^>]*>/i,
-          `$&\n  <base href="${baseUrl}">`
+          /<head>/i,
+          `<head>\n  <base href="${baseUrl}">`
         );
-      } else if (/<html[^>]*>/i.test(htmlContent)) {
-        htmlContent = htmlContent.replace(
-          /<html[^>]*>/i,
-          `$&\n<head>\n  <base href="${baseUrl}">\n</head>`
-        );
-      } else {
-        // 如果连html标签都没有，直接在最前面添加
-        htmlContent = `<!DOCTYPE html>\n<html>\n<head>\n  <base href="${baseUrl}">\n</head>\n<body>\n${htmlContent}\n</body>\n</html>`;
       }
 
-      // 更新Content-Length
       headers["Content-Length"] = String(Buffer.byteLength(htmlContent, 'utf-8'));
-
       return new NextResponse(htmlContent, {
         status: 200,
         headers,
       });
     }
 
-    // 返回文件内容
+    // 设置Content-Length
+    headers["Content-Length"] = String(fileBuffer.length);
+
+    // 返回原始文件内容（不做任何修改）
     return new NextResponse(fileBuffer, {
       status: 200,
       headers,
     });
 
   } catch (error) {
-    console.error("OSS Save Error:", error);
+    console.error("OSS Download Error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
