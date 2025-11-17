@@ -24,7 +24,8 @@ A Next.js application integrated with Claude Agent SDK for AI-powered workspace 
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 22+
+ - For easier reproducible development we provide a Devbox configuration (recommended). See the "Devbox" section below.
 - Docker and Docker Compose (for Redis)
 
 ### 1. Clone and Install
@@ -182,3 +183,65 @@ For help and questions:
 - Create an issue in the repository
 - Join our Discord community
 - Check the documentation in the `/docs` folder
+
+## Devbox (recommended)
+
+Devbox helps create a reproducible environment for development. We provide a `devbox.json` that sets up:
+
+ - Python 3.12+ (for Python SDK work)
+ - Node.js 22+ (for TypeScript SDK and Claude Code CLI)
+ - ffmpeg (for audio/video tools and conversions)
+ - pandoc (for robust markdown/document conversions)
+ - markdown CLI tools (`markdown-it-cli`, `markdownlint-cli`) installed via npm
+ - A post-start script to globally install the Claude Code CLI (`@anthropic-ai/claude-code`)
+
+If you get a warning that the `devbox.json` is in legacy format, run the following to migrate:
+
+```bash
+devbox update
+```
+
+If the devbox engine errors about a missing `npm` attribute, remove `npm` from `devbox.json` and keep `nodejs@22` (Node includes npm). The repository's `devbox.json` already avoids this by not listing `npm` directly.
+
+On some setups you'll see errors like "The program 'pdftoppm' is not in your PATH." `pdftoppm` is a small utility that converts PDF pages to image formats (it's commonly used by PDF-to-image or OCR pipelines). It's provided by the Poppler utilities package. You can make it available by either:
+
+- Using Devbox (this repo includes `poppler` in `devbox.json`) — run `devbox shell` to enter the environment.
+- Or one-off via nix-shell: `nix-shell -p poppler` (or `nix-shell -p poppler-utils` on some systems).
+
+After entering the shell, verify:
+
+```bash
+pdftoppm -v
+```
+
+Quick start with Devbox:
+
+1. Install Devbox (see https://www.jetpack.io/devbox for install instructions).
+2. From the project root, run:
+
+```bash
+devbox shell
+```
+
+3. The `postStart` hook will run and install the Claude Code CLI globally. If you want to re-run it manually:
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+Verify installed tools inside `devbox shell`:
+
+```bash
+node -v         # should show v22.x.x
+python -V       # should show Python 3.12.x
+ffmpeg -version # ffmpeg should be available
+pandoc --version # pandoc should be available
+claude-code --version
+```
+```
+
+Notes:
+ - You can use Python 3.12 inside the `devbox shell` for the Python SDK.
+ - Node 22 is available by default; it's recommended for the TypeScript SDK and the Claude Code CLI.
+
+If you prefer to use system Python and Node.js, you can still use npm / pip directly to install dependencies.
