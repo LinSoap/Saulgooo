@@ -1,32 +1,34 @@
 {
-    "version": 1,
-    "description": "Devbox configuration for Saulgooo — Python 3.12+, Node 22+, ffmpeg, pandoc, and Claude Code CLI",
-    "packages": [
-        "nodejs@22",
-        "python@3.12",
-        "yarn",
-        "ffmpeg",
-        "pandoc",
-        "git",
-        "libreoffice",
-        "python312Packages.defusedxml",
-        "poppler-utils@latest",
-        "python312Packages.markitdown@latest",
-        "python312Packages.pandas",
-        "playwright@latest",
-        "python312Packages.openpyxl@latest",
-        "python312Packages.pypdf2@latest",
-        "python312Packages.pdfplumber@latest",
-        "python312Packages.reportlab@latest",
-        "qpdf@latest"
-    ],
-    "env": {
-        "DEVBOX": "1"
-    },
-    "vscode": {
-        "extensions": [
-            "ms-python.python",
-            "dbaeumer.vscode-eslint"
-        ]
-    }
+  "version":     1,
+  "description": "Devbox configuration for Saulgooo — Python 3.12+, Node 22+, ffmpeg, pandoc, and Claude Code CLI",
+  "packages": [
+    "nodejs@22",
+    "python@3.12",
+    "yarn",
+    "ffmpeg",
+    "pandoc",
+    "git",
+    "libreoffice",
+    "python312Packages.defusedxml",
+    "poppler-utils@latest",
+    "python312Packages.markitdown@latest",
+    "python312Packages.pandas",
+    "playwright@latest",
+    "python312Packages.openpyxl@latest",
+    "python312Packages.pypdf2@latest",
+    "python312Packages.pdfplumber@latest",
+    "python312Packages.reportlab@latest",
+    "qpdf@latest",
+    "python312Packages.matplotlib@latest",
+    "python312Packages.seaborn@latest"
+  ],
+  "env": {
+    "DEVBOX": "1"
+  },
+  "vscode": {
+    "extensions": [
+      "ms-python.python",
+      "dbaeumer.vscode-eslint"
+    ]
+  }
 }
