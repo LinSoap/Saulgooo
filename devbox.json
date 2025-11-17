@@ -20,7 +20,10 @@
     "python312Packages.reportlab@latest",
     "qpdf@latest",
     "python312Packages.matplotlib@latest",
-    "python312Packages.seaborn@latest"
+    "python312Packages.seaborn@latest",
+    "python312Packages.pytesseract@latest",
+    "python312Packages.pdf2image@latest",
+    "python312Packages.pypdfium2@latest"
   ],
   "env": {
     "DEVBOX": "1"

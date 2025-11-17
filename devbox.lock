@@ -467,6 +467,70 @@
         }
       }
     },
+    "python312Packages.pdf2image@latest": {
+      "last_modified": "2025-10-26T01:09:48Z",
+      "resolved": "github:NixOS/nixpkgs/de69d2ba6c70e747320df9c096523b623d3a4c35#python312Packages.pdf2image",
+      "source": "devbox-search",
+      "version": "1.17.0",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/057lavs21z4glrf4rbxi1425kwqyn4lp-python3.12-pdf2image-1.17.0",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/2dhl1brwwhiz45vq0klr4h920k63pjq0-python3.12-pdf2image-1.17.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/057lavs21z4glrf4rbxi1425kwqyn4lp-python3.12-pdf2image-1.17.0"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/qiqchn9rq5ghgc8y5n5aqwsc03bnbivp-python3.12-pdf2image-1.17.0",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/63kk0rx5wn2rhzb3nrjfdf0xv40am123-python3.12-pdf2image-1.17.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/qiqchn9rq5ghgc8y5n5aqwsc03bnbivp-python3.12-pdf2image-1.17.0"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/ahrpam6lkw4by19m4yvsd6hwjjvp15n5-python3.12-pdf2image-1.17.0",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/yb9v6lx3i027q45la5qm6vzsxlsn061h-python3.12-pdf2image-1.17.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/ahrpam6lkw4by19m4yvsd6hwjjvp15n5-python3.12-pdf2image-1.17.0"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/62zyxxw2v74ph529w3lyn0ggis376x7s-python3.12-pdf2image-1.17.0",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/qam3vi4ycrpg1fwf8kclpvdhzwjkg916-python3.12-pdf2image-1.17.0-dist"
+            }
+          ],
+          "store_path": "/nix/store/62zyxxw2v74ph529w3lyn0ggis376x7s-python3.12-pdf2image-1.17.0"
+        }
+      }
+    },
     "python312Packages.pdfplumber@latest": {
       "last_modified": "2025-11-12T10:38:40Z",
       "resolved": "github:NixOS/nixpkgs/91c9a64ce2a84e648d0cf9671274bb9c2fb9ba60#python312Packages.pdfplumber",
@@ -592,6 +656,134 @@
             }
           ],
           "store_path": "/nix/store/6j2fmyifrfyagsw3nkkcn8z76yw77cr1-python3.12-pypdf2-3.0.1"
+        }
+      }
+    },
+    "python312Packages.pypdfium2@latest": {
+      "last_modified": "2025-10-22T20:59:19Z",
+      "resolved": "github:NixOS/nixpkgs/01b6809f7f9d1183a2b3e081f0a1e6f8f415cb09#python312Packages.pypdfium2",
+      "source": "devbox-search",
+      "version": "4.30.1",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/aigi9mzwqqvbkvx4v3ypmjva2kz5czh1-python3.12-pypdfium2-4.30.1",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/c49wi95clm0awpmjwf02pr6kfbxng4gq-python3.12-pypdfium2-4.30.1-dist"
+            }
+          ],
+          "store_path": "/nix/store/aigi9mzwqqvbkvx4v3ypmjva2kz5czh1-python3.12-pypdfium2-4.30.1"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/6xifhhy0h989sfgnqfzh37ks3fym3x2b-python3.12-pypdfium2-4.30.1",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/dasl9wzi3wqbnn9mifv3yi9rzqraap9b-python3.12-pypdfium2-4.30.1-dist"
+            }
+          ],
+          "store_path": "/nix/store/6xifhhy0h989sfgnqfzh37ks3fym3x2b-python3.12-pypdfium2-4.30.1"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/97y2brj3r7ral2sc7pgqnilgf1kiknax-python3.12-pypdfium2-4.30.1",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/m5m4j9fpilvjp1x0098h6hcx6dmhgwyy-python3.12-pypdfium2-4.30.1-dist"
+            }
+          ],
+          "store_path": "/nix/store/97y2brj3r7ral2sc7pgqnilgf1kiknax-python3.12-pypdfium2-4.30.1"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/b2nyajllmg1gl9yzkra63n17yxmj87gh-python3.12-pypdfium2-4.30.1",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/8h2i5xz7vzxlr0s1cpzgrp0pqhy0jjk8-python3.12-pypdfium2-4.30.1-dist"
+            }
+          ],
+          "store_path": "/nix/store/b2nyajllmg1gl9yzkra63n17yxmj87gh-python3.12-pypdfium2-4.30.1"
+        }
+      }
+    },
+    "python312Packages.pytesseract@latest": {
+      "last_modified": "2025-10-22T20:59:19Z",
+      "resolved": "github:NixOS/nixpkgs/01b6809f7f9d1183a2b3e081f0a1e6f8f415cb09#python312Packages.pytesseract",
+      "source": "devbox-search",
+      "version": "0.3.13",
+      "systems": {
+        "aarch64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/xbpa9hd22xkxd7g43c7rzwljj6knx4ax-python3.12-pytesseract-0.3.13",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/xylwwykkbvampb6ij8ixc3y6lazm2kfa-python3.12-pytesseract-0.3.13-dist"
+            }
+          ],
+          "store_path": "/nix/store/xbpa9hd22xkxd7g43c7rzwljj6knx4ax-python3.12-pytesseract-0.3.13"
+        },
+        "aarch64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/igmh05xq8bhngaqkj76ix6mb5jkiamrg-python3.12-pytesseract-0.3.13",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/dzxqcx9nnw3a49hcvf91pwjfix7vv6xw-python3.12-pytesseract-0.3.13-dist"
+            }
+          ],
+          "store_path": "/nix/store/igmh05xq8bhngaqkj76ix6mb5jkiamrg-python3.12-pytesseract-0.3.13"
+        },
+        "x86_64-darwin": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/assqxl1wd2c30kli0sxml47qkh3h3rph-python3.12-pytesseract-0.3.13",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/4n5rvhrs3z1x5yrchq7xirlry70fx1i2-python3.12-pytesseract-0.3.13-dist"
+            }
+          ],
+          "store_path": "/nix/store/assqxl1wd2c30kli0sxml47qkh3h3rph-python3.12-pytesseract-0.3.13"
+        },
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "name": "out",
+              "path": "/nix/store/64np9p2vnsvmn3hghnj7j0608lk062wj-python3.12-pytesseract-0.3.13",
+              "default": true
+            },
+            {
+              "name": "dist",
+              "path": "/nix/store/nsl34mj9v5g4zckffl4mhcfci422vp4j-python3.12-pytesseract-0.3.13-dist"
+            }
+          ],
+          "store_path": "/nix/store/64np9p2vnsvmn3hghnj7j0608lk062wj-python3.12-pytesseract-0.3.13"
         }
       }
     },
