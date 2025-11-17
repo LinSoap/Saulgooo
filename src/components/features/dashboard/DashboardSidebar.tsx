@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-import { LogOut, Settings, User, Home } from "lucide-react";
+import { LogOut, Settings, User, Home, ShoppingBag } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { cn } from "~/lib/utils";
 
@@ -98,6 +98,18 @@ export default function DashboardSidebar({ children }: DashboardSidebarProps) {
               >
                 <Home className="mr-2 h-4 w-4" />
                 主页
+              </Button>
+            </Link>
+            <Link href="/plugin">
+              <Button
+                variant={pathname === "/plugin" ? "secondary" : "ghost"}
+                className={cn(
+                  "w-full justify-start",
+                  pathname === "/plugin" && "bg-secondary",
+                )}
+              >
+                <ShoppingBag className="mr-2 h-4 w-4" />
+                插件
               </Button>
             </Link>
           </div>
