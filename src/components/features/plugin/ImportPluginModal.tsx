@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
@@ -34,6 +35,7 @@ export default function ImportPluginModal({
   onOpenChange,
   plugin,
 }: ImportPluginModalProps) {
+  const router = useRouter();
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>("");
   const [isImporting, setIsImporting] = useState(false);
 
@@ -44,7 +46,16 @@ export default function ImportPluginModal({
   // 导入插件的 mutation
   const importPlugin = api.plugin.importPlugin.useMutation({
     onSuccess: (data) => {
-      toast.success(data.message || "插件导入成功");
+      const workspaceId = selectedWorkspaceId;
+      toast.success(data.message || "插件导入成功", {
+        action: {
+          label: "查看工作区",
+          onClick: () => {
+            router.push(`/workspace/${workspaceId}`);
+          },
+        },
+        duration: 5000,
+      });
       onOpenChange(false);
       setSelectedWorkspaceId("");
     },
