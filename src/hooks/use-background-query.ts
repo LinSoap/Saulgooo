@@ -13,6 +13,7 @@ interface UseBackgroundQueryReturn {
   id: string | null;
   sessionId: string | null; // 保持向后兼容，但现在返回数据库 ID
   jobId: string | null;
+  isCancelling: boolean;
   sendQuery: (query: string) => Promise<void>;
   cancelQuery: () => Promise<void>;
   reset: () => void;
@@ -42,6 +43,9 @@ export function useBackgroundQuery(
   // API hooks
   const startQueryMutation = api.agent.startQuery.useMutation();
   const cancelQueryMutation = api.agent.cancelQuery.useMutation();
+
+  // 取消状态管理
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // 更新URL中的id参数
   const updateIdInUrl = useCallback((newId: string) => {
@@ -172,7 +176,9 @@ export function useBackgroundQuery(
 
   // 取消查询
   const cancelQuery = useCallback(async () => {
-    if (!id || !currentJobRef.current) return;
+    if (!id || isCancelling) return;
+
+    setIsCancelling(true);
 
     try {
       await cancelQueryMutation.mutateAsync({ id });
@@ -186,9 +192,19 @@ export function useBackgroundQuery(
     } catch (err: unknown) {
       const error = err as { message?: string };
       console.error('Failed to cancel query:', error);
-      setError(error?.message ?? '取消任务失败');
+
+      // 如果是"没有活动任务"的错误，不显示给用户
+      if (error?.message?.includes('No active task to cancel')) {
+        // 任务已经取消或完成，静默处理
+        setIsLoading(false);
+        setStatus('idle');
+      } else {
+        setError(error?.message ?? '取消任务失败');
+      }
+    } finally {
+      setIsCancelling(false);
     }
-  }, [id, cancelQueryMutation]);
+  }, [id, isCancelling, cancelQueryMutation]);
 
   // 重置状态
   const reset = useCallback(() => {
@@ -197,6 +213,7 @@ export function useBackgroundQuery(
     setStatus('idle');
     setError(null);
     setJobId(null);
+    setIsCancelling(false);
     currentIdRef.current = null;
     setId(null);
   }, []);
@@ -209,6 +226,7 @@ export function useBackgroundQuery(
     id, // 数据库主键
     sessionId: id, // 向后兼容，返回数据库 ID
     jobId,
+    isCancelling,
     sendQuery,
     cancelQuery,
     reset,

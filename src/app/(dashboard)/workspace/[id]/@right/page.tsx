@@ -73,7 +73,7 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
 
   // 使用新的 hook
   // id 是 workspaceId，currentId 是要加载的会话 ID（数据库主键）
-  const { messages, isLoading, status, error, sendQuery, cancelQuery, reset } =
+  const { messages, isLoading, status, error, sendQuery, cancelQuery, reset, isCancelling } =
     useBackgroundQuery(id ?? "", currentId, () => {
       // 当消息完成时，刷新 session 列表
       void refetchSessions();
@@ -392,9 +392,10 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
                   variant="outline"
                   size="sm"
                   onClick={cancelQuery}
+                  disabled={isCancelling}
                   className="ml-2"
                 >
-                  取消
+                  {isCancelling ? "取消中..." : "取消"}
                 </Button>
               )}
             </div>
