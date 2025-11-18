@@ -248,13 +248,13 @@ export default function FileBrowser() {
   const handleDownloadFile = async (filePath: string) => {
     try {
       // 使用统一的下载路径
-      const encodedPath = filePath.split('/').map(encodeURIComponent).join('/');
+      const encodedPath = filePath.split("/").map(encodeURIComponent).join("/");
       const downloadUrl = `/api/oss/${workspaceId}/${encodedPath}?download=true`;
 
       // 触发下载
       const a = document.createElement("a");
       a.href = downloadUrl;
-      a.download = filePath.split('/').pop() || "file";
+      a.download = filePath.split("/").pop() ?? "file";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
