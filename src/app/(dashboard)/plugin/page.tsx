@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { Download, Search, Package, Bot, Zap } from "lucide-react";
+import { Download, Search, Package, Bot, Zap, FileText } from "lucide-react";
 import ImportPluginModal from "~/components/features/plugin/ImportPluginModal";
 import type { PluginItem } from "~/types/plugin";
 
@@ -30,7 +30,11 @@ export default function PluginPage() {
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [selectedPlugin, setSelectedPlugin] = useState<PluginItem | null>(null);
 
-  const { data: pluginData, isLoading, error } = api.plugin.getPlugin.useQuery({});
+  const {
+    data: pluginData,
+    isLoading,
+    error,
+  } = api.plugin.getPlugin.useQuery({});
 
   // 过滤资源
   const filteredItems =
@@ -53,11 +57,11 @@ export default function PluginPage() {
       }
 
       return true;
-    }) || [];
+    }) ?? [];
 
   // 获取所有标签
   const allTags = Array.from(
-    new Set(pluginData?.items?.flatMap((item: PluginItem) => item.tags) || []),
+    new Set(pluginData?.items?.flatMap((item: PluginItem) => item.tags) ?? []),
   );
 
   // 处理导入按钮点击
@@ -85,9 +89,9 @@ export default function PluginPage() {
   return (
     <div className="container mx-auto max-w-7xl p-6">
       <div className="mb-8">
-        <h1 className="mb-2 text-3xl font-bold">Agent & Skill 插件中心</h1>
+        <h1 className="mb-2 text-3xl font-bold">插件中心</h1>
         <p className="text-gray-600">
-          发现并导入强大的 Agents 和 Skills 到你的工作区
+          发现并导入强大的 Agents、Skills、Claude.md 到你的工作区
         </p>
       </div>
 
@@ -111,6 +115,7 @@ export default function PluginPage() {
             <SelectItem value="all">所有类型</SelectItem>
             <SelectItem value="agent">Agents</SelectItem>
             <SelectItem value="skill">Skills</SelectItem>
+            <SelectItem value="claude-md">Claude.md</SelectItem>
           </SelectContent>
         </Select>
 
@@ -141,13 +146,21 @@ export default function PluginPage() {
                 <div className="flex items-center gap-2">
                   {item.type === "agent" ? (
                     <Bot className="h-6 w-6 text-blue-500" />
-                  ) : (
+                  ) : item.type === "skill" ? (
                     <Zap className="h-6 w-6 text-purple-500" />
+                  ) : (
+                    <FileText className="h-6 w-6 text-green-500" />
                   )}
                   <Badge
-                    variant={item.type === "agent" ? "default" : "secondary"}
+                    variant={
+                      item.type === "agent"
+                        ? "default"
+                        : item.type === "skill"
+                          ? "secondary"
+                          : "outline"
+                    }
                   >
-                    {item.type}
+                    {item.type === "claude-md" ? "Claude.md" : item.type}
                   </Badge>
                 </div>
               </div>

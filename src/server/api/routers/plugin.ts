@@ -1,23 +1,23 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { readFile, readdir, mkdir } from "fs/promises";
-import { join } from "path";
+import { readFile } from "fs/promises";
+import { join, basename } from "path";
 import { homedir } from "os";
-import type { PluginManifest, PluginItem } from "~/types/plugin";
-import { copyRecursive } from "~/utils/file-operations";
+import fsExtra from 'fs-extra';
+import type { PluginManifest } from "~/types/plugin";
 
 export const pluginRouter = createTRPCRouter({
   // 获取插件资源列表
   getPlugin: protectedProcedure
     .input(z.object({
-      type: z.enum(['agent', 'skill']).optional()
+      type: z.enum(['agent', 'skill', 'claude-md']).optional()
     }))
-    .query(async ({ ctx, input }) => {
+    .query(async ({ input }) => {
       try {
         // 读取 manifest.json
         const manifestPath = join(process.cwd(), 'resources', 'manifest.json');
         const manifestContent = await readFile(manifestPath, 'utf-8');
-        const manifest: PluginManifest = JSON.parse(manifestContent);
+        const manifest: PluginManifest = JSON.parse(manifestContent) as PluginManifest;
 
         // 根据类型过滤
         if (input.type === 'agent') {
@@ -28,13 +28,18 @@ export const pluginRouter = createTRPCRouter({
           return {
             items: manifest.skills.map(item => ({ ...item, itemType: 'skill' as const }))
           };
+        } else if (input.type === 'claude-md') {
+          return {
+            items: (manifest.claude_mds ?? []).map(item => ({ ...item, itemType: 'claude-md' as const }))
+          };
         }
 
         // 返回所有资源
         return {
           items: [
             ...manifest.agents.map(item => ({ ...item, itemType: 'agent' as const })),
-            ...manifest.skills.map(item => ({ ...item, itemType: 'skill' as const }))
+            ...manifest.skills.map(item => ({ ...item, itemType: 'skill' as const })),
+            ...(manifest.claude_mds ?? []).map(item => ({ ...item, itemType: 'claude-md' as const }))
           ]
         };
       } catch (error) {
@@ -43,13 +48,16 @@ export const pluginRouter = createTRPCRouter({
       }
     }),
 
-  // 导入插件到工作区
+  // 导入插件到工作区 - 基于 cp 命令思路实现
+  // cp <source_path> <destination_path>
+  // source_path = resources/{resource_path}
+  // destination_path = workspace/{import_path}
   importPlugin: protectedProcedure
     .input(z.object({
       workspaceId: z.string(),
-      resourceType: z.enum(['agent', 'skill']),
-      path: z.string(), // 资源在插件库中的路径
-      name: z.string()  // 资源名称，用作目标文件夹名
+      resourceType: z.enum(['agent', 'skill', 'claude-md']),
+      resource_path: z.string(), // 源路径，相当于 cp 的第一个参数
+      import_path: z.string()    // 目标路径，相当于 cp 的第二个参数
     }))
     .mutation(async ({ ctx, input }) => {
       try {
@@ -65,39 +73,38 @@ export const pluginRouter = createTRPCRouter({
           throw new Error("工作区不存在或无权限访问");
         }
 
-        // 2. 构建源路径和目标路径
-        const sourcePath = join(process.cwd(), 'resources', input.path);
+        // 2. 构建 cp 命令的两个完整路径
+        // 源路径: resources/{resource_path}
+        const sourcePath = join(process.cwd(), 'resources', input.resource_path);
+
+        // 目标路径: workspaces/{workspace_path}/{import_path}
         const workspaceBasePath = join(homedir(), 'workspaces', workspace.path);
+        let targetPath = join(workspaceBasePath, input.import_path);
 
-        // 从 path 中提取文件夹名称 (例如: "agents/whoasr" -> "whoasr")
-        const pathParts = input.path.split('/');
-        const folderName = pathParts[pathParts.length - 1] || input.name;
-
-        // 导入到 workspace/.claude/agents 或 workspace/.claude/skills
-        const targetDir = input.resourceType === 'agent' ? 'agents' : 'skills';
-        const targetPath = join(workspaceBasePath, '.claude', targetDir, folderName);
-        console.log('源路径:', sourcePath);
-        console.log('目标路径:', targetPath);
-
-        // 3. 检查源路径是否存在
-        try {
-          await readdir(sourcePath);
-        } catch {
-          throw new Error("插件资源不存在");
+        // 如果 import_path 以 / 结尾，表示复制到目录
+        if (input.import_path.endsWith('/')) {
+          targetPath = join(targetPath, basename(sourcePath));
         }
 
-        // 4. 创建目标目录（如果不存在）
-        await mkdir(join(workspaceBasePath, '.claude', targetDir), { recursive: true });
-        await mkdir(targetPath, { recursive: true });
+        console.log(`导入插件 - 使用 fs-extra.copy:`);
+        console.log(`  源: ${sourcePath}`);
+        console.log(`  目标: ${targetPath}`);
 
-        // 5. 递归复制所有文件
-        await copyRecursive(sourcePath, targetPath);
+        // 3. 使用 fs-extra 执行复制 - 类似 cp 命令
+        // 自动处理文件/目录，无需手动判断
+        await fsExtra.copy(sourcePath, targetPath, {
+          overwrite: true,
+          preserveTimestamps: true,
+          errorOnExist: false
+        });
 
-        // 6. 返回成功信息
+        // 4. 返回成功信息
         return {
           success: true,
-          message: `成功导入 ${input.resourceType} "${input.name}" 到工作区`,
-          targetPath: join('.claude', targetDir, folderName)
+          message: `成功导入 ${input.resourceType}`,
+          sourcePath: input.resource_path,
+          targetPath: input.import_path,
+          fullPath: targetPath
         };
 
       } catch (error) {
@@ -106,3 +113,5 @@ export const pluginRouter = createTRPCRouter({
       }
     })
 });
+
+

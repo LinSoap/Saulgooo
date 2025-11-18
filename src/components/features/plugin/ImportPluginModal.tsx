@@ -78,8 +78,8 @@ export default function ImportPluginModal({
     importPlugin.mutate({
       workspaceId: selectedWorkspaceId,
       resourceType: plugin.type,
-      path: plugin.path,
-      name: plugin.name,
+      resource_path: plugin.resource_path,
+      import_path: plugin.import_path,
     });
   };
 
@@ -102,9 +102,15 @@ export default function ImportPluginModal({
             <div className="mb-4 rounded-lg border bg-gray-50 p-3">
               <div className="mb-2 flex items-center gap-2">
                 <Badge
-                  variant={plugin.type === "agent" ? "default" : "secondary"}
+                  variant={
+                    plugin.type === "agent"
+                      ? "default"
+                      : plugin.type === "skill"
+                      ? "secondary"
+                      : "outline"
+                  }
                 >
-                  {plugin.type}
+                  {plugin.type === "claude-md" ? "Claude.md" : plugin.type}
                 </Badge>
                 <h3 className="font-semibold">{plugin.name}</h3>
               </div>
