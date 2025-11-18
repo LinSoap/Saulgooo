@@ -11,7 +11,7 @@
         "离线处理"
       ],
       "resource_path": "agents/whoasr",
-      "import_path": ".claude/agents/whoasr-agent",
+      "import_path": ".claude/agents/whoasr-curl.md",
       "features": [
         "离线语音识别",
         "标点恢复",
