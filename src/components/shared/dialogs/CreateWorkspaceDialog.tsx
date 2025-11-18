@@ -3,11 +3,9 @@
 import { useState, useRef } from "react";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
-import { useRouter } from "next/navigation";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -15,15 +13,12 @@ import {
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
-import { Checkbox } from "~/components/ui/checkbox";
 import { Badge } from "~/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Bot, Wrench, FileText, CheckCircle2 } from "lucide-react";
-import type { PluginItem } from "~/types/plugin";
 import { useForm } from "react-hook-form";
 
 export function CreateWorkspaceDialog() {
-  const router = useRouter();
   const utils = api.useUtils();
   const [open, setOpen] = useState(false);
   const [selectedPlugins, setSelectedPlugins] = useState<string[]>([]);
@@ -81,7 +76,7 @@ export function CreateWorkspaceDialog() {
       form.reset();
 
       // 5. 刷新工作空间列表
-      utils.workspace.getWorkSpaces.invalidate();
+      void utils.workspace.getWorkSpaces.invalidate();
     } catch (err) {
       console.error("创建失败:", err);
       toast.error("创建失败");

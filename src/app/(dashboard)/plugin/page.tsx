@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/ui/select";
-import { Download, Search, Package, Bot, Zap, FileText } from "lucide-react";
+import { Search, Package, Bot, Zap, FileText } from "lucide-react";
 import ImportPluginDropdown from "~/components/features/plugin/ImportPluginDropdown";
 import type { PluginItem } from "~/types/plugin";
 

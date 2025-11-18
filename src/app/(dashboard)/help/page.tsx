@@ -35,7 +35,7 @@ export default function HelpPage() {
             <div className="rounded-lg border p-4">
               <h3 className="mb-2 font-medium">1. 创建工作空间</h3>
               <p className="text-muted-foreground mb-2 text-sm">
-                点击"创建工作空间"卡片，输入工作空间名称和描述，可选择需要的插件。
+                点击&quot;创建工作空间&quot;卡片，输入工作空间名称和描述，可选择需要的插件。
               </p>
             </div>
             <div className="rounded-lg border p-4">
@@ -53,7 +53,7 @@ export default function HelpPage() {
             <div className="rounded-lg border p-4">
               <h3 className="mb-2 font-medium">4. 下载结果</h3>
               <p className="text-muted-foreground mb-2 text-sm">
-                完成工作后，可将生成的文档,ppt等资料导出下载，方便离线使用。
+                完成工作后，可将生成的文档,&ldquo;ppt等资料&rdquo;导出下载，方便离线使用。
               </p>
             </div>
           </div>
@@ -177,7 +177,8 @@ export default function HelpPage() {
                 如何创建新的工作空间？
               </summary>
               <p className="text-muted-foreground mt-2 text-sm">
-                在 dashboard 页面点击"创建工作空间"卡片，输入名称和描述，
+                在 dashboard
+                页面点击&quot;创建工作空间&quot;卡片，输入名称和描述，
                 可选择需要的插件，然后点击创建即可。
               </p>
             </details>
@@ -188,7 +189,7 @@ export default function HelpPage() {
               </summary>
               <p className="text-muted-foreground mt-2 text-sm">
                 有两种方式： 1. 创建工作空间时直接选择需要的插件 2.
-                从插件中心选择插件，点击"导入到工作区"，选择目标工作空间
+                从插件中心选择插件，点击&ldquo;导入到工作区&rdquo;，选择目标工作空间
               </p>
             </details>
             <details className="rounded-lg border p-4">
@@ -198,7 +199,7 @@ export default function HelpPage() {
               <p className="text-muted-foreground mt-2 text-sm">
                 CLAUDE.md 是一个用于配置 Claude AI 工作流的 Markdown 文件，
                 包含项目说明、开发指南和工作流程等内容，帮助规范团队协作。每个空间只能有一个
-                CLAUDE.md 文件。
+                &ldquo;CLAUDE.md&rdquo; 文件。
               </p>
             </details>
             <details className="rounded-lg border p-4">

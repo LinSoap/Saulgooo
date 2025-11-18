@@ -41,7 +41,7 @@ export default function ImportPluginDropdown({
         action: {
           label: "查看工作区",
           onClick: () => {
-            router.push(`/workspace/${workspaceId}`);
+            void router.push(`/workspace/${workspaceId}`);
           },
         },
         duration: 5000,
@@ -98,7 +98,7 @@ export default function ImportPluginDropdown({
         value={selectedWorkspaceId}
         onValueChange={(value) => {
           // 直接调用导入，传入选择的工作区ID
-          handleImport(value);
+          void handleImport(value);
         }}
         disabled={isLoading || isImporting}
       >
