@@ -146,6 +146,55 @@
         "主题样式",
         "XML分析"
       ]
+    },
+    {
+      "type": "skill",
+      "name": "内容研究写作助手",
+      "description": "专业的写作协作助手，协助研究、添加引用、改进开头、迭代大纲，并实时反馈每个部分，将写作过程从单人努力转变为协作伙伴",
+      "tags": [
+        "写作助手",
+        "内容创作",
+        "研究分析",
+        "引用管理",
+        "文章优化",
+        "协作写作"
+      ],
+      "resource_path": "skills/content-research-writer",
+      "import_path": ".claude/skills/content-research-writer",
+      "features": [
+        "协作大纲构建",
+        "智能研究助手",
+        "引用管理",
+        "开头优化",
+        "段落反馈",
+        "风格保持",
+        "迭代优化",
+        "实时协作"
+      ]
+    },
+    {
+      "type": "skill",
+      "name": "Ship-Learn-Next 行动计划",
+      "description": "将学习内容（如 YouTube 文字记录、文章、教程）转化为可操作的 Ship-Learn-Next 框架实施计划，帮助用户将建议和课程转变为具体的行动步骤、重复练习或学习任务",
+      "tags": [
+        "学习计划",
+        "行动规划",
+        "实践框架",
+        "技能转化",
+        "迭代学习",
+        "Ship-Learn-Next"
+      ],
+      "resource_path": "skills/next-learn-planer",
+      "import_path": ".claude/skills/next-learn-planer",
+      "features": [
+        "学习内容转化",
+        "行动步骤设计",
+        "迭代循环规划",
+        "具体任务制定",
+        "进度跟踪",
+        "反思反馈",
+        "可交付成果定义"
+      ]
     }
   ],
   "claude_mds": [
