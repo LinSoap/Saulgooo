@@ -10,7 +10,6 @@ import {
   CardTitle,
 } from "~/components/ui/card";
 import { Badge } from "~/components/ui/badge";
-import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import {
   Select,
@@ -20,15 +19,13 @@ import {
   SelectValue,
 } from "~/components/ui/select";
 import { Download, Search, Package, Bot, Zap, FileText } from "lucide-react";
-import ImportPluginModal from "~/components/features/plugin/ImportPluginModal";
+import ImportPluginDropdown from "~/components/features/plugin/ImportPluginDropdown";
 import type { PluginItem } from "~/types/plugin";
 
 export default function PluginPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
   const [selectedTag, setSelectedTag] = useState<string>("all");
-  const [importModalOpen, setImportModalOpen] = useState(false);
-  const [selectedPlugin, setSelectedPlugin] = useState<PluginItem | null>(null);
 
   const {
     data: pluginData,
@@ -63,12 +60,6 @@ export default function PluginPage() {
   const allTags = Array.from(
     new Set(pluginData?.items?.flatMap((item: PluginItem) => item.tags) ?? []),
   );
-
-  // 处理导入按钮点击
-  const handleImport = (item: PluginItem) => {
-    setSelectedPlugin(item);
-    setImportModalOpen(true);
-  };
 
   if (isLoading) {
     return (
@@ -139,38 +130,31 @@ export default function PluginPage() {
         {filteredItems.map((item: PluginItem) => (
           <Card
             key={`${item.type}-${item.name}`}
-            className="transition-shadow hover:shadow-lg"
+            className="flex h-full flex-col transition-shadow hover:shadow-lg"
           >
             <CardHeader>
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2">
-                  {item.type === "agent" ? (
-                    <Bot className="h-6 w-6 text-blue-500" />
-                  ) : item.type === "skill" ? (
-                    <Zap className="h-6 w-6 text-purple-500" />
-                  ) : (
-                    <FileText className="h-6 w-6 text-green-500" />
-                  )}
-                  <Badge
-                    variant={
-                      item.type === "agent"
-                        ? "default"
-                        : item.type === "skill"
-                          ? "secondary"
-                          : "outline"
-                    }
-                  >
-                    {item.type === "claude-md" ? "Claude.md" : item.type}
-                  </Badge>
+              <CardTitle className="text-lg">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2">
+                    {item.type === "agent" ? (
+                      <Bot className="h-6 w-6 text-blue-500" />
+                    ) : item.type === "skill" ? (
+                      <Zap className="h-6 w-6 text-purple-500" />
+                    ) : (
+                      <FileText className="h-6 w-6 text-green-500" />
+                    )}
+
+                    {item.name}
+                  </div>
+                  <Badge variant="secondary">{item.type}</Badge>
                 </div>
-              </div>
-              <CardTitle className="text-lg">{item.name}</CardTitle>
+              </CardTitle>
               <CardDescription className="text-sm">
                 {item.description}
               </CardDescription>
             </CardHeader>
 
-            <CardContent>
+            <CardContent className="flex flex-1 flex-col">
               {/* 标签 */}
               <div className="mb-4 flex flex-wrap gap-1">
                 {item.tags.map((tag) => (
@@ -184,31 +168,27 @@ export default function PluginPage() {
               {item.features && item.features.length > 0 && (
                 <div className="mb-4">
                   <h4 className="mb-2 text-sm font-medium">功能特性：</h4>
-                  <ul className="space-y-1 text-xs text-gray-600">
-                    {item.features.slice(0, 3).map((feature, index) => (
-                      <li key={index} className="flex items-center gap-1">
+                  {/* 展示所有 features，并允许换行显示 */}
+                  <ul className="flex flex-wrap gap-2 text-xs text-gray-600">
+                    {item.features.map((feature, index) => (
+                      <li
+                        key={index}
+                        className="flex items-center gap-1 wrap-break-word whitespace-normal"
+                      >
                         <Package className="h-3 w-3" />
-                        {feature}
+                        <span className="max-w-[20rem] wrap-break-word">
+                          {feature}
+                        </span>
                       </li>
                     ))}
-                    {item.features.length > 3 && (
-                      <li className="text-gray-400">
-                        +{item.features.length - 3} 更多...
-                      </li>
-                    )}
                   </ul>
                 </div>
               )}
 
-              {/* 导入按钮 */}
-              <Button
-                className="w-full"
-                onClick={() => handleImport(item)}
-                size="sm"
-              >
-                <Download className="mr-2 h-4 w-4" />
-                导入到工作区
-              </Button>
+              {/* 导入按钮：始终固定在 Card 底部 */}
+              <div className="mt-auto">
+                <ImportPluginDropdown plugin={item} />
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -221,13 +201,6 @@ export default function PluginPage() {
           <p className="text-gray-500">没有找到匹配的插件</p>
         </div>
       )}
-
-      {/* 导入插件 Modal */}
-      <ImportPluginModal
-        open={importModalOpen}
-        onOpenChange={setImportModalOpen}
-        plugin={selectedPlugin}
-      />
     </div>
   );
 }
