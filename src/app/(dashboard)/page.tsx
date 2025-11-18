@@ -44,13 +44,12 @@ function DashboardContent() {
           <p className="text-muted-foreground mb-6">
             创建您的第一个工作空间开始协作
           </p>
-          <CreateWorkspaceDialog></CreateWorkspaceDialog>
+          <CreateWorkspaceDialog />
         </div>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {/* 创建工作空间卡片 */}
-
-          <CreateWorkspaceDialog></CreateWorkspaceDialog>
+          <CreateWorkspaceDialog />
 
           {/* 工作空间列表 */}
           {workspaces.map((workspace) => (
