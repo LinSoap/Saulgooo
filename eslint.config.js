@@ -7,8 +7,9 @@ const compat = new FlatCompat({
 
 export default tseslint.config(
   {
-		ignores: ['.next']
-	},
+    // 忽略构建产物和 resources 目录（resources 中包含的脚本/工具链不是前端应用的一部分）
+    ignores: ['.next', 'resources/**']
+  },
   ...compat.extends("next/core-web-vitals"),
   {
     files: ['**/*.ts', '**/*.tsx'],
