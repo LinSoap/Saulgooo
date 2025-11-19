@@ -64,7 +64,7 @@ export function isTextFile(mimeType: string): boolean {
  * @param fileName 文件名（用于特殊处理，如.mp4文件）
  * @returns 渲染类型
  */
-export function getFileRenderType(mimeType: string, fileName: string): FileRenderType {
+export function getFileRenderType(mimeType: string, fileName: string, fileSize?: number): FileRenderType {
     const fileExt = fileName.split('.').pop()?.toLowerCase();
 
     // Markdown 文件使用 text 类型（使用 MarkdownEditor）
@@ -109,6 +109,12 @@ export function getFileRenderType(mimeType: string, fileName: string): FileRende
 
     // 通过 MIME 类型判断是否为文本/代码文件
     if (TEXT_MIME_TYPES.has(mimeType)) {
+        return 'code';
+    }
+
+    // 特殊处理：application/octet-stream
+    // 如果文件较小（< 10000 字节），尝试作为文本/代码显示
+    if (mimeType === 'application/octet-stream' && fileSize !== undefined && fileSize <= 10000) {
         return 'code';
     }
 

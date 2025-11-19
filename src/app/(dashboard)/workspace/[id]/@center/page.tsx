@@ -99,7 +99,7 @@ export default function FilePreview() {
   const fileUrl = getOssFileUrl(workspaceId, filePath, { preview: true });
 
   // 获取文件渲染类型
-  const renderType = getFileRenderType(fileData.mimeType, fileData.fileName);
+  const renderType = getFileRenderType(fileData.mimeType, fileData.fileName, fileData.size);
 
   return (
     <div className="flex h-full flex-col">
