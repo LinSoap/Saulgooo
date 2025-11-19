@@ -3,8 +3,8 @@ import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
 import { mkdir, rmdir, readdir, stat, writeFile, rename, unlink, readFile } from "fs/promises";
 import { join } from "path";
-import { homedir } from "os";
 import type { FileTreeItem } from "../types/file";
+import { getWorkspaceBaseDir } from "~/lib/workspace-config";
 import chokidar, { type FSWatcher } from "chokidar";
 import { getMimeType } from "~/lib/file";
 
@@ -44,7 +44,7 @@ async function ensureWorkspaceOwnership(
         });
     }
 
-    const basePath = join(homedir(), "workspaces", workspace.path);
+    const basePath = join(getWorkspaceBaseDir(), workspace.path);
 
     return { workspace, basePath };
 }
@@ -218,7 +218,7 @@ export const fileRouter = createTRPCRouter({
             }
 
             // 构建文件绝对路径
-            const basePath = join(homedir(), "workspaces", workspace.path);
+            const basePath = join(getWorkspaceBaseDir(), workspace.path);
             const absoluteFilePath = join(basePath, filePath);
 
             // 安全检查：确保文件在workspace目录内
@@ -276,7 +276,7 @@ export const fileRouter = createTRPCRouter({
             }
 
             // 构建文件绝对路径
-            const basePath = join(homedir(), "workspaces", workspace.path);
+            const basePath = join(getWorkspaceBaseDir(), workspace.path);
             const absoluteFilePath = join(basePath, filePath);
 
             // 安全检查：确保文件在workspace目录内
@@ -356,7 +356,7 @@ export const fileRouter = createTRPCRouter({
             }
 
             // 构建文件夹绝对路径
-            const basePath = join(homedir(), "workspaces", workspace.path);
+            const basePath = join(getWorkspaceBaseDir(), workspace.path);
             const absoluteFolderPath = join(basePath, folderPath);
 
             // 安全检查：确保文件夹在workspace目录内
@@ -414,7 +414,7 @@ export const fileRouter = createTRPCRouter({
                 throw new Error("Workspace not found");
             }
 
-            const workspacePath = join(homedir(), 'workspaces', workspace.path);
+            const workspacePath = join(getWorkspaceBaseDir(), workspace.path);
             const fullPath = join(workspacePath, path);
 
             try {
@@ -451,7 +451,7 @@ export const fileRouter = createTRPCRouter({
                 throw new Error("Workspace not found");
             }
 
-            const workspacePath = join(homedir(), 'workspaces', workspace.path);
+            const workspacePath = join(getWorkspaceBaseDir(), workspace.path);
             const oldFullPath = join(workspacePath, oldPath);
             const newFullPath = join(workspacePath, newPath);
 
@@ -504,7 +504,7 @@ export const fileRouter = createTRPCRouter({
             }
 
             // 构建工作区基础路径
-            const basePath = join(homedir(), "workspaces", workspace.path);
+            const basePath = join(getWorkspaceBaseDir(), workspace.path);
 
             // 递归搜索文件
             async function searchFiles(dir: string, depth = 0): Promise<Array<{
@@ -612,7 +612,7 @@ export const fileRouter = createTRPCRouter({
                 throw new Error("Workspace not found");
             }
 
-            const workspacePath = join(homedir(), 'workspaces', workspace.path);
+            const workspacePath = join(getWorkspaceBaseDir(), workspace.path);
 
             // 文件变化队列
             const eventQueue: FileChangeEvent[] = [];

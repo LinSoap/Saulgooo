@@ -3,9 +3,9 @@ import { NextResponse } from "next/server";
 import { auth } from "~/server/auth";
 import { db } from "~/server/db";
 import { join } from "path";
-import { homedir } from "os";
 import { stat, readFile } from "fs/promises";
 import { getMimeType } from "~/lib/file";
+import { getWorkspaceBaseDir } from "~/lib/workspace-config";
 
 /**
  * OSS API Route - 仅用于文件下载
@@ -53,7 +53,7 @@ export async function GET(
     }
 
     // 构建文件绝对路径
-    const basePath = join(homedir(), "workspaces", workspace.path);
+    const basePath = join(getWorkspaceBaseDir(), workspace.path);
     const absoluteFilePath = join(basePath, relativeFilePath);
 
     // 安全检查：确保文件在workspace目录内

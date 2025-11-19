@@ -1,6 +1,4 @@
 import { lookup } from 'mime-types';
-import { join } from 'path';
-import { homedir } from 'os';
 
 // ========================
 // 类型定义
@@ -173,12 +171,6 @@ export function buildNewPath(originalPath: string, newName: string): string {
         : newName;
 }
 
-/**
- * 获取工作区完整路径
- */
-export function getWorkspaceFullPath(workspacePath: string, relativePath: string): string {
-    return join(homedir(), 'workspaces', workspacePath, relativePath);
-}
 
 /**
  * 文件操作上下文菜单的预设选项

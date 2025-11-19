@@ -8,8 +8,8 @@ import { PrismaClient } from '@prisma/client';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { HookInput, HookJSONOutput, SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { join } from 'path';
-import { homedir } from 'os';
 import type { TaskStatus } from '~/types/status';
+import { getWorkspaceBaseDir } from './workspace-config';
 import type { AgentTaskData } from '~/types/queue';
 import type { Redis } from 'ioredis';
 import type { BashInput } from '~/types/tools';
@@ -110,7 +110,7 @@ export async function processAgentTask(job: Job<AgentTaskData>) {
       throw new Error(`Workspace ${workspaceId} not found`);
     }
 
-    const cwd = join(homedir(), 'workspaces', workspace.path);
+    const cwd = join(getWorkspaceBaseDir(), workspace.path);
 
     // 3. 执行查询
     const queryInstance = query({

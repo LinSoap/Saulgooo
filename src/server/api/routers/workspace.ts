@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { mkdir, rmdir, writeFile } from "fs/promises";
 import { join } from "path";
-import { homedir } from "os";
+import { getWorkspaceBaseDir } from "~/lib/workspace-config";
 
 export const workSpaceRouter = createTRPCRouter({
     getWorkSpaces: protectedProcedure
@@ -75,7 +75,7 @@ export const workSpaceRouter = createTRPCRouter({
                 .replace(/[^\p{L}\p{N}-]/gu, '');
             const timestamp = Date.now();
             const path = `${ctx.session.user.id}-${sanitizedName}-${timestamp}`;
-            const workspacePath = join(homedir(), 'workspaces', path);
+            const workspacePath = join(getWorkspaceBaseDir(), path);
             const groupName = ctx.session.user.name + "-" + input.name;
 
             // 创建文件夹
@@ -167,7 +167,7 @@ ${input.description ?? '这是一个新的工作空间'}
             // 删除对应的文件夹
             try {
                 if (workspace.path) {
-                    const workspacePath = join(homedir(), 'workspaces', workspace.path);
+                    const workspacePath = join(getWorkspaceBaseDir(), workspace.path);
                     await rmdir(workspacePath, { recursive: true });
                 }
             } catch {

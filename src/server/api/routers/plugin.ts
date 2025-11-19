@@ -2,9 +2,9 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { readFile } from "fs/promises";
 import { join, basename } from "path";
-import { homedir } from "os";
 import fsExtra from 'fs-extra';
 import type { PluginManifest } from "~/types/plugin";
+import { getWorkspaceBaseDir } from "~/lib/workspace-config";
 
 export const pluginRouter = createTRPCRouter({
   // 获取插件资源列表
@@ -78,7 +78,7 @@ export const pluginRouter = createTRPCRouter({
         const sourcePath = join(process.cwd(), 'resources', input.resource_path);
 
         // 目标路径: workspaces/{workspace_path}/{import_path}
-        const workspaceBasePath = join(homedir(), 'workspaces', workspace.path);
+        const workspaceBasePath = join(getWorkspaceBaseDir(), workspace.path);
         let targetPath = join(workspaceBasePath, input.import_path);
 
         // 如果 import_path 以 / 结尾，表示复制到目录
