@@ -6,12 +6,13 @@ import { Worker } from 'bullmq';
 import type { Job } from 'bullmq';
 import { PrismaClient } from '@prisma/client';
 import { query } from '@anthropic-ai/claude-agent-sdk';
-import type { SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { HookInput, HookJSONOutput, SDKMessage, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import { join } from 'path';
 import { homedir } from 'os';
 import type { TaskStatus } from '~/types/status';
 import type { AgentTaskData } from '~/types/queue';
 import type { Redis } from 'ioredis';
+import type { BashInput } from '~/types/tools';
 
 // PrismaClient 单例
 let prismaInstance: PrismaClient | null = null;
@@ -19,6 +20,31 @@ export const getPrisma = () => {
   prismaInstance ??= new PrismaClient();
   return prismaInstance;
 };
+
+async function checkBashCommand(
+  input_data: HookInput,
+): Promise<HookJSONOutput> {
+
+  if (input_data.hook_event_name === 'PreToolUse') {
+    const bashinput = input_data.tool_input as BashInput
+    const command = bashinput.command;
+
+    // 只允许 srt 命令
+    if (!command.startsWith('srt')) {
+      return {
+        reason: "Only srt commands are allowed",
+        hookSpecificOutput: {
+          hookEventName: "PreToolUse",
+          permissionDecision: "deny",
+          permissionDecisionReason: "Security policy: only srt commands permitted"
+        }
+      };
+    }
+  }
+
+  // 允许 srt 命令
+  return {};
+}
 
 // 公共方法：更新会话消息
 async function updateSessionMessages(
@@ -93,6 +119,11 @@ export async function processAgentTask(job: Job<AgentTaskData>) {
         maxTurns: 30,
         permissionMode: 'bypassPermissions',
         settingSources: ['project'],
+        hooks: {
+          PreToolUse: [
+            { matcher: "Bash", hooks: [checkBashCommand] }
+          ]
+        },
         resume: sessionId,
         cwd,
         systemPrompt: {
