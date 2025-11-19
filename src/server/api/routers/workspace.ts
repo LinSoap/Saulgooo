@@ -72,7 +72,7 @@ export const workSpaceRouter = createTRPCRouter({
             const sanitizedName = input.name
                 .toLowerCase()
                 .replace(/\s+/g, '-')
-                .replace(/[^a-z0-9-]/g, '');
+                .replace(/[^\p{L}\p{N}-]/gu, '');
             const timestamp = Date.now();
             const path = `${ctx.session.user.id}-${sanitizedName}-${timestamp}`;
             const workspacePath = join(homedir(), 'workspaces', path);
