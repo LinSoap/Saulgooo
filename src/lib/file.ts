@@ -22,8 +22,8 @@ export type FileRenderType =
  * 文件数据接口
  */
 export interface FileData {
-    content: string;
-    encoding: 'utf-8' | 'base64';
+    content?: string;
+    encoding?: 'utf-8' | 'base64';
     size: number;
     modifiedAt: Date;
     mimeType: string;

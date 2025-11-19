@@ -61,6 +61,31 @@ function validateFilePath(absolutePath: string, basePath: string) {
     }
 }
 
+/**
+ * 验证并获取文件状态
+ */
+async function validateAndGetFileStats(
+    ctx: Context,
+    workspaceId: string,
+    filePath: string
+) {
+    const { basePath } = await ensureWorkspaceOwnership(ctx, workspaceId);
+    const absoluteFilePath = join(basePath, filePath);
+
+    validateFilePath(absoluteFilePath, basePath);
+
+    const fileStats = await stat(absoluteFilePath).catch(() => null);
+    if (!fileStats) {
+        throw new Error("File not found");
+    }
+
+    if (!fileStats.isFile()) {
+        throw new Error("Not a file");
+    }
+
+    return { absoluteFilePath, fileStats };
+}
+
 // 文件变化事件类型
 interface FileChangeEvent {
     workspaceId: string;
@@ -255,6 +280,28 @@ export const fileRouter = createTRPCRouter({
             };
         }),
 
+    fetchFileMetadata: protectedProcedure
+        .input(z.object({
+            workspaceId: z.string().cuid(),
+            filePath: z.string(),
+        }))
+        .query(async ({ ctx, input }) => {
+            const { workspaceId, filePath } = input;
+
+            const { absoluteFilePath, fileStats } = await validateAndGetFileStats(ctx, workspaceId, filePath);
+
+            // 获取 MIME 类型
+            const mimeType = getMimeType(absoluteFilePath);
+
+            return {
+                size: fileStats.size,
+                modifiedAt: fileStats.mtime,
+                mimeType,
+                fileName: filePath.split('/').pop() ?? filePath,
+                filePath,
+            };
+        }),
+
     fetchFileContent: protectedProcedure
         .input(z.object({
             workspaceId: z.string().cuid(),
@@ -263,37 +310,7 @@ export const fileRouter = createTRPCRouter({
         .query(async ({ ctx, input }) => {
             const { workspaceId, filePath } = input;
 
-            // 验证workspace存在且用户有权限访问
-            const workspace = await ctx.db.workspace.findUnique({
-                where: {
-                    id: workspaceId,
-                    ownerId: ctx.session.user.id,
-                },
-            });
-
-            if (!workspace?.path) {
-                throw new Error("Workspace not found");
-            }
-
-            // 构建文件绝对路径
-            const basePath = join(getWorkspaceBaseDir(), workspace.path);
-            const absoluteFilePath = join(basePath, filePath);
-
-            // 安全检查：确保文件在workspace目录内
-            if (!absoluteFilePath.startsWith(basePath)) {
-                throw new Error("Access denied");
-            }
-
-            // 检查文件是否存在
-            const fileStats = await stat(absoluteFilePath).catch(() => null);
-            if (!fileStats) {
-                throw new Error("File not found");
-            }
-
-            // 确保是文件而不是目录
-            if (!fileStats.isFile()) {
-                throw new Error("Not a file");
-            }
+            const { absoluteFilePath, fileStats } = await validateAndGetFileStats(ctx, workspaceId, filePath);
 
             // 获取 MIME 类型
             const mimeType = getMimeType(absoluteFilePath);

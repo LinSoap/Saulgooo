@@ -36,11 +36,31 @@ export default function FilePreview() {
       setError(null);
 
       try {
-        const data = await utils.file.fetchFileContent.fetch({
+        // 1. 先获取文件元数据
+        const metadata = await utils.file.fetchFileMetadata.fetch({
           workspaceId,
           filePath,
         });
-        setFileData(data);
+
+        // 2. 判断是否需要获取内容
+        const renderType = getFileRenderType(metadata.mimeType, metadata.fileName, metadata.size);
+        
+        // 只有代码和文本文件需要获取内容
+        // 注意：getFileRenderType 内部已经处理了 application/octet-stream < 10KB 的情况
+        if (renderType === 'code' || renderType === 'text') {
+            const contentData = await utils.file.fetchFileContent.fetch({
+                workspaceId,
+                filePath,
+            });
+            setFileData(contentData);
+        } else {
+            // 其他类型（图片、视频、PDF等）不需要内容，直接使用元数据
+            setFileData({
+                ...metadata,
+                content: undefined,
+                encoding: undefined,
+            });
+        }
       } catch (err) {
         setError(err instanceof Error ? err : new Error("Failed to load file"));
         setFileData(null);
@@ -124,7 +144,7 @@ export default function FilePreview() {
           <MarkdownEditor fileData={fileData} />
         ) : renderType === "code" ? (
           // 代码文件使用CodePreview进行语法高亮
-          <CodePreview content={fileData.content} fileName={fileData.fileName} />
+          <CodePreview content={fileData.content ?? ""} fileName={fileData.fileName} />
         ) : renderType === "image" ? (
           // 图片文件直接显示
           <div className="flex h-full items-center justify-center p-4">
