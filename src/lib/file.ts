@@ -1,4 +1,5 @@
 import { lookup } from 'mime-types';
+import { CODE_EXTENSIONS, TEXT_MIME_TYPES } from './language-map';
 
 // ========================
 // 类型定义
@@ -9,7 +10,8 @@ import { lookup } from 'mime-types';
  */
 export type FileRenderType =
     | 'html'      // HTML文件，使用iframe预览
-    | 'text'      // 文本文件，使用MarkdownEditor
+    | 'text'      // Markdown文本文件，使用MarkdownEditor
+    | 'code'      // 代码文件，使用Shiki高亮预览
     | 'image'     // 图片文件，直接显示img标签
     | 'video'     // 视频文件，使用video标签
     | 'audio'     // 音频文件，使用audio标签
@@ -52,18 +54,8 @@ export function isTextFile(mimeType: string): boolean {
         return true;
     }
 
-    // 特殊的文本类 MIME 类型
-    const textTypes = new Set([
-        'application/json',
-        'application/xml',
-        'application/javascript',
-        'application/x-yaml',
-        'application/yaml',
-        'application/rtf',
-        'message/rfc822'
-    ]);
-
-    return textTypes.has(mimeType);
+    // 使用统一的文本类型配置
+    return TEXT_MIME_TYPES.has(mimeType);
 }
 
 /**
@@ -73,59 +65,55 @@ export function isTextFile(mimeType: string): boolean {
  * @returns 渲染类型
  */
 export function getFileRenderType(mimeType: string, fileName: string): FileRenderType {
-    // 特殊处理：某些文件可能MIME类型不正确，但扩展名明确
     const fileExt = fileName.split('.').pop()?.toLowerCase();
 
-    // 基于MIME类型的映射
-    if (mimeType === 'text/html') {
-        return 'html';
-    }
-
-    if (mimeType.startsWith('text/')) {
+    // Markdown 文件使用 text 类型（使用 MarkdownEditor）
+    if (fileExt === 'md' || fileExt === 'markdown') {
         return 'text';
     }
 
+    // HTML 文件
+    if (mimeType === 'text/html' || fileExt === 'html' || fileExt === 'htm') {
+        return 'html';
+    }
+
+    // 图片文件
     if (mimeType.startsWith('image/')) {
         return 'image';
     }
 
-    if (mimeType.startsWith('video/') || fileExt === 'mp4') {
+    // 视频文件
+    if (mimeType.startsWith('video/') || fileExt === 'mp4' || fileExt === 'webm' || fileExt === 'ogg') {
         return 'video';
     }
 
-    if (mimeType.startsWith('audio/')) {
+    // 音频文件
+    if (mimeType.startsWith('audio/') || fileExt === 'mp3' || fileExt === 'wav' || fileExt === 'flac') {
         return 'audio';
     }
 
-    if (mimeType === 'application/pdf') {
+    // PDF 文件
+    if (mimeType === 'application/pdf' || fileExt === 'pdf') {
         return 'pdf';
     }
 
-    // 基于文件扩展名的后备处理
-    switch (fileExt) {
-        case 'html':
-        case 'htm':
-            return 'html';
-        case 'pdf':
-            return 'pdf';
-        case 'jpg':
-        case 'jpeg':
-        case 'png':
-        case 'gif':
-        case 'webp':
-        case 'svg':
-            return 'image';
-        case 'mp4':
-        case 'webm':
-        case 'ogg':
-            return 'video';
-        case 'mp3':
-        case 'wav':
-        case 'flac':
-            return 'audio';
-        default:
-            return 'unknown';
+    // 代码文件：使用统一的扩展名配置
+    if (fileExt && CODE_EXTENSIONS.includes(fileExt)) {
+        return 'code';
     }
+
+    // 文本类型的文件（其他 text/* 类型）
+    if (mimeType.startsWith('text/')) {
+        return 'code';
+    }
+
+    // 通过 MIME 类型判断是否为文本/代码文件
+    if (TEXT_MIME_TYPES.has(mimeType)) {
+        return 'code';
+    }
+
+    // 不支持的类型
+    return 'unknown';
 }
 
 // ========================

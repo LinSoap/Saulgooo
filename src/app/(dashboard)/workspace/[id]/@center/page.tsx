@@ -4,6 +4,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { FilePreviewHeader } from "~/components/ui/file-preview-header";
 import MarkdownEditor from "~/components/workspace/MarkdownEditor";
+import { CodePreview } from "~/components/shared/CodePreview";
 import { useState, useEffect, useCallback } from "react";
 import { getOssFileUrl, type FileData, getFileRenderType } from "~/lib/file";
 import Image from "next/image";
@@ -119,8 +120,11 @@ export default function FilePreview() {
             loading="lazy"
           />
         ) : renderType === "text" ? (
-          // 文本文件使用MarkdownEditor
+          // Markdown文件使用MarkdownEditor
           <MarkdownEditor fileData={fileData} />
+        ) : renderType === "code" ? (
+          // 代码文件使用CodePreview进行语法高亮
+          <CodePreview content={fileData.content} fileName={fileData.fileName} />
         ) : renderType === "image" ? (
           // 图片文件直接显示
           <div className="flex h-full items-center justify-center p-4">
