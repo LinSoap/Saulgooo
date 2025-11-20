@@ -315,23 +315,29 @@ export const fileRouter = createTRPCRouter({
             // 获取 MIME 类型
             const mimeType = getMimeType(absoluteFilePath);
 
-            // 判断是否为文本文件
-            const isText = mimeType.startsWith('text/') ||
-                mimeType.includes('json') ||
-                mimeType.includes('xml') ||
-                mimeType.includes('javascript') ||
-                mimeType.includes('yaml');
+            // 读取文件内容到 Buffer
+            const buffer = await readFile(absoluteFilePath);
+
+            // KISS 原则：基于内容检测是否为二进制文件
+            // 启发自 Git 的检测逻辑：检查前 8000 字节中是否包含 NUL (0x00) 字节
+            // 如果包含 NUL 字节，则视为二进制文件；否则视为文本文件
+            const isBinary = (function (buf: Buffer) {
+                const checkLen = Math.min(buf.length, 8000);
+                for (let i = 0; i < checkLen; i++) {
+                    if (buf[i] === 0) return true;
+                }
+                return false;
+            })(buffer);
 
             let content: string;
             let encoding: 'utf-8' | 'base64';
 
-            if (isText) {
-                // 读取文本文件
-                content = await readFile(absoluteFilePath, 'utf-8');
+            if (!isBinary) {
+                // 文本文件：直接转为 UTF-8 字符串
+                content = buffer.toString('utf-8');
                 encoding = 'utf-8';
             } else {
-                // 对于二进制文件，返回 base64
-                const buffer = await readFile(absoluteFilePath);
+                // 二进制文件：转为 Base64
                 content = buffer.toString('base64');
                 encoding = 'base64';
             }

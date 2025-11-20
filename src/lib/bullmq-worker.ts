@@ -135,6 +135,19 @@ export async function processAgentTask(job: Job<AgentTaskData>) {
            - 如果需要创建文件，请确保文件路径在workspace目录下。
            - 如果需要运行命令，请确保命令不会破坏系统环境。
            - 若需要安装node依赖，请使用pnpm进行安装。
+           - [important] 你处在一个受限环境中，无法直接使用任何bash指令，只能使用srt命令与外界交互。
+              Usage: srt [options] <command...>
+                      
+              Run commands in a sandbox with network and filesystem restrictions
+                      
+              Arguments:
+                command                command to run in the sandbox
+                      
+              Options:
+                -V, --version          output the version number
+                -d, --debug            enable debug logging
+                -s, --settings <path>  path to config file (default: ~/.srt-settings.json)
+                -h, --help             display help for command
            `
         },
       }
