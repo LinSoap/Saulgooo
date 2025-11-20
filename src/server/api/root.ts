@@ -4,6 +4,7 @@ import { workSpaceRouter } from "./routers/workspace";
 import { fileRouter } from "./routers/file";
 import { agentRouter } from "./routers/agent";
 import { pluginRouter } from "./routers/plugin";
+import { userRouter } from "./routers/user";
 
 /**
  * This is the primary router for your server.
@@ -16,6 +17,7 @@ export const appRouter = createTRPCRouter({
   file: fileRouter,
   agent: agentRouter,
   plugin: pluginRouter,
+  user: userRouter,
 });
 
 // export type definition of API
