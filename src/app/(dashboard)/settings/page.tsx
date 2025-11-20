@@ -1,60 +1,144 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import { api } from "~/trpc/react";
 import {
   User,
   Shield,
-  Bell,
-  Type,
-  Lock,
   Sparkles,
-  Moon,
-  Sun,
-  Laptop,
-  Smartphone,
-  Mail,
-  Globe,
-  Check,
   Save,
-  ToggleLeft,
-  ToggleRight,
   Eye,
   EyeOff,
+  Loader2,
+  Lock,
 } from "lucide-react";
 
-type SettingsTab = "profile" | "ai" | "editor" | "notifications" | "security";
+type SettingsTab = "profile" | "ai" | "security";
+
+interface ProfileForm {
+  name: string;
+  institution: string;
+  bio: string;
+}
+
+interface AIPreferencesForm {
+  style: string;
+  domain: string;
+  citationStyle: string;
+}
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>("profile");
   const [showPassword, setShowPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
 
   const tabs = [
     { id: "profile", label: "个人资料", icon: User },
     { id: "ai", label: "AI 偏好设置", icon: Sparkles },
-    { id: "editor", label: "编辑器配置", icon: Type },
-    { id: "notifications", label: "通知", icon: Bell },
     { id: "security", label: "安全与隐私", icon: Shield },
   ];
 
-  // Mock Toggle Switch Component
-  const Toggle = ({
-    checked,
-    onChange,
-  }: {
-    checked: boolean;
-    onChange?: () => void;
-  }) => (
-    <button
-      onClick={onChange}
-      className={`transition-colors duration-300 ${checked ? "text-brand-black" : "text-gray-300"}`}
-    >
-      {checked ? (
-        <ToggleRight className="h-10 w-10" />
-      ) : (
-        <ToggleLeft className="h-10 w-10" />
-      )}
-    </button>
-  );
+  // 获取用户资料
+  const { data: profile, refetch: refetchProfile } =
+    api.user.getProfile.useQuery();
+
+  // 更新用户资料 Mutation
+  const updateProfileMutation = api.user.updateProfile.useMutation({
+    onSuccess: () => {
+      toast.success("个人资料已更新");
+      void refetchProfile();
+    },
+    onError: (error) => {
+      toast.error(`更新失败: ${error.message}`);
+    },
+  });
+
+  // 更新 AI 偏好 Mutation
+  const updatePreferencesMutation = api.user.updatePreferences.useMutation({
+    onSuccess: () => {
+      toast.success("AI 偏好已更新");
+      void refetchProfile();
+    },
+    onError: (error) => {
+      toast.error(`更新失败: ${error.message}`);
+    },
+  });
+
+  // 修改密码 Mutation
+  const changePasswordMutation = api.user.changePassword.useMutation({
+    onSuccess: () => {
+      toast.success("密码已修改");
+      setCurrentPassword("");
+      setNewPassword("");
+    },
+    onError: (error) => {
+      toast.error(`修改失败: ${error.message}`);
+    },
+  });
+
+  // 表单处理
+  const {
+    register: registerProfile,
+    handleSubmit: handleSubmitProfile,
+    reset: resetProfile,
+  } = useForm<ProfileForm>();
+
+  const {
+    register: registerAI,
+    handleSubmit: handleSubmitAI,
+    reset: resetAI,
+  } = useForm<AIPreferencesForm>();
+
+  // 初始化表单数据
+  useEffect(() => {
+    if (profile) {
+      resetProfile({
+        name: profile.name ?? "",
+        institution: profile.institution ?? "",
+        bio: profile.bio ?? "",
+      });
+
+      if (profile.preferences) {
+        try {
+          const prefs = JSON.parse(profile.preferences) as AIPreferencesForm;
+          resetAI(prefs);
+        } catch (e) {
+          console.error("Failed to parse AI preferences", e);
+          // 忽略解析错误
+        }
+      }
+    }
+  }, [profile, resetProfile, resetAI]);
+
+  const onProfileSubmit = (data: ProfileForm) => {
+    updateProfileMutation.mutate(data);
+  };
+
+  const onAISubmit = (data: AIPreferencesForm) => {
+    updatePreferencesMutation.mutate(data);
+  };
+
+  const onChangePassword = () => {
+    if (!currentPassword || !newPassword) {
+      toast.error("请输入当前密码和新密码");
+      return;
+    }
+    changePasswordMutation.mutate({
+      currentPassword,
+      newPassword,
+    });
+  };
+
+  if (!profile) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex-1 overflow-y-auto bg-[#f9f9f9] p-8 md:p-12">
@@ -90,7 +174,10 @@ export default function SettingsPage() {
         <div className="animate-in fade-in slide-in-from-bottom-4 min-w-0 flex-1 duration-500">
           {/* PROFILE TAB */}
           {activeTab === "profile" && (
-            <div className="space-y-6">
+            <form
+              onSubmit={handleSubmitProfile(onProfileSubmit)}
+              className="space-y-6"
+            >
               <div className="rounded-4xl border border-gray-100 bg-white p-8 shadow-sm">
                 <div className="mb-8 flex items-center justify-between">
                   <h2 className="text-brand-black flex items-center gap-3 text-xl font-bold">
@@ -101,11 +188,8 @@ export default function SettingsPage() {
                   </h2>
                   <div className="flex items-center gap-4">
                     <div className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-white bg-gray-200 text-xl font-bold text-gray-500 shadow-sm">
-                      ZP
+                      {profile.name?.substring(0, 2).toUpperCase() ?? "USER"}
                     </div>
-                    <button className="text-brand-accent text-sm font-medium hover:underline">
-                      更换头像
-                    </button>
                   </div>
                 </div>
 
@@ -116,32 +200,20 @@ export default function SettingsPage() {
                     </label>
                     <input
                       type="text"
-                      defaultValue="张教授"
+                      {...registerProfile("name")}
                       className="focus:ring-brand-black w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm transition-all focus:border-transparent focus:ring-2 focus:outline-none"
                     />
                   </div>
                   <div>
                     <label className="mb-2 block text-xs font-bold tracking-wider text-gray-400 uppercase">
-                      学术职称
+                      所属院校
                     </label>
                     <input
                       type="text"
-                      defaultValue="副教授"
+                      {...registerProfile("institution")}
+                      placeholder="例如：科技大学"
                       className="focus:ring-brand-black w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm transition-all focus:border-transparent focus:ring-2 focus:outline-none"
                     />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="mb-2 block text-xs font-bold tracking-wider text-gray-400 uppercase">
-                      所属院校
-                    </label>
-                    <div className="relative">
-                      <Globe className="absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                      <input
-                        type="text"
-                        defaultValue="科技大学 (University of Science and Technology)"
-                        className="focus:ring-brand-black w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pr-4 pl-11 text-sm transition-all focus:border-transparent focus:ring-2 focus:outline-none"
-                      />
-                    </div>
                   </div>
                   <div className="md:col-span-2">
                     <label className="mb-2 block text-xs font-bold tracking-wider text-gray-400 uppercase">
@@ -149,58 +221,34 @@ export default function SettingsPage() {
                     </label>
                     <textarea
                       rows={4}
-                      defaultValue="专注于人工智能与计算机视觉领域的研究。主讲《机器学习导论》与《高级算法分析》。"
+                      {...registerProfile("bio")}
+                      placeholder="简要介绍您的学术背景和研究方向..."
                       className="focus:ring-brand-black w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm transition-all focus:border-transparent focus:ring-2 focus:outline-none"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-4xl border border-gray-100 bg-white p-8 shadow-sm">
-                <h2 className="text-brand-black mb-6 text-xl font-bold">
-                  联系方式
-                </h2>
-                <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-                  <div>
-                    <label className="mb-2 block text-xs font-bold tracking-wider text-gray-400 uppercase">
-                      电子邮箱
-                    </label>
-                    <div className="relative">
-                      <Mail className="absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                      <input
-                        type="email"
-                        defaultValue="zhang@edu.cn"
-                        className="focus:ring-brand-black w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pr-4 pl-11 text-sm transition-all focus:border-transparent focus:ring-2 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-xs font-bold tracking-wider text-gray-400 uppercase">
-                      办公电话
-                    </label>
-                    <div className="relative">
-                      <Smartphone className="absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                      <input
-                        type="tel"
-                        defaultValue="+86 10 1234 5678"
-                        className="focus:ring-brand-black w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pr-4 pl-11 text-sm transition-all focus:border-transparent focus:ring-2 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               <div className="flex justify-end">
-                <button className="bg-brand-black hover:bg-brand-dark flex items-center gap-2 rounded-full px-8 py-4 font-medium text-white shadow-lg transition-all hover:-translate-y-1">
-                  <Save className="h-4 w-4" /> 保存更改
+                <button
+                  type="submit"
+                  disabled={updateProfileMutation.isPending}
+                  className="bg-brand-black hover:bg-brand-dark flex items-center gap-2 rounded-full px-8 py-4 font-medium text-white shadow-lg transition-all hover:-translate-y-1 disabled:opacity-50"
+                >
+                  {updateProfileMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  保存更改
                 </button>
               </div>
-            </div>
+            </form>
           )}
 
           {/* AI SETTINGS TAB */}
           {activeTab === "ai" && (
-            <div className="space-y-6">
+            <form onSubmit={handleSubmitAI(onAISubmit)} className="space-y-6">
               <div className="rounded-4xl border border-gray-100 bg-white p-8 shadow-sm">
                 <h2 className="text-brand-black mb-2 flex items-center gap-3 text-xl font-bold">
                   <div className="rounded-lg bg-gray-100 p-2">
@@ -222,63 +270,44 @@ export default function SettingsPage() {
                         选择 AI 生成文本的学术严谨程度。
                       </p>
                     </div>
-                    <select className="focus:ring-brand-black min-w-[200px] rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm focus:ring-2 focus:outline-none">
-                      <option>非常严谨 (Academic Rigorous)</option>
-                      <option>通俗易懂 (Standard Educational)</option>
-                      <option>生动有趣 (Engaging & Fun)</option>
+                    <select
+                      {...registerAI("style")}
+                      className="focus:ring-brand-black min-w-[200px] rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm focus:ring-2 focus:outline-none"
+                    >
+                      <option value="rigorous">
+                        非常严谨 (Academic Rigorous)
+                      </option>
+                      <option value="balanced">
+                        通俗易懂 (Standard Educational)
+                      </option>
+                      <option value="creative">
+                        生动有趣 (Engaging & Fun)
+                      </option>
                     </select>
                   </div>
 
                   <div className="flex flex-col justify-between gap-4 border-b border-gray-50 pb-6 md:flex-row md:items-center">
                     <div>
                       <p className="text-brand-black mb-1 text-sm font-bold">
-                        默认语言
+                        专业领域
                       </p>
                       <p className="text-xs text-gray-400">
-                        AI 默认使用的输出语言。
+                        AI 默认关注的知识领域。
                       </p>
                     </div>
-                    <select className="focus:ring-brand-black min-w-[200px] rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm focus:ring-2 focus:outline-none">
-                      <option>中文 (简体)</option>
-                      <option>English (US)</option>
-                      <option>双语对照 (Bilingual)</option>
+                    <select
+                      {...registerAI("domain")}
+                      className="focus:ring-brand-black min-w-[200px] rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm focus:ring-2 focus:outline-none"
+                    >
+                      <option value="general">通识教育</option>
+                      <option value="cs">计算机科学</option>
+                      <option value="math">数学与统计</option>
+                      <option value="physics">物理学</option>
+                      <option value="literature">文学与艺术</option>
                     </select>
                   </div>
 
                   <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-                    <div>
-                      <p className="text-brand-black mb-1 text-sm font-bold">
-                        创造性 (Temperature)
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        较低的值更注重事实，较高的值更具发散性。
-                      </p>
-                    </div>
-                    <div className="flex min-w-[200px] items-center gap-4">
-                      <span className="font-mono text-xs text-gray-400">
-                        精确
-                      </span>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        defaultValue="30"
-                        className="accent-brand-black h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200"
-                      />
-                      <span className="font-mono text-xs text-gray-400">
-                        创意
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-4xl border border-gray-100 bg-white p-8 shadow-sm">
-                <h2 className="text-brand-black mb-6 text-xl font-bold">
-                  学术规范
-                </h2>
-                <div className="space-y-6">
-                  <div className="flex flex-col justify-between gap-4 border-b border-gray-50 pb-6 md:flex-row md:items-center">
                     <div>
                       <p className="text-brand-black mb-1 text-sm font-bold">
                         引用格式
@@ -287,206 +316,34 @@ export default function SettingsPage() {
                         生成参考文献时默认使用的标准。
                       </p>
                     </div>
-                    <select className="focus:ring-brand-black min-w-[200px] rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm focus:ring-2 focus:outline-none">
-                      <option>GB/T 7714 (中国标准)</option>
-                      <option>IEEE</option>
-                      <option>APA 7th Edition</option>
-                      <option>MLA 9th Edition</option>
+                    <select
+                      {...registerAI("citationStyle")}
+                      className="focus:ring-brand-black min-w-[200px] rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm focus:ring-2 focus:outline-none"
+                    >
+                      <option value="gb7714">GB/T 7714 (中国标准)</option>
+                      <option value="ieee">IEEE</option>
+                      <option value="apa">APA 7th Edition</option>
+                      <option value="mla">MLA 9th Edition</option>
                     </select>
                   </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-brand-black mb-1 text-sm font-bold">
-                        自动来源标注
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        在生成内容中自动附带原始资料链接。
-                      </p>
-                    </div>
-                    <Toggle checked={true} />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* EDITOR SETTINGS TAB */}
-          {activeTab === "editor" && (
-            <div className="space-y-6">
-              <div className="rounded-4xl border border-gray-100 bg-white p-8 shadow-sm">
-                <h2 className="text-brand-black mb-2 flex items-center gap-3 text-xl font-bold">
-                  <div className="rounded-lg bg-gray-100 p-2">
-                    <Type className="h-5 w-5 text-gray-600" />
-                  </div>
-                  排版与显示
-                </h2>
-                <p className="mb-8 text-sm text-gray-500">
-                  定制您的课程编写环境。
-                </p>
-
-                <div className="space-y-8">
-                  <div className="flex items-center justify-between border-b border-gray-50 pb-6">
-                    <div>
-                      <p className="text-brand-black mb-1 text-sm font-bold">
-                        字体偏好
-                      </p>
-                    </div>
-                    <div className="flex rounded-xl bg-gray-100 p-1">
-                      <button className="rounded-lg bg-white px-4 py-2 text-xs font-bold text-black shadow-sm transition-all">
-                        Serif (衬线)
-                      </button>
-                      <button className="hover:text-brand-black rounded-lg px-4 py-2 text-xs font-medium text-gray-500 transition-all">
-                        Sans (无衬线)
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between border-b border-gray-50 pb-6">
-                    <div>
-                      <p className="text-brand-black mb-1 text-sm font-bold">
-                        界面主题
-                      </p>
-                    </div>
-                    <div className="flex rounded-xl bg-gray-100 p-1">
-                      <button className="flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-xs font-bold text-black shadow-sm transition-all">
-                        <Sun className="h-3 w-3" /> 浅色
-                      </button>
-                      <button className="hover:text-brand-black flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium text-gray-500 transition-all">
-                        <Moon className="h-3 w-3" /> 深色
-                      </button>
-                      <button className="hover:text-brand-black flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium text-gray-500 transition-all">
-                        <Laptop className="h-3 w-3" /> 系统
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-brand-black mb-1 text-sm font-bold">
-                        显示行号
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        在编辑器左侧显示代码行号。
-                      </p>
-                    </div>
-                    <Toggle checked={false} />
-                  </div>
                 </div>
               </div>
 
-              <div className="rounded-4xl border border-gray-100 bg-white p-8 shadow-sm">
-                <h2 className="text-brand-black mb-6 text-xl font-bold">
-                  行为习惯
-                </h2>
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between border-b border-gray-50 pb-6">
-                    <div>
-                      <p className="text-brand-black mb-1 text-sm font-bold">
-                        自动保存
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        内容变化时自动保存到云端。
-                      </p>
-                    </div>
-                    <Toggle checked={true} />
-                  </div>
-
-                  <div className="flex items-center justify-between border-b border-gray-50 pb-6">
-                    <div>
-                      <p className="text-brand-black mb-1 text-sm font-bold">
-                        实时 LaTeX 渲染
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        输入公式代码时立即预览数学公式。
-                      </p>
-                    </div>
-                    <Toggle checked={true} />
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-brand-black mb-1 text-sm font-bold">
-                        拼写检查
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        自动高亮潜在的拼写和语法错误。
-                      </p>
-                    </div>
-                    <Toggle checked={true} />
-                  </div>
-                </div>
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={updatePreferencesMutation.isPending}
+                  className="bg-brand-black hover:bg-brand-dark flex items-center gap-2 rounded-full px-8 py-4 font-medium text-white shadow-lg transition-all hover:-translate-y-1 disabled:opacity-50"
+                >
+                  {updatePreferencesMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                  保存偏好
+                </button>
               </div>
-            </div>
-          )}
-
-          {/* NOTIFICATIONS SETTINGS TAB */}
-          {activeTab === "notifications" && (
-            <div className="space-y-6">
-              <div className="rounded-4xl border border-gray-100 bg-white p-8 shadow-sm">
-                <h2 className="text-brand-black mb-6 flex items-center gap-3 text-xl font-bold">
-                  <div className="rounded-lg bg-gray-100 p-2">
-                    <Bell className="h-5 w-5 text-gray-600" />
-                  </div>
-                  邮件通知
-                </h2>
-
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-brand-black mb-1 text-sm font-bold">
-                        课程动态
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        当有学生评论或提交作业时。
-                      </p>
-                    </div>
-                    <Toggle checked={true} />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-brand-black mb-1 text-sm font-bold">
-                        AI 任务完成
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        当后台批量生成的试卷或课件准备好时。
-                      </p>
-                    </div>
-                    <Toggle checked={true} />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-brand-black mb-1 text-sm font-bold">
-                        每周简报
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        发送包含课程活跃度和建议的周报。
-                      </p>
-                    </div>
-                    <Toggle checked={false} />
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-4xl border border-gray-100 bg-white p-8 shadow-sm">
-                <h2 className="text-brand-black mb-6 text-xl font-bold">
-                  系统推送
-                </h2>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-brand-black mb-1 text-sm font-bold">
-                      浏览器通知
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      允许 Saulgooo 在后台发送桌面通知。
-                    </p>
-                  </div>
-                  <button className="bg-brand-black rounded-lg px-4 py-2 text-xs font-medium text-white">
-                    请求权限
-                  </button>
-                </div>
-              </div>
-            </div>
+            </form>
           )}
 
           {/* SECURITY SETTINGS TAB */}
@@ -507,6 +364,8 @@ export default function SettingsPage() {
                     </label>
                     <input
                       type="password"
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
                       placeholder="••••••••"
                       className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none"
                     />
@@ -518,6 +377,8 @@ export default function SettingsPage() {
                     <div className="relative">
                       <input
                         type={showPassword ? "text" : "password"}
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
                         placeholder="输入新密码"
                         className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm outline-none"
                       />
@@ -533,62 +394,15 @@ export default function SettingsPage() {
                       </button>
                     </div>
                   </div>
-                  <button className="bg-brand-black hover:bg-brand-dark w-full rounded-xl py-3 text-sm font-medium text-white transition-colors">
-                    更新密码
+                  <button
+                    onClick={onChangePassword}
+                    disabled={changePasswordMutation.isPending}
+                    className="bg-brand-black hover:bg-brand-dark w-full rounded-xl py-3 text-sm font-medium text-white transition-colors disabled:opacity-50"
+                  >
+                    {changePasswordMutation.isPending
+                      ? "更新中..."
+                      : "更新密码"}
                   </button>
-                </div>
-
-                <div className="mt-10 flex items-center justify-between border-t border-gray-100 pt-6">
-                  <div>
-                    <p className="text-brand-black mb-1 text-sm font-bold">
-                      两步验证 (2FA)
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      增加一层额外的安全保护。
-                    </p>
-                  </div>
-                  <Toggle checked={false} />
-                </div>
-              </div>
-
-              <div className="rounded-4xl border border-gray-100 bg-white p-8 shadow-sm">
-                <h2 className="text-brand-black mb-6 text-xl font-bold">
-                  活跃会话
-                </h2>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50 p-4">
-                    <div className="flex items-center gap-4">
-                      <Laptop className="h-6 w-6 text-gray-500" />
-                      <div>
-                        <p className="text-brand-black text-sm font-bold">
-                          MacBook Pro (本设备)
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          Chrome • 北京, 中国 • 在线
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 rounded-md bg-green-100 px-2 py-1 text-xs font-bold text-green-600">
-                      <Check className="h-3 w-3" /> 当前
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-white p-4">
-                    <div className="flex items-center gap-4">
-                      <Smartphone className="h-6 w-6 text-gray-400" />
-                      <div>
-                        <p className="text-sm font-bold text-gray-600">
-                          iPhone 14 Pro
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          App • 上海, 中国 • 3小时前
-                        </p>
-                      </div>
-                    </div>
-                    <button className="text-xs font-medium text-red-500 hover:underline">
-                      注销
-                    </button>
-                  </div>
                 </div>
               </div>
             </div>
