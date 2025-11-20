@@ -11,6 +11,7 @@ import Image from "next/image";
 import { useFileWatcher } from "~/hooks/use-file-watcher";
 import { api } from "~/trpc/react";
 import { formatFileSize } from "~/lib/file";
+import { Sparkles, FileText, Bot, ArrowLeft } from "lucide-react";
 
 export default function FilePreview() {
   const params = useParams();
@@ -44,23 +45,27 @@ export default function FilePreview() {
         });
 
         // 2. 判断是否需要获取内容
-        const renderType = getFileRenderType(metadata.mimeType, metadata.fileName, metadata.size);
-        
+        const renderType = getFileRenderType(
+          metadata.mimeType,
+          metadata.fileName,
+          metadata.size,
+        );
+
         // 只有代码和文本文件需要获取内容
         // 注意：getFileRenderType 内部已经处理了 application/octet-stream < 10KB 的情况
-        if (renderType === 'code' || renderType === 'text') {
-            const contentData = await utils.file.fetchFileContent.fetch({
-                workspaceId,
-                filePath,
-            });
-            setFileData(contentData);
+        if (renderType === "code" || renderType === "text") {
+          const contentData = await utils.file.fetchFileContent.fetch({
+            workspaceId,
+            filePath,
+          });
+          setFileData(contentData);
         } else {
-            // 其他类型（图片、视频、PDF等）不需要内容，直接使用元数据
-            setFileData({
-                ...metadata,
-                content: undefined,
-                encoding: undefined,
-            });
+          // 其他类型（图片、视频、PDF等）不需要内容，直接使用元数据
+          setFileData({
+            ...metadata,
+            content: undefined,
+            encoding: undefined,
+          });
         }
       } catch (err) {
         setError(err instanceof Error ? err : new Error("Failed to load file"));
@@ -113,24 +118,67 @@ export default function FilePreview() {
   }
 
   if (!fileData) {
-    return null;
+    return (
+      <div className="flex h-full flex-col items-center justify-center bg-white p-8 text-center">
+        <div className="mb-8 flex h-24 w-24 items-center justify-center rounded-4xl bg-gray-50 shadow-sm">
+          <Sparkles className="h-10 w-10 text-gray-300" />
+        </div>
+        <h2 className="mb-3 text-2xl font-bold tracking-tight text-gray-900">
+          准备就绪
+        </h2>
+        <p className="mb-12 max-w-md text-sm leading-relaxed text-gray-500">
+          从左侧选择一个文件开始编辑，或者让右侧的 AI 助手帮您生成课程内容。
+        </p>
+
+        <div className="grid w-full max-w-lg grid-cols-2 gap-4">
+          <div className="group flex flex-col items-center gap-4 rounded-3xl border border-gray-100 bg-gray-50/50 p-8 transition-all hover:border-gray-200 hover:bg-gray-50 hover:shadow-sm">
+            <div className="rounded-2xl bg-white p-3 shadow-sm transition-transform group-hover:scale-110">
+              <FileText className="h-6 w-6 text-gray-600" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <div className="text-sm font-bold text-gray-900">浏览文件</div>
+              <div className="text-xs text-gray-400">
+                <ArrowLeft className="mr-1 inline h-3 w-3" />
+                左侧侧边栏
+              </div>
+            </div>
+          </div>
+          <div className="group flex flex-col items-center gap-4 rounded-3xl border border-gray-100 bg-gray-50/50 p-8 transition-all hover:border-gray-200 hover:bg-gray-50 hover:shadow-sm">
+            <div className="rounded-2xl bg-white p-3 shadow-sm transition-transform group-hover:scale-110">
+              <Bot className="h-6 w-6 text-gray-600" />
+            </div>
+            <div className="flex flex-col gap-1">
+              <div className="text-sm font-bold text-gray-900">AI 助手</div>
+              <div className="text-xs text-gray-400">
+                右侧侧边栏
+                <ArrowLeft className="ml-1 inline h-3 w-3 rotate-180" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // 统一使用OSS API获取文件URL
   const fileUrl = getOssFileUrl(workspaceId, filePath, { preview: true });
 
   // 获取文件渲染类型
-  const renderType = getFileRenderType(fileData.mimeType, fileData.fileName, fileData.size);
+  const renderType = getFileRenderType(
+    fileData.mimeType,
+    fileData.fileName,
+    fileData.size,
+  );
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-white">
       <FilePreviewHeader
         fileData={fileData}
         onRefresh={handleRefresh}
         workspaceId={workspaceId}
         filePath={filePath}
       />
-      <div className="min-h-0 flex-1">
+      <div className="flex-1 overflow-y-auto bg-white">
         {renderType === "html" ? (
           // HTML文件使用iframe预览
           <iframe
@@ -142,10 +190,19 @@ export default function FilePreview() {
           />
         ) : renderType === "text" ? (
           // Markdown文件使用MarkdownEditor
-          <MarkdownEditor fileData={fileData} />
+          <div className="flex min-h-full justify-center px-8 md:px-12">
+            <div className="w-full max-w-3xl">
+              <MarkdownEditor fileData={fileData} />
+            </div>
+          </div>
         ) : renderType === "code" ? (
           // 代码文件使用CodePreview进行语法高亮
-          <CodePreview content={fileData.content ?? ""} fileName={fileData.fileName} />
+          <div className="h-full w-full">
+            <CodePreview
+              content={fileData.content ?? ""}
+              fileName={fileData.fileName}
+            />
+          </div>
         ) : renderType === "image" ? (
           // 图片文件直接显示
           <div className="flex h-full items-center justify-center p-4">
@@ -192,11 +249,11 @@ export default function FilePreview() {
         ) : (
           // 不支持的文件类型显示下载选项
           <div className="flex h-full flex-col items-center justify-center p-8">
-            <div className="flex flex-col items-center gap-4 text-center max-w-md">
+            <div className="flex max-w-md flex-col items-center gap-4 text-center">
               {/* 图标 */}
-              <div className="rounded-full bg-muted p-4">
+              <div className="bg-muted rounded-full p-4">
                 <svg
-                  className="h-8 w-8 text-muted-foreground"
+                  className="text-muted-foreground h-8 w-8"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"
@@ -213,14 +270,14 @@ export default function FilePreview() {
               {/* 标题和描述 */}
               <div className="space-y-2">
                 <h3 className="text-lg font-semibold">无法预览此文件</h3>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   暂不支持预览此类型的文件。您可以下载文件到本地进行查看。
                 </p>
               </div>
 
               {/* 文件信息 */}
-              <div className="rounded-lg bg-muted/50 px-3 py-2">
-                <p className="text-xs font-mono text-muted-foreground">
+              <div className="bg-muted/50 rounded-lg px-3 py-2">
+                <p className="text-muted-foreground font-mono text-xs">
                   文件类型: {fileData.mimeType}
                 </p>
               </div>
@@ -229,7 +286,7 @@ export default function FilePreview() {
               <a
                 href={getOssFileUrl(workspaceId, filePath, { download: true })}
                 download={fileData.fileName}
-                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-ring inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
               >
                 <svg
                   className="h-4 w-4"
@@ -249,7 +306,7 @@ export default function FilePreview() {
 
               {/* 文件大小提示 */}
               {fileData.size && (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   文件大小: {formatFileSize(fileData.size)}
                 </p>
               )}

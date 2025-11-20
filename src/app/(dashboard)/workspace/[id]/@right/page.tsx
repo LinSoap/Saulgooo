@@ -73,11 +73,19 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
 
   // 使用新的 hook
   // id 是 workspaceId，currentId 是要加载的会话 ID（数据库主键）
-  const { messages, isLoading, status, error, sendQuery, cancelQuery, reset, isCancelling } =
-    useBackgroundQuery(id ?? "", currentId, () => {
-      // 当消息完成时，刷新 session 列表
-      void refetchSessions();
-    });
+  const {
+    messages,
+    isLoading,
+    status,
+    error,
+    sendQuery,
+    cancelQuery,
+    reset,
+    isCancelling,
+  } = useBackgroundQuery(id ?? "", currentId, () => {
+    // 当消息完成时，刷新 session 列表
+    void refetchSessions();
+  });
 
   // 滚动相关 refs - 必须在 messages 声明之后
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -269,110 +277,120 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
   }
 
   return (
-    <div className="flex h-full flex-col border-l">
-      {/* 对话框头部 */}
-      <div className="border-b p-4">
-        <div className="flex h-8 items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Bot className="text-primary h-5 w-5" />
-            <h3 className="font-semibold">工作区助手</h3>
+    <div className="flex h-full flex-col border-l border-gray-100 bg-[#f9f9f9]">
+      {/* Header */}
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white/80 px-6 py-4 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-black text-white shadow-md">
+            <Bot className="h-4 w-4" />
           </div>
+          <div>
+            <h2 className="text-sm font-bold text-gray-900">AI助手</h2>
+          </div>
+        </div>
 
-          <div className="flex gap-1">
-            {systemMessage && <SystemInfo systemMessage={systemMessage} />}
+        <div className="flex items-center gap-1">
+          {systemMessage && <SystemInfo systemMessage={systemMessage} />}
 
-            <DropdownMenu
-              onOpenChange={(open) => {
-                if (!open) {
-                  setConfirmingDelete(null);
-                }
-              }}
+          <DropdownMenu
+            onOpenChange={(open) => {
+              if (!open) {
+                setConfirmingDelete(null);
+              }
+            }}
+          >
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="h-8 w-8 rounded-full text-gray-400 hover:bg-gray-100 hover:text-black"
+              >
+                <History className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="w-[90vw] max-w-80 rounded-2xl border-gray-100 p-2 shadow-xl"
             >
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                  <History className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-[90vw] max-w-80">
-                <DropdownMenuItem
-                  onClick={handleNewConversation}
-                  className="cursor-pointer"
-                >
-                  <MessageSquarePlus className="mr-2 h-4 w-4" />
-                  发起新对话
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={handleNewConversation}
+                className="cursor-pointer rounded-xl px-3 py-2.5 focus:bg-gray-50"
+              >
+                <MessageSquarePlus className="mr-2 h-4 w-4 text-indigo-600" />
+                <span className="font-medium">发起新对话</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator className="my-2 bg-gray-100" />
 
-                {sessions.length > 0 ? (
-                  <>
-                    <div className="text-muted-foreground px-2 py-1.5 text-sm font-medium">
-                      历史对话
-                    </div>
-                    {sessions.slice(0, 20).map((session) => (
-                      <DropdownMenuItem
-                        key={session.id}
-                        onClick={() => handleSelectSession(session.id)}
-                        className={`group flex cursor-pointer items-center justify-between ${
-                          currentId === session.id ? "bg-accent" : ""
-                        }`}
-                      >
-                        <div className="mr-2 flex min-w-0 flex-1 flex-col items-start">
-                          <span
-                            className="max-w-[260px] truncate text-sm font-medium"
-                            title={session.title}
-                          >
-                            {session.title}
-                          </span>
-                          <span className="text-muted-foreground text-xs">
-                            {formatDate(session.updatedAt)}
-                          </span>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className={`h-6 w-6 p-0 opacity-0 transition-opacity group-hover:opacity-100 ${
-                            confirmingDelete === session.id
-                              ? "bg-destructive text-destructive-foreground hover:bg-destructive/90 animate-pulse"
-                              : "hover:bg-destructive/10 hover:text-destructive"
-                          }`}
-                          onClick={(e) => handleDeleteSession(session.id, e)}
-                          disabled={deleteSessionMutation.isPending}
-                          title={
-                            confirmingDelete === session.id
-                              ? "再次点击确认删除"
-                              : "删除对话"
-                          }
-                        >
-                          {deleteSessionMutation.isPending &&
-                          confirmingDelete === session.id ? (
-                            <Loader2 className="h-3 w-3" />
-                          ) : confirmingDelete === session.id ? (
-                            <div className="flex items-center justify-center">
-                              <span className="text-[10px] font-bold">✓</span>
-                            </div>
-                          ) : (
-                            <Trash2 className="h-3 w-3" />
-                          )}
-                        </Button>
-                      </DropdownMenuItem>
-                    ))}
-                  </>
-                ) : (
-                  <div className="text-muted-foreground px-2 py-4 text-center text-sm">
-                    暂无历史对话
+              {sessions.length > 0 ? (
+                <>
+                  <div className="text-muted-foreground px-3 py-2 text-xs font-bold tracking-wider uppercase opacity-50">
+                    历史对话
                   </div>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          {/* 会话管理下拉菜单 */}
+                  {sessions.slice(0, 20).map((session) => (
+                    <DropdownMenuItem
+                      key={session.id}
+                      onClick={() => handleSelectSession(session.id)}
+                      className={`group flex cursor-pointer items-center justify-between rounded-xl px-3 py-2.5 transition-colors ${
+                        currentId === session.id
+                          ? "bg-gray-100"
+                          : "focus:bg-gray-50"
+                      }`}
+                    >
+                      <div className="mr-2 flex min-w-0 flex-1 flex-col items-start gap-0.5">
+                        <span
+                          className="max-w-60 truncate text-sm font-medium text-gray-700"
+                          title={session.title}
+                        >
+                          {session.title}
+                        </span>
+                        <span className="text-muted-foreground text-[10px]">
+                          {formatDate(session.updatedAt)}
+                        </span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`h-6 w-6 p-0 opacity-0 transition-all group-hover:opacity-100 ${
+                          confirmingDelete === session.id
+                            ? "animate-pulse bg-red-50 text-red-600 hover:bg-red-100"
+                            : "hover:bg-gray-200 hover:text-red-500"
+                        }`}
+                        onClick={(e) => handleDeleteSession(session.id, e)}
+                        disabled={deleteSessionMutation.isPending}
+                        title={
+                          confirmingDelete === session.id
+                            ? "再次点击确认删除"
+                            : "删除对话"
+                        }
+                      >
+                        {deleteSessionMutation.isPending &&
+                        confirmingDelete === session.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : confirmingDelete === session.id ? (
+                          <div className="flex items-center justify-center">
+                            <span className="text-[10px] font-bold">✓</span>
+                          </div>
+                        ) : (
+                          <Trash2 className="h-3 w-3" />
+                        )}
+                      </Button>
+                    </DropdownMenuItem>
+                  ))}
+                </>
+              ) : (
+                <div className="text-muted-foreground px-2 py-4 text-center text-sm">
+                  暂无历史对话
+                </div>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
       {/* 消息列表 */}
       <ScrollArea ref={scrollAreaRef} className="flex-1">
-        <div className="flex flex-col space-y-4 p-4">
-          <div className="flex flex-col p-4">
+        <div className="flex flex-col px-8 py-2">
+          <div className="flex flex-col space-y-2">
             {messages.length > 0
               ? messages.map((message: SDKMessage, index) => (
                   <MessageBubble key={`message-${index}`} message={message} />
@@ -381,29 +399,34 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
           </div>
 
           {isLoading && (
-            <div className="flex items-center gap-2 p-4">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="text-muted-foreground text-sm">
-                {status === "running" && "正在执行..."}
+            <div className="flex items-center justify-center gap-3 py-8">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-sm">
+                <Loader2 className="h-4 w-4 animate-spin text-black" />
+              </div>
+              <span className="animate-pulse text-sm font-medium text-gray-400">
+                {status === "running" && "正在思考..."}
                 {status === "failed" && "执行失败"}
               </span>
               {status === "running" && (
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
                   onClick={cancelQuery}
                   disabled={isCancelling}
-                  className="ml-2"
+                  className="ml-2 h-7 rounded-full px-3 text-xs text-gray-400 hover:bg-gray-100 hover:text-gray-600"
                 >
-                  {isCancelling ? "取消中..." : "取消"}
+                  {isCancelling ? "取消中..." : "停止生成"}
                 </Button>
               )}
             </div>
           )}
 
           {error && (
-            <div className="bg-destructive/10 border-destructive/20 flex items-center gap-2 rounded-md border p-4">
-              <span className="text-destructive text-sm">{error}</span>
+            <div className="flex items-center gap-3 rounded-2xl border border-red-100 bg-red-50/50 p-4 text-sm text-red-600">
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-red-100">
+                <span className="font-bold">!</span>
+              </div>
+              <span>{error}</span>
             </div>
           )}
 
@@ -416,16 +439,16 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
           <Button
             onClick={() => scrollToBottom()}
             size="icon"
-            className="absolute right-4 bottom-4 h-10 w-10 cursor-pointer rounded-full shadow-md transition-shadow hover:shadow-lg"
-            variant="secondary"
+            className="absolute right-6 bottom-6 h-10 w-10 cursor-pointer rounded-full border border-gray-100 bg-white text-gray-600 shadow-xl transition-all hover:scale-105 hover:bg-gray-50"
+            variant="ghost"
           >
-            <ArrowDown className="h-6 w-6" />
+            <ArrowDown className="h-5 w-5" />
           </Button>
         )}
       </ScrollArea>
 
       {/* 输入框 */}
-      <div className="border-t p-4">
+      <div className="border-t border-gray-100 bg-white/80 p-5 backdrop-blur-sm">
         <ChatInput
           value={inputMessage}
           onChange={setInputMessage}
@@ -435,6 +458,7 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
           workspaceId={id}
           placeholder="输入 @ 来引用文件，输入 / 来选择命令..."
           slashCommands={systemMessage?.slash_commands ?? []}
+          className="shadow-sm"
         />
       </div>
     </div>

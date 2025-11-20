@@ -26,7 +26,6 @@ import { ArrowLeft, FolderOpen, RefreshCw, Upload } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FileTreeItem } from "~/components/shared/FileTreeItem";
-import { useSession } from "next-auth/react";
 import { useRef } from "react";
 import { toast } from "sonner";
 import { ScrollArea } from "~/components/ui/scroll-area";
@@ -54,7 +53,6 @@ export default function FileBrowser() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const workspaceId = params.id as string;
-  const { data: session } = useSession();
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [uploadDirectory, setUploadDirectory] = useState("");
   const [isCreateFolderDialogOpen, setIsCreateFolderDialogOpen] =
@@ -75,12 +73,6 @@ export default function FileBrowser() {
   const selectedFile = currentFilePath
     ? ({ path: currentFilePath } as FileNode)
     : null;
-
-  // 获取工作空间信息
-  const { data: workspace } = api.workspace.getWorkSpaceById.useQuery(
-    { workspaceId },
-    { enabled: !!session?.user },
-  );
 
   // 获取文件树
   const {
@@ -340,34 +332,33 @@ export default function FileBrowser() {
   };
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-[#f9f9f9]">
       {/* Header */}
-      <div className="border-b px-2 py-4">
-        <div className="flex h-8 items-center gap-1">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white/50 p-5 backdrop-blur-sm">
+        <div className="flex items-center gap-2">
           <Link href="/">
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="h-4 w-4" />
-              返回
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="h-8 w-8 rounded-full hover:bg-gray-200/50"
+            >
+              <ArrowLeft className="h-4 w-4 text-gray-500" />
             </Button>
           </Link>
-          {workspace && (
-            <div className="min-w-0 flex-1">
-              <h3 className="truncate font-semibold">{workspace.name}</h3>
-              <p className="text-muted-foreground truncate text-xs">
-                {workspace.description}
-              </p>
-            </div>
-          )}
+          <span className="text-sm font-medium text-gray-600">文件区</span>
+        </div>
+        <div className="flex items-center gap-1">
           <Button
-            variant="outline"
+            variant="ghost"
             size="icon-sm"
+            className="h-8 w-8 rounded-full text-gray-400 hover:bg-gray-200/50 hover:text-indigo-600"
             onClick={() => {
               void refetchFileTree({ cancelRefetch: true });
             }}
             disabled={isFileTreeFetching}
           >
             <RefreshCw
-              className={`mr-1 h-3 w-3 ${isFileTreeFetching ? "animate-spin" : ""}`}
+              className={`h-4 w-4 ${isFileTreeFetching ? "animate-spin" : ""}`}
             />
           </Button>
           <Dialog
@@ -375,8 +366,12 @@ export default function FileBrowser() {
             onOpenChange={setIsUploadDialogOpen}
           >
             <DialogTrigger asChild>
-              <Button variant="outline" size="icon-sm">
-                <Upload className="h-3 w-3" />
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="h-8 w-8 rounded-full text-gray-400 hover:bg-gray-200/50 hover:text-indigo-600"
+              >
+                <Upload className="h-4 w-4" />
               </Button>
             </DialogTrigger>
             <DialogContent className="w-2xl">
@@ -460,13 +455,13 @@ export default function FileBrowser() {
         </div>
       </div>
 
-      {/* File Tree */}
+      {/* File Tree or Outline */}
       <div
-        className="flex-1 overflow-hidden"
+        className="flex-1 overflow-hidden p-4"
         onContextMenu={handleBlankContextMenu}
       >
-        <ScrollArea className="h-full">
-          <div className="space-y-2 p-4 text-sm">
+        <ScrollArea className="h-full pr-2">
+          <div className="space-y-2 text-sm">
             {isFileTreeLoading ? (
               <div className="text-muted-foreground py-8 text-center">
                 <p>加载中...</p>
