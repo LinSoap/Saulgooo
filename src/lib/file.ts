@@ -167,6 +167,26 @@ export function buildNewPath(originalPath: string, newName: string): string {
 
 
 /**
+ * 格式化文件大小
+ * @param bytes 文件大小（字节）
+ * @returns 格式化后的文件大小字符串
+ */
+export function formatFileSize(bytes: number): string {
+    if (bytes === 0) return '0 B'
+
+    const units = ['B', 'KB', 'MB', 'GB', 'TB']
+    const i = Math.floor(Math.log(bytes) / Math.log(1024))
+    const size = bytes / Math.pow(1024, i)
+
+    // 保留 1 位小数，但如果整数则不显示小数位
+    const formattedSize = size % 1 === 0
+        ? size.toString()
+        : size.toFixed(1)
+
+    return `${formattedSize} ${units[i]}`
+}
+
+/**
  * 文件操作上下文菜单的预设选项
  */
 export const CONTEXT_MENU_ACTIONS = {
