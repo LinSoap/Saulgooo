@@ -3,29 +3,21 @@
 import { useState } from "react";
 import { api } from "~/trpc/react";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "~/components/ui/card";
-import { Badge } from "~/components/ui/badge";
-import { Input } from "~/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "~/components/ui/select";
-import { Search, Package, Bot, Zap, FileText } from "lucide-react";
+  Search,
+  Package,
+  Bot,
+  Workflow,
+  Download,
+  ExternalLink,
+  Wrench,
+} from "lucide-react";
 import ImportPluginDropdown from "~/components/features/plugin/ImportPluginDropdown";
 import type { PluginItem } from "~/types/plugin";
+import { cn } from "~/lib/utils";
 
 export default function PluginPage() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [selectedTag, setSelectedTag] = useState<string>("all");
+  const [activeFilter, setActiveFilter] = useState<string>("all");
 
   const {
     data: pluginData,
@@ -37,11 +29,7 @@ export default function PluginPage() {
   const filteredItems =
     pluginData?.items?.filter((item: PluginItem) => {
       // 类型过滤
-      if (typeFilter !== "all" && item.type !== typeFilter) return false;
-
-      // 标签过滤
-      if (selectedTag !== "all" && !item.tags.includes(selectedTag))
-        return false;
+      if (activeFilter !== "all" && item.type !== activeFilter) return false;
 
       // 搜索过滤
       if (searchQuery) {
@@ -56,10 +44,65 @@ export default function PluginPage() {
       return true;
     }) ?? [];
 
-  // 获取所有标签
-  const allTags = Array.from(
-    new Set(pluginData?.items?.flatMap((item: PluginItem) => item.tags) ?? []),
-  );
+  const stats = {
+    agent: pluginData?.items?.filter((p) => p.type === "agent").length ?? 0,
+    skill: pluginData?.items?.filter((p) => p.type === "skill").length ?? 0,
+    workflow:
+      pluginData?.items?.filter((p) => p.type === "claude-md").length ?? 0, // Assuming claude-md maps to workflow
+    installed: 0, // We don't have installed status yet
+  };
+
+  const getIcon = (type: string) => {
+    switch (type) {
+      case "agent":
+        return Bot;
+      case "skill":
+        return Wrench;
+      case "claude-md":
+        return Workflow;
+      default:
+        return Package;
+    }
+  };
+
+  const getColor = (type: string) => {
+    switch (type) {
+      case "agent":
+        return "text-blue-600 bg-blue-50";
+      case "skill":
+        return "text-purple-600 bg-purple-50";
+      case "claude-md":
+        return "text-orange-600 bg-orange-50";
+      default:
+        return "text-gray-600 bg-gray-50";
+    }
+  };
+
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case "agent":
+        return "AGENT";
+      case "skill":
+        return "SKILL";
+      case "claude-md":
+        return "CLAUDE.MD";
+      default:
+        return type.toUpperCase();
+    }
+  };
+
+  const getTypeBadgeStyle = (type: string) => {
+    switch (type) {
+      case "agent":
+        return "bg-blue-100 text-blue-700";
+      case "skill":
+        return "bg-purple-100 text-purple-700";
+      case "claude-md":
+        return "bg-orange-100 text-orange-700";
+      default:
+        return "bg-gray-100 text-gray-700";
+    }
+  };
 
   if (isLoading) {
     return (
@@ -78,120 +121,230 @@ export default function PluginPage() {
   }
 
   return (
-    <div className="container mx-auto max-w-7xl p-6">
-      <div className="mb-8">
-        <h1 className="mb-2 text-3xl font-bold">插件中心</h1>
-        <p className="text-gray-600">
-          发现并导入强大的 Agents、Skills、Claude.md 到你的工作区
-        </p>
+    <div className="h-full flex-1 overflow-y-auto bg-[#f9f9f9] p-8 md:p-12">
+      {/* Header */}
+      <div className="mb-10 flex flex-col justify-between gap-6 md:flex-row md:items-end">
+        <div>
+          <h2 className="mb-2 font-serif text-gray-400 italic">Extensions</h2>
+          <h1 className="text-brand-black text-4xl font-bold tracking-tight">
+            插件中心
+          </h1>
+          <p className="mt-2 text-gray-500">
+            扩展您的教学能力，发现专业的 AI 工具和技能。
+          </p>
+        </div>
+        <div className="flex items-center gap-3 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm text-gray-500 shadow-sm">
+          <span>
+            当前共有:{" "}
+            <strong className="text-brand-black">
+              {pluginData?.items?.length ?? 0}
+            </strong>
+            个插件
+          </span>
+          {/* <span className="w-px h-4 bg-gray-200"></span>
+            <span>已安装: <strong className="text-brand-black">{stats.installed}</strong> 个</span> */}
+        </div>
       </div>
 
-      {/* 搜索和过滤器 */}
-      <div className="mb-8 flex flex-col gap-4 md:flex-row">
-        <div className="relative flex-1">
-          <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 transform text-gray-400" />
-          <Input
+      {/* Stats Cards */}
+      <div className="mb-10 grid grid-cols-1 gap-6 md:grid-cols-3">
+        <div className="bg-brand-black flex items-center justify-between rounded-4xl p-6 text-white shadow-lg">
+          <div>
+            <p className="mb-1 text-xs font-bold tracking-widest text-gray-400 uppercase">
+              Agents
+            </p>
+            <h3 className="text-3xl font-bold">智能代理</h3>
+          </div>
+          <div className="text-brand-accent font-serif text-4xl font-bold">
+            {stats.agent}
+          </div>
+        </div>
+        <div className="text-brand-black flex items-center justify-between rounded-4xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div>
+            <p className="mb-1 text-xs font-bold tracking-widest text-gray-400 uppercase">
+              Skills
+            </p>
+            <h3 className="text-3xl font-bold">专业技能</h3>
+          </div>
+          <div className="font-serif text-4xl font-bold text-gray-300">
+            {stats.skill}
+          </div>
+        </div>
+        <div className="text-brand-black flex items-center justify-between rounded-4xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div>
+            <p className="mb-1 text-xs font-bold tracking-widest text-gray-400 uppercase">
+              Workflows
+            </p>
+            <h3 className="text-3xl font-bold">工作流程</h3>
+          </div>
+          <div className="font-serif text-4xl font-bold text-gray-300">
+            {stats.workflow}
+          </div>
+        </div>
+      </div>
+
+      {/* Search & Filter */}
+      <div className="mb-10 flex flex-col items-start gap-4 lg:flex-row lg:items-center">
+        <div className="relative w-full flex-1 lg:w-auto">
+          <Search className="absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
             placeholder="搜索插件..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="focus:border-brand-black focus:ring-brand-black w-full rounded-xl border border-gray-200 bg-white py-3 pr-4 pl-11 text-sm shadow-sm focus:ring-1 focus:outline-none"
           />
         </div>
 
-        <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-full md:w-48">
-            <SelectValue placeholder="类型" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">所有类型</SelectItem>
-            <SelectItem value="agent">Agents</SelectItem>
-            <SelectItem value="skill">Skills</SelectItem>
-            <SelectItem value="claude-md">Claude.md</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={selectedTag} onValueChange={setSelectedTag}>
-          <SelectTrigger className="w-full md:w-48">
-            <SelectValue placeholder="标签" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">所有标签</SelectItem>
-            {allTags.map((tag) => (
-              <SelectItem key={tag} value={tag}>
-                {tag}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="hide-scrollbar flex w-full gap-2 overflow-x-auto pb-2 lg:w-auto">
+          <button
+            onClick={() => setActiveFilter("all")}
+            className={`rounded-full px-5 py-2.5 text-sm font-medium whitespace-nowrap transition-all ${
+              activeFilter === "all"
+                ? "bg-brand-black text-white"
+                : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            全部
+          </button>
+          <button
+            onClick={() => setActiveFilter("agent")}
+            className={`flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium whitespace-nowrap transition-all ${
+              activeFilter === "agent"
+                ? "bg-blue-600 text-white"
+                : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            <Bot className="h-4 w-4" /> Agents
+          </button>
+          <button
+            onClick={() => setActiveFilter("skill")}
+            className={`flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium whitespace-nowrap transition-all ${
+              activeFilter === "skill"
+                ? "bg-purple-600 text-white"
+                : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            <Wrench className="h-4 w-4" /> Skills
+          </button>
+          <button
+            onClick={() => setActiveFilter("claude-md")}
+            className={`flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-medium whitespace-nowrap transition-all ${
+              activeFilter === "claude-md"
+                ? "bg-orange-600 text-white"
+                : "border border-gray-200 bg-white text-gray-600 hover:bg-gray-50"
+            }`}
+          >
+            <Workflow className="h-4 w-4" /> Claude.md
+          </button>
+        </div>
       </div>
 
-      {/* 资源列表 */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {filteredItems.map((item: PluginItem) => (
-          <Card
-            key={`${item.type}-${item.name}`}
-            className="flex h-full flex-col transition-shadow hover:shadow-lg"
-          >
-            <CardHeader>
-              <CardTitle className="text-lg">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    {item.type === "agent" ? (
-                      <Bot className="h-6 w-6 text-blue-500" />
-                    ) : item.type === "skill" ? (
-                      <Zap className="h-6 w-6 text-purple-500" />
-                    ) : (
-                      <FileText className="h-6 w-6 text-green-500" />
-                    )}
+      {/* Plugin Grid */}
+      <div className="grid grid-cols-1 gap-8 md:grid-cols-2 xl:grid-cols-3">
+        {filteredItems.map((item: PluginItem) => {
+          const Icon = getIcon(item.type);
+          const colorClass = getColor(item.type);
 
-                    {item.name}
-                  </div>
-                  <Badge variant="secondary">{item.type}</Badge>
+          return (
+            <div
+              key={`${item.type}-${item.name}`}
+              className="group relative flex h-full flex-col overflow-hidden rounded-4xl border border-gray-100 bg-white p-8 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-gray-200 hover:shadow-xl"
+            >
+              {/* Header */}
+              <div className="relative z-10 mb-6 flex items-start justify-between">
+                <div
+                  className={cn(
+                    "flex h-16 w-16 items-center justify-center rounded-2xl shadow-inner",
+                    colorClass,
+                  )}
+                >
+                  <Icon className="h-8 w-8" />
                 </div>
-              </CardTitle>
-              <CardDescription className="text-sm">
-                {item.description}
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent className="flex flex-1 flex-col">
-              {/* 标签 */}
-              <div className="mb-4 flex flex-wrap gap-1">
-                {item.tags.map((tag) => (
-                  <Badge key={tag} variant="outline" className="text-xs">
-                    {tag}
-                  </Badge>
-                ))}
+                <span
+                  className={cn(
+                    "rounded-full px-3 py-1 text-[10px] font-bold tracking-widest uppercase",
+                    getTypeBadgeStyle(item.type),
+                  )}
+                >
+                  {getTypeLabel(item.type)}
+                </span>
               </div>
 
-              {/* 功能特性 */}
-              {item.features && item.features.length > 0 && (
-                <div className="mb-4">
-                  <h4 className="mb-2 text-sm font-medium">功能特性：</h4>
-                  {/* 展示所有 features，并允许换行显示 */}
-                  <ul className="flex flex-wrap gap-2 text-xs text-gray-600">
-                    {item.features.map((feature, index) => (
-                      <li
-                        key={index}
-                        className="flex items-center gap-1 wrap-break-word whitespace-normal"
-                      >
-                        <Package className="h-3 w-3" />
-                        <span className="max-w-[20rem] wrap-break-word">
+              {/* Content */}
+              <div className="relative z-10 flex-1">
+                <h3 className="text-brand-black group-hover:text-brand-accent mb-2 text-xl font-bold transition-colors">
+                  {item.name}
+                </h3>
+                <p className="mb-6 line-clamp-2 h-10 text-sm leading-relaxed text-gray-500">
+                  {item.description}
+                </p>
+
+                {/* Tags */}
+                <div className="mb-6 flex flex-wrap gap-2">
+                  {item.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-md bg-gray-100 px-2 py-1 text-xs text-gray-500"
+                    >
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Features List */}
+                {item.features && item.features.length > 0 && (
+                  <div className="mb-8 rounded-xl border border-gray-50 bg-gray-50/50 p-4">
+                    <p className="mb-3 flex items-center gap-1 text-xs font-bold text-gray-400 uppercase">
+                      <ExternalLink className="h-3 w-3" /> 功能特性
+                    </p>
+                    <ul className="space-y-2">
+                      {item.features.map((feature, i) => (
+                        <li
+                          key={i}
+                          className="flex items-center gap-2 text-xs text-gray-600"
+                        >
+                          <div className="h-1 w-1 rounded-full bg-gray-400"></div>
                           {feature}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* 导入按钮：始终固定在 Card 底部 */}
-              <div className="mt-auto">
-                <ImportPluginDropdown plugin={item} />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
-            </CardContent>
-          </Card>
-        ))}
+
+              {/* Actions */}
+              <div className="relative z-10 mt-auto flex gap-3">
+                <button className="text-brand-black flex-1 rounded-xl border border-gray-200 py-2.5 text-sm font-medium transition-colors hover:bg-gray-50">
+                  查看详情
+                </button>
+                <div className="flex-1">
+                  <ImportPluginDropdown
+                    plugin={item}
+                    trigger={
+                      <div className="bg-brand-black hover:bg-brand-dark flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium text-white shadow-md transition-all hover:-translate-y-0.5">
+                        <Download className="h-3.5 w-3.5" />
+                        {item.type === "claude-md" ? "应用" : "安装"}
+                      </div>
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Decorative Background Blob */}
+              <div
+                className={cn(
+                  "pointer-events-none absolute -right-20 -bottom-20 h-64 w-64 rounded-full opacity-0 blur-3xl transition-opacity duration-500 group-hover:opacity-20",
+                  item.type === "agent"
+                    ? "bg-blue-500"
+                    : item.type === "skill"
+                      ? "bg-purple-500"
+                      : "bg-orange-500",
+                )}
+              ></div>
+            </div>
+          );
+        })}
       </div>
 
       {/* 空状态 */}
