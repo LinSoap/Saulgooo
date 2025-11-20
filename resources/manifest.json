@@ -195,6 +195,28 @@
         "反思反馈",
         "可交付成果定义"
       ]
+    },
+    {
+      "type": "skill",
+      "name": "Skill Creator",
+      "description": "创建有效技能的指南。当用户想要创建新技能（或更新现有技能）以扩展 Claude 在特定领域知识、工作流程或工具集成方面的能力时使用此技能",
+      "tags": [
+        "技能创建",
+        "开发工具",
+        "工作流程",
+        "扩展功能",
+        "指南"
+      ],
+      "resource_path": "skills/skill-creator",
+      "import_path": ".claude/skills/skill-creator",
+      "features": [
+        "技能结构设计",
+        "工作流程创建",
+        "工具集成指导",
+        "渐进式披露设计",
+        "技能打包",
+        "最佳实践"
+      ]
     }
   ],
   "claude_mds": [
