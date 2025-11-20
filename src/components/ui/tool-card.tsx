@@ -9,13 +9,13 @@ interface ToolCardProps {
 
 export function ToolCard({ title, content, customActions }: ToolCardProps) {
   return (
-    <div className="my-4 w-full overflow-hidden rounded-xl border">
-      <div className="bg-muted/80 text-muted-foreground flex items-center justify-between p-3 text-xs">
-        <span className="ml-1 font-mono lowercase">{title}</span>
+    <div className="my-1 w-full overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+      <div className="flex items-center justify-between bg-gray-50/50 p-3 text-xs text-gray-500">
+        <span className="ml-1 font-mono font-medium lowercase">{title}</span>
         <div className="flex items-center gap-2">
           {customActions}
           <button
-            className="text-muted-foreground hover:text-foreground cursor-pointer p-1 transition-all"
+            className="cursor-pointer p-1 text-gray-400 transition-all hover:text-gray-700"
             title="复制内容"
             type="button"
             onClick={() => navigator.clipboard.writeText(content)}
@@ -25,8 +25,8 @@ export function ToolCard({ title, content, customActions }: ToolCardProps) {
         </div>
       </div>
       <div className="w-full min-w-0">
-        <div className="border-t">
-          <pre className="bg-muted/40 p-4 font-mono text-xs whitespace-pre-wrap">
+        <div className="border-t border-gray-50">
+          <pre className="bg-white p-4 font-mono text-xs whitespace-pre-wrap text-gray-600">
             <code>{content}</code>
           </pre>
         </div>

@@ -1,7 +1,7 @@
 import "~/styles/globals.css";
 
 import { type Metadata } from "next";
-import { Geist } from "next/font/google";
+import { Geist, Inter, Noto_Serif_SC, JetBrains_Mono } from "next/font/google";
 
 import { TRPCReactProvider } from "~/trpc/react";
 import { Toaster } from "~/components/ui/sonner";
@@ -17,11 +17,31 @@ const geist = Geist({
   variable: "--font-geist-sans",
 });
 
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+});
+
+const notoSerifSC = Noto_Serif_SC({
+  weight: ["300", "400", "700"],
+  subsets: ["latin"],
+  variable: "--font-noto-serif-sc",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  weight: ["400", "500"],
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+});
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${geist.variable}`}>
+    <html
+      lang="en"
+      className={`${geist.variable} ${inter.variable} ${notoSerifSC.variable} ${jetbrainsMono.variable}`}
+    >
       <body>
         <TRPCReactProvider>{children}</TRPCReactProvider>
         <Toaster />

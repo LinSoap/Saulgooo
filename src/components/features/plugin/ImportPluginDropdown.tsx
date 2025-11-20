@@ -17,11 +17,13 @@ import type { PluginItem } from "~/types/plugin";
 interface ImportPluginDropdownProps {
   plugin: PluginItem;
   onSuccess?: () => void;
+  trigger?: React.ReactNode;
 }
 
 export default function ImportPluginDropdown({
   plugin,
   onSuccess,
+  trigger,
 }: ImportPluginDropdownProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
@@ -102,22 +104,30 @@ export default function ImportPluginDropdown({
         }}
         disabled={isLoading || isImporting}
       >
-        <SelectTrigger className="w-full">
-          <SelectValue
-            placeholder={
-              isImporting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  导入中...
-                </>
-              ) : (
-                <>
-                  <Download className="mr-2 h-4 w-4" />
-                  导入到工作区
-                </>
-              )
-            }
-          />
+        <SelectTrigger
+          className={
+            trigger
+              ? "h-auto w-full border-0 bg-transparent p-0 shadow-none focus:ring-0"
+              : "w-full"
+          }
+        >
+          {trigger ?? (
+            <SelectValue
+              placeholder={
+                isImporting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    导入中...
+                  </>
+                ) : (
+                  <>
+                    <Download className="mr-2 h-4 w-4" />
+                    导入到工作区
+                  </>
+                )
+              }
+            />
+          )}
         </SelectTrigger>
         <SelectContent>
           {/* 工作区列表 */}

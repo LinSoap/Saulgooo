@@ -65,7 +65,8 @@ export function ChatInput({
 }: ChatInputProps) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
-  const [justSelectedFromAutocomplete, setJustSelectedFromAutocomplete] = useState(false);
+  const [justSelectedFromAutocomplete, setJustSelectedFromAutocomplete] =
+    useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
 
   const editor = useMemo(() => {
@@ -120,14 +121,13 @@ export function ChatInput({
     }
   };
 
-  
   return (
     <div className={cn("relative", className)}>
       <ProseKit editor={editor}>
         <div
           ref={editorRef}
           className={cn(
-            "border-input bg-background ring-offset-background relative max-h-32 min-h-10 overflow-y-auto rounded-md border pl-3 pr-12 py-2 text-sm",
+            "border-input bg-background ring-offset-background relative max-h-32 min-h-10 overflow-y-auto rounded-2xl border py-3 pr-12 pl-4 text-sm",
             "focus-within:ring-ring focus-within:ring-2 focus-within:ring-offset-2 focus-within:outline-none",
             "disabled:cursor-not-allowed disabled:opacity-50",
             disabled && "cursor-not-allowed opacity-50",

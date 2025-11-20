@@ -13,16 +13,16 @@ export default async function middleware(request: NextRequest) {
       : "next-auth.session-token",
   });
 
-  // 如果用户未登录且不在登录页面，重定向到登录页面
-  if (!token && !pathname.startsWith("/login")) {
+  // 如果用户未登录且不在登录页面且不在首页，重定向到登录页面
+  if (!token && !pathname.startsWith("/login") && pathname !== "/") {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
   }
 
-  // 如果用户已登录且在登录页面，重定向到主页
-  if (token && pathname.startsWith("/login")) {
-    const homeUrl = new URL("/", request.url);
-    return NextResponse.redirect(homeUrl);
+  // 如果用户已登录且在登录页面或首页，重定向到仪表盘
+  if (token && (pathname.startsWith("/login") || pathname === "/")) {
+    const dashboardUrl = new URL("/dashboard", request.url);
+    return NextResponse.redirect(dashboardUrl);
   }
 
   return NextResponse.next();

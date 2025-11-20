@@ -267,11 +267,13 @@ export function FileTreeItem({
       <div
         ref={itemRef}
         className={cn(
-          "hover:bg-accent flex cursor-pointer items-center gap-1 rounded-sm px-2 py-1 text-sm",
-          selectedPath === item.path && "bg-accent",
-          level > 0 && `pl-${2 + level * 4}`,
+          "flex cursor-pointer items-center gap-3 rounded-xl px-4 py-3 text-sm transition-all",
+          selectedPath === item.path
+            ? "bg-white font-medium text-black shadow-sm"
+            : "text-gray-500 hover:bg-gray-200/50 hover:text-black",
+          level > 0 && `pl-${4 + level * 4}`,
         )}
-        style={{ paddingLeft: `${8 + level * 16}px` }}
+        style={{ paddingLeft: `${16 + level * 16}px` }}
         onClick={handleToggle}
         onContextMenu={handleContextMenu}
       >

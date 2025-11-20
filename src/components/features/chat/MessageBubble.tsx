@@ -68,7 +68,7 @@ export function MessageRenderer({ message }: { message: SDKMessage }) {
             elements.push(
               <div
                 key={`sep-${index}`}
-                className="my-4 border-t border-gray-200"
+                className="my-1 border-t border-gray-200"
               ></div>,
             );
           }
@@ -99,20 +99,22 @@ export function MessageBubble({ message }: { message: SDKMessage }) {
     isUser &&
     Array.isArray(message.message.content) &&
     message.message.content.some((item) => item.type === "tool_result");
-  const isText =
-    isUser &&
-    Array.isArray(message.message.content) &&
-    message.message.content.every((item) => item.type === "text");
-  const alignRight = isUser && !isToolResult && !isText;
+
+  // Determine if it's a standard user message (text only or string content)
+  const isStandardUserMessage = isUser && !isToolResult;
+
   return (
-    <div className={` ${alignRight ? "self-end" : "self-start"}`}>
+    <div
+      className={`flex w-full ${isStandardUserMessage ? "justify-end" : "justify-start"}`}
+    >
       <div
-        className={`rounded-lg ${
-          alignRight ? "bg-primary text-primary-foreground p-3" : "px-3 py-2"
+        className={`text-sm leading-relaxed transition-all ${
+          isStandardUserMessage
+            ? "max-w-[85%] rounded-3xl rounded-br-sm bg-black px-5 py-3 text-white shadow-sm"
+            : "w-full max-w-full px-0 py-1 text-gray-800"
         }`}
       >
         <div className="max-w-full">
-          {/* {JSON.stringify(message)} */}
           <MessageRenderer message={message} />
         </div>
       </div>

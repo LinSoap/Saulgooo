@@ -4,16 +4,15 @@ import { signOut, useSession } from "next-auth/react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 
-import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu";
-import { LogOut, Settings, User, Home, ShoppingBag, HelpCircle } from "lucide-react";
-import { Button } from "~/components/ui/button";
+  GraduationCap,
+  LogOut,
+  Settings,
+  Home,
+  Bot,
+  Library,
+  Blocks,
+} from "lucide-react";
 import { cn } from "~/lib/utils";
 
 interface DashboardSidebarProps {
@@ -30,110 +29,163 @@ export default function DashboardSidebar({ children }: DashboardSidebarProps) {
     router.push("/login");
   };
 
+  const isActive = (path: string) => {
+    if (path === "/") return pathname === path;
+    return pathname.startsWith(path);
+  };
+
   return (
-    <div className="flex h-screen">
-      {/* 固定宽度的侧边栏 */}
-      <div className="bg-card flex h-full w-64 flex-col border-r">
-        {/* 用户状态区域 */}
-        <div className="bg-background flex h-30 flex-col items-center border-b p-6">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-auto w-auto p-0">
-                <Avatar className="mb-2 h-12 w-12">
-                  <AvatarImage
-                    src={session?.user?.image ?? undefined}
-                    alt={session?.user?.name ?? "用户头像"}
-                  />
-                  <AvatarFallback className="bg-primary text-primary-foreground">
-                    {session?.user?.name?.[0]?.toUpperCase() ??
-                      session?.user?.email?.[0]?.toUpperCase() ??
-                      "U"}
-                  </AvatarFallback>
-                </Avatar>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <div className="px-2 py-1.5 text-sm">
-                <div className="text-foreground font-medium">
-                  {session?.user?.name ?? "未知用户"}
-                </div>
-                <div className="text-muted-foreground truncate text-xs">
-                  {session?.user?.email ?? ""}
-                </div>
-              </div>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem>
-                <User className="mr-2 h-4 w-4" />
-                <span>个人资料</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Settings className="mr-2 h-4 w-4" />
-                <span>设置</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut}>
-                <LogOut className="mr-2 h-4 w-4" />
-                <span>退出登录</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <div className="text-center">
-            <h3 className="text-foreground text-sm font-semibold">
-              {session?.user?.name ?? session?.user?.email ?? "未知用户"}
-            </h3>
-            <p className="text-muted-foreground text-xs">在线状态</p>
+    <div className="flex h-screen bg-[#f9f9f9]">
+      {/* Sidebar */}
+      <div className="flex h-full w-64 shrink-0 flex-col bg-[#111] p-4 text-white">
+        {/* Logo Area */}
+        <div
+          className="group mb-6 flex cursor-pointer items-center gap-3 px-2 py-6"
+          onClick={() => router.push("/")}
+        >
+          <div className="rounded-xl bg-white p-2 shadow-lg transition-transform group-hover:scale-105">
+            <GraduationCap className="h-5 w-5 text-black" />
+          </div>
+          <div>
+            <h1 className="font-serif text-lg leading-none font-bold tracking-tight">
+              Saulgooo
+            </h1>
+            <p className="mt-1 text-[10px] tracking-widest text-gray-400 uppercase">
+              Faculty Pro
+            </p>
           </div>
         </div>
 
-        {/* 导航区域 */}
-        <nav className="flex flex-1 flex-col p-4">
-          <div className="space-y-2">
-            <Link href="/">
-              <Button
-                variant={pathname === "/" ? "secondary" : "ghost"}
-                className={cn(
-                  "w-full justify-start",
-                  pathname === "/" && "bg-secondary",
-                )}
-              >
-                <Home className="mr-2 h-4 w-4" />
-                主页
-              </Button>
-            </Link>
-            <Link href="/plugin">
-              <Button
-                variant={pathname === "/plugin" ? "secondary" : "ghost"}
-                className={cn(
-                  "w-full justify-start",
-                  pathname === "/plugin" && "bg-secondary",
-                )}
-              >
-                <ShoppingBag className="mr-2 h-4 w-4" />
-                插件
-              </Button>
-            </Link>
-          </div>
+        {/* Navigation */}
+        <nav className="flex-1 space-y-1">
+          <Link
+            href="/dashboard"
+            className={cn(
+              "group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl px-4 py-3.5 transition-all duration-300",
+              isActive("/dashboard")
+                ? "bg-white font-medium text-black shadow-md"
+                : "text-gray-400 hover:bg-white/5 hover:text-white",
+            )}
+          >
+            <Home
+              className={cn(
+                "h-5 w-5 transition-colors",
+                isActive("/dashboard")
+                  ? "text-black"
+                  : "text-gray-500 group-hover:text-white",
+              )}
+            />
+            <span className="text-sm tracking-wide">Home</span>
+          </Link>
 
-          {/* 底部帮助区域 */}
-          <div className="mt-auto pt-4 border-t">
-            <Link href="/help">
-              <Button
-                variant={pathname === "/help" ? "secondary" : "ghost"}
-                className={cn(
-                  "w-full justify-start",
-                  pathname === "/help" && "bg-secondary",
-                )}
-              >
-                <HelpCircle className="mr-2 h-4 w-4" />
-                使用说明
-              </Button>
-            </Link>
-          </div>
+          <Link
+            href="/ai-assistant"
+            className={cn(
+              "group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl px-4 py-3.5 transition-all duration-300",
+              isActive("/ai-assistant")
+                ? "bg-white font-medium text-black shadow-md"
+                : "text-gray-400 hover:bg-white/5 hover:text-white",
+            )}
+          >
+            <Bot
+              className={cn(
+                "h-5 w-5 transition-colors",
+                isActive("/ai-assistant")
+                  ? "text-black"
+                  : "text-gray-500 group-hover:text-white",
+              )}
+            />
+            <span className="text-sm tracking-wide">AI 助教</span>
+          </Link>
+
+          <Link
+            href="/plugin"
+            className={cn(
+              "group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl px-4 py-3.5 transition-all duration-300",
+              isActive("/plugin")
+                ? "bg-white font-medium text-black shadow-md"
+                : "text-gray-400 hover:bg-white/5 hover:text-white",
+            )}
+          >
+            <Blocks
+              className={cn(
+                "h-5 w-5 transition-colors",
+                isActive("/plugin")
+                  ? "text-black"
+                  : "text-gray-500 group-hover:text-white",
+              )}
+            />
+            <span className="text-sm tracking-wide">插件中心</span>
+          </Link>
+
+          <Link
+            href="/resources"
+            className={cn(
+              "group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl px-4 py-3.5 transition-all duration-300",
+              isActive("/resources")
+                ? "bg-white font-medium text-black shadow-md"
+                : "text-gray-400 hover:bg-white/5 hover:text-white",
+            )}
+          >
+            <Library
+              className={cn(
+                "h-5 w-5 transition-colors",
+                isActive("/resources")
+                  ? "text-black"
+                  : "text-gray-500 group-hover:text-white",
+              )}
+            />
+            <span className="text-sm tracking-wide">资源库</span>
+          </Link>
+
+          <Link
+            href="/settings"
+            className={cn(
+              "group relative flex w-full items-center gap-4 overflow-hidden rounded-2xl px-4 py-3.5 transition-all duration-300",
+              isActive("/settings")
+                ? "bg-white font-medium text-black shadow-md"
+                : "text-gray-400 hover:bg-white/5 hover:text-white",
+            )}
+          >
+            <Settings
+              className={cn(
+                "h-5 w-5 transition-colors",
+                isActive("/settings")
+                  ? "text-black"
+                  : "text-gray-500 group-hover:text-white",
+              )}
+            />
+            <span className="text-sm tracking-wide">设置</span>
+          </Link>
         </nav>
+
+        {/* User Profile Snippet */}
+        <div className="mt-auto border-t border-white/10 pt-6">
+          <div className="flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-white/5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full border-2 border-[#111] bg-linear-to-tr from-gray-200 to-gray-400 text-xs font-bold text-black">
+              {session?.user?.name?.[0]?.toUpperCase() ?? "U"}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-white">
+                {session?.user?.name ?? "未知用户"}
+              </p>
+              <p className="truncate text-xs text-gray-500">
+                {session?.user?.email ?? ""}
+              </p>
+            </div>
+            <button
+              onClick={handleSignOut}
+              className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-white/10 hover:text-white"
+              title="退出登录"
+            >
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* 内容区域 */}
-      <div className="bg-background h-full flex-1 overflow-auto">
+      {/* Content Area */}
+      <div className="h-full flex-1 overflow-hidden bg-[#f9f9f9]">
         {children}
       </div>
     </div>

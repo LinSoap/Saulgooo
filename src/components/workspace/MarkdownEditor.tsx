@@ -12,7 +12,6 @@ import { cn } from "~/lib/utils";
 import { markdownFromHTML, htmlFromMarkdown } from "~/lib/markdown";
 import { MarkdownPreview } from "~/components/shared/MarkdownPreview";
 import type { FileData } from "~/lib/file";
-import { Button } from "~/components/ui/button";
 import { Eye, Code2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
@@ -32,7 +31,7 @@ function EditorContent({
   return (
     <div
       ref={editor?.mount}
-      className="ProseMirror w-full px-6 py-8 pb-20 text-sm outline-none md:px-[max(4rem,calc(50%-20rem))] [&_blockquote]:my-4 [&_blockquote]:border-l-4 [&_blockquote]:border-gray-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-2 [&_code]:py-0.5 dark:[&_code]:bg-gray-800 [&_h1]:mt-8 [&_h1]:mb-4 [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:mt-6 [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-2 [&_ol]:ml-6 [&_ol]:list-decimal [&_p]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-gray-100 [&_pre]:p-4 dark:[&_pre]:bg-gray-800 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:px-4 [&_td]:py-2 [&_th]:border [&_th]:px-4 [&_th]:py-2 [&_th]:text-left [&_ul]:my-2 [&_ul]:ml-6 [&_ul]:list-disc"
+      className="ProseMirror w-full max-w-3xl px-6 py-8 pb-20 text-sm outline-none [&_blockquote]:my-4 [&_blockquote]:border-l-4 [&_blockquote]:border-gray-300 [&_blockquote]:pl-4 [&_blockquote]:italic [&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-2 [&_code]:py-0.5 dark:[&_code]:bg-gray-800 [&_h1]:mt-8 [&_h1]:mb-4 [&_h1]:text-2xl [&_h1]:font-bold [&_h2]:mt-6 [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-semibold [&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-lg [&_h3]:font-semibold [&_li]:my-1 [&_ol]:my-2 [&_ol]:ml-6 [&_ol]:list-decimal [&_p]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-gray-100 [&_pre]:p-4 dark:[&_pre]:bg-gray-800 [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_table]:my-4 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:px-4 [&_td]:py-2 [&_th]:border [&_th]:px-4 [&_th]:py-2 [&_th]:text-left [&_ul]:my-2 [&_ul]:ml-6 [&_ul]:list-disc"
     />
   );
 }
@@ -68,7 +67,9 @@ export function MarkdownEditor({ fileData }: MarkdownEditorProps) {
 
     // 从 fileData 获取初始内容
     const initialContent =
-      fileData.encoding === "utf-8" ? fileData.content : atob(fileData.content);
+      fileData.encoding === "utf-8"
+        ? (fileData.content ?? "")
+        : atob(fileData.content ?? "");
 
     // 解析初始内容
     if (initialContent?.trim()) {
@@ -161,45 +162,64 @@ export function MarkdownEditor({ fileData }: MarkdownEditorProps) {
 
   return (
     <div className={cn("flex h-full flex-col bg-white dark:bg-gray-950")}>
-      {/* Header */}
-      <div className="bg-background/50 border-b px-4 py-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Button
-              variant={viewMode === "edit" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setViewMode("edit")}
-              className="gap-2"
-            >
-              <Code2 className="h-4 w-4" />
-              编辑
-            </Button>
-            <Button
-              variant={viewMode === "preview" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setViewMode("preview")}
-              className="gap-2"
-            >
-              <Eye className="h-4 w-4" />
-              预览
-            </Button>
-          </div>
-          <Button
-            variant="default"
-            size="sm"
+      {/* Toolbar */}
+      <div className="flex h-14 shrink-0 items-center justify-between border-b border-gray-100 px-6">
+        <div className="flex items-center gap-1 rounded-lg border border-gray-100 bg-gray-50 p-1">
+          <button
+            onClick={() => setViewMode("edit")}
+            className={cn(
+              "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
+              viewMode === "edit"
+                ? "bg-white text-black shadow-sm"
+                : "text-gray-500 hover:bg-white/50 hover:text-gray-900",
+            )}
+          >
+            <Code2 className="h-4 w-4" />
+            <span>编辑</span>
+          </button>
+          <button
+            onClick={() => setViewMode("preview")}
+            className={cn(
+              "flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-all",
+              viewMode === "preview"
+                ? "bg-white text-black shadow-sm"
+                : "text-gray-500 hover:bg-white/50 hover:text-gray-900",
+            )}
+          >
+            <Eye className="h-4 w-4" />
+            <span>预览</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span
+            className={cn(
+              "text-xs text-gray-400 transition-opacity",
+              isSaving ? "opacity-100" : "opacity-0",
+            )}
+          >
+            {isSaving ? "保存中..." : "已保存"}
+          </span>
+          <button
             onClick={() => void saveFile()}
             disabled={!hasUnsavedChange || isSaving}
-            className="gap-2"
+            className={cn(
+              "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all",
+              hasUnsavedChange
+                ? "bg-black text-white hover:bg-gray-800"
+                : "cursor-not-allowed bg-gray-100 text-gray-400",
+            )}
+            title="Save"
           >
             <Save className="h-4 w-4" />
-            {isSaving ? "保存中..." : "保存"}
-          </Button>
+            <span>保存</span>
+          </button>
         </div>
       </div>
 
       {/* 内容区域 */}
       {viewMode === "edit" ? (
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex flex-1 justify-center overflow-y-auto bg-white">
           {editor ? (
             <ProseKit editor={editor}>
               <EditorContent editor={editor} onDocChange={handleDocChange} />
@@ -211,8 +231,8 @@ export function MarkdownEditor({ fileData }: MarkdownEditorProps) {
           )}
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto">
-          <div className="px-6 py-8 pb-20">
+        <div className="flex flex-1 justify-center overflow-y-auto bg-white">
+          <div className="w-full max-w-3xl px-6 pb-20">
             <MarkdownPreview content={currentMarkdown} />
           </div>
         </div>
