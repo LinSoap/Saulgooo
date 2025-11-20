@@ -10,6 +10,7 @@ import { getOssFileUrl, type FileData, getFileRenderType } from "~/lib/file";
 import Image from "next/image";
 import { useFileWatcher } from "~/hooks/use-file-watcher";
 import { api } from "~/trpc/react";
+import { formatFileSize } from "~/lib/file";
 
 export default function FilePreview() {
   const params = useParams();
@@ -190,16 +191,69 @@ export default function FilePreview() {
           />
         ) : (
           // 不支持的文件类型显示下载选项
-          <div className="flex h-full flex-col items-center justify-center p-4 text-gray-500">
-            <div className="mb-4">Cannot preview this file type.</div>
-            <div>{fileData.mimeType}</div>
-            <a
-              href={getOssFileUrl(workspaceId, filePath, { download: true })}
-              download={fileData.fileName}
-              className="rounded bg-blue-500 px-4 py-2 text-white transition-colors hover:bg-blue-600"
-            >
-              Download File
-            </a>
+          <div className="flex h-full flex-col items-center justify-center p-8">
+            <div className="flex flex-col items-center gap-4 text-center max-w-md">
+              {/* 图标 */}
+              <div className="rounded-full bg-muted p-4">
+                <svg
+                  className="h-8 w-8 text-muted-foreground"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
+                  />
+                </svg>
+              </div>
+
+              {/* 标题和描述 */}
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">无法预览此文件</h3>
+                <p className="text-sm text-muted-foreground">
+                  暂不支持预览此类型的文件。您可以下载文件到本地进行查看。
+                </p>
+              </div>
+
+              {/* 文件信息 */}
+              <div className="rounded-lg bg-muted/50 px-3 py-2">
+                <p className="text-xs font-mono text-muted-foreground">
+                  文件类型: {fileData.mimeType}
+                </p>
+              </div>
+
+              {/* 下载按钮 */}
+              <a
+                href={getOssFileUrl(workspaceId, filePath, { download: true })}
+                download={fileData.fileName}
+                className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M7.5 10.5L12 15m0 0l4.5-4.5M12 15V3"
+                  />
+                </svg>
+                下载文件
+              </a>
+
+              {/* 文件大小提示 */}
+              {fileData.size && (
+                <p className="text-xs text-muted-foreground">
+                  文件大小: {formatFileSize(fileData.size)}
+                </p>
+              )}
+            </div>
           </div>
         )}
       </div>

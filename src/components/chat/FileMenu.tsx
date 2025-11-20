@@ -12,6 +12,7 @@ import {
 } from "prosekit/react/autocomplete";
 import { FileIcon, FileText, Image, Film, Music, Code } from "lucide-react";
 import { cn } from "~/lib/utils";
+import { formatFileSize } from "~/lib/file";
 
 interface FileItem {
   id: string;
@@ -111,15 +112,7 @@ export function FileMenu({
     return <FileIcon className="h-4 w-4" />;
   };
 
-  // 格式化文件大小
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 B";
-    const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-  };
-
+  
   return (
     <AutocompletePopover
       regex={/@[\p{L}\p{N}_-]*$/u}
