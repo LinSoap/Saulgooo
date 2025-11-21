@@ -13,7 +13,6 @@ export const userRouter = createTRPCRouter({
         image: true,
         institution: true,
         bio: true,
-        preferences: true,
       },
     });
     return user;
@@ -32,24 +31,6 @@ export const userRouter = createTRPCRouter({
       return ctx.db.user.update({
         where: { id: ctx.session.user.id },
         data: input,
-      });
-    }),
-
-  // 更新 AI 偏好
-  updatePreferences: protectedProcedure
-    .input(
-      z.object({
-        style: z.string(),
-        domain: z.string(),
-        citationStyle: z.string(),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      return ctx.db.user.update({
-        where: { id: ctx.session.user.id },
-        data: {
-          preferences: JSON.stringify(input),
-        },
       });
     }),
 

@@ -4,19 +4,9 @@ import React, { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { api } from "~/trpc/react";
-import {
-  User,
-  Shield,
-  Sparkles,
-  Save,
-  Eye,
-  EyeOff,
-  Loader2,
-  Lock,
-} from "lucide-react";
-import type { AIPreferences } from "~/lib/prompt";
+import { User, Shield, Save, Eye, EyeOff, Loader2, Lock } from "lucide-react";
 
-type SettingsTab = "profile" | "ai" | "security";
+type SettingsTab = "profile" | "security";
 
 interface ProfileForm {
   name: string;
@@ -32,7 +22,6 @@ export default function SettingsPage() {
 
   const tabs = [
     { id: "profile", label: "个人资料", icon: User },
-    { id: "ai", label: "AI 偏好设置", icon: Sparkles },
     { id: "security", label: "安全与隐私", icon: Shield },
   ];
 
@@ -44,17 +33,6 @@ export default function SettingsPage() {
   const updateProfileMutation = api.user.updateProfile.useMutation({
     onSuccess: () => {
       toast.success("个人资料已更新");
-      void refetchProfile();
-    },
-    onError: (error) => {
-      toast.error(`更新失败: ${error.message}`);
-    },
-  });
-
-  // 更新 AI 偏好 Mutation
-  const updatePreferencesMutation = api.user.updatePreferences.useMutation({
-    onSuccess: () => {
-      toast.success("AI 偏好已更新");
       void refetchProfile();
     },
     onError: (error) => {
@@ -81,12 +59,6 @@ export default function SettingsPage() {
     reset: resetProfile,
   } = useForm<ProfileForm>();
 
-  const {
-    register: registerAI,
-    handleSubmit: handleSubmitAI,
-    reset: resetAI,
-  } = useForm<AIPreferences>();
-
   // 初始化表单数据
   useEffect(() => {
     if (profile) {
@@ -95,25 +67,11 @@ export default function SettingsPage() {
         institution: profile.institution ?? "",
         bio: profile.bio ?? "",
       });
-
-      if (profile.preferences) {
-        try {
-          const prefs = JSON.parse(profile.preferences) as AIPreferences;
-          resetAI(prefs);
-        } catch (e) {
-          console.error("Failed to parse AI preferences", e);
-          // 忽略解析错误
-        }
-      }
     }
-  }, [profile, resetProfile, resetAI]);
+  }, [profile, resetProfile]);
 
   const onProfileSubmit = (data: ProfileForm) => {
     updateProfileMutation.mutate(data);
-  };
-
-  const onAISubmit = (data: AIPreferences) => {
-    updatePreferencesMutation.mutate(data);
   };
 
   const onChangePassword = () => {
@@ -236,106 +194,6 @@ export default function SettingsPage() {
                     <Save className="h-4 w-4" />
                   )}
                   保存更改
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* AI SETTINGS TAB */}
-          {activeTab === "ai" && (
-            <form onSubmit={handleSubmitAI(onAISubmit)} className="space-y-6">
-              <div className="rounded-4xl border border-gray-100 bg-white p-8 shadow-sm">
-                <h2 className="text-brand-black mb-2 flex items-center gap-3 text-xl font-bold">
-                  <div className="rounded-lg bg-gray-100 p-2">
-                    <Sparkles className="h-5 w-5 text-gray-600" />
-                  </div>
-                  模型行为
-                </h2>
-                <p className="mb-8 text-sm text-gray-500">
-                  定义 AI 助手在协助您进行课程设计和内容生成时的默认表现。
-                </p>
-
-                <div className="space-y-8">
-                  <div className="flex flex-col justify-between gap-4 border-b border-gray-50 pb-6 md:flex-row md:items-center">
-                    <div>
-                      <p className="text-brand-black mb-1 text-sm font-bold">
-                        响应语调
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        选择 AI 生成文本的学术严谨程度。
-                      </p>
-                    </div>
-                    <select
-                      {...registerAI("style")}
-                      className="focus:ring-brand-black min-w-[200px] rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm focus:ring-2 focus:outline-none"
-                    >
-                      <option value="rigorous">
-                        非常严谨 (Academic Rigorous)
-                      </option>
-                      <option value="balanced">
-                        通俗易懂 (Standard Educational)
-                      </option>
-                      <option value="creative">
-                        生动有趣 (Engaging & Fun)
-                      </option>
-                    </select>
-                  </div>
-
-                  <div className="flex flex-col justify-between gap-4 border-b border-gray-50 pb-6 md:flex-row md:items-center">
-                    <div>
-                      <p className="text-brand-black mb-1 text-sm font-bold">
-                        专业领域
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        AI 默认关注的知识领域。
-                      </p>
-                    </div>
-                    <select
-                      {...registerAI("domain")}
-                      className="focus:ring-brand-black min-w-[200px] rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm focus:ring-2 focus:outline-none"
-                    >
-                      <option value="general">通识教育</option>
-                      <option value="cs">计算机科学</option>
-                      <option value="math">数学与统计</option>
-                      <option value="physics">物理学</option>
-                      <option value="literature">文学与艺术</option>
-                    </select>
-                  </div>
-
-                  <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-                    <div>
-                      <p className="text-brand-black mb-1 text-sm font-bold">
-                        引用格式
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        生成参考文献时默认使用的标准。
-                      </p>
-                    </div>
-                    <select
-                      {...registerAI("citationStyle")}
-                      className="focus:ring-brand-black min-w-[200px] rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm focus:ring-2 focus:outline-none"
-                    >
-                      <option value="gb7714">GB/T 7714 (中国标准)</option>
-                      <option value="ieee">IEEE</option>
-                      <option value="apa">APA 7th Edition</option>
-                      <option value="mla">MLA 9th Edition</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex justify-end">
-                <button
-                  type="submit"
-                  disabled={updatePreferencesMutation.isPending}
-                  className="bg-brand-black hover:bg-brand-dark flex items-center gap-2 rounded-full px-8 py-4 font-medium text-white shadow-lg transition-all hover:-translate-y-1 disabled:opacity-50"
-                >
-                  {updatePreferencesMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  保存偏好
                 </button>
               </div>
             </form>

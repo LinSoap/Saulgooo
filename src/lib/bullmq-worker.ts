@@ -13,7 +13,7 @@ import { getWorkspaceBaseDir } from './workspace-config';
 import type { AgentTaskData } from '~/types/queue';
 import type { Redis } from 'ioredis';
 import type { BashInput } from '~/types/tools';
-import { buildSystemPrompt, type AIPreferences } from './prompt';
+import { DEFAULT_PROMPT } from './prompt';
 
 // PrismaClient 单例
 let prismaInstance: PrismaClient | null = null;
@@ -80,7 +80,7 @@ async function updateSessionMessages(
 
 // Worker 处理函数
 export async function processAgentTask(job: Job<AgentTaskData>) {
-  const { id, sessionId, query: queryText, workspaceId, userId } = job.data;
+  const { id, sessionId, query: queryText, workspaceId } = job.data;
   const prisma = getPrisma();
 
   // 延迟导入 subscriptionManager
@@ -102,33 +102,16 @@ export async function processAgentTask(job: Job<AgentTaskData>) {
     ]);
 
     // 2. 获取工作区路径和用户偏好
-    const [workspace, user] = await Promise.all([
-      prisma.workspace.findUnique({
-        where: { id: workspaceId },
-        select: { path: true }
-      }),
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: { preferences: true }
-      })
-    ]);
+    const workspace = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { path: true }
+    });
 
     if (!workspace) {
       throw new Error(`Workspace ${workspaceId} not found`);
     }
 
     const cwd = join(getWorkspaceBaseDir(), workspace.path);
-
-    let userPreferences: AIPreferences | null = null;
-    if (user?.preferences) {
-      try {
-        userPreferences = JSON.parse(user.preferences) as AIPreferences;
-      } catch (e) {
-        console.warn('Failed to parse user preferences:', e);
-      }
-    }
-
-    const systemPromptAppend = buildSystemPrompt(userPreferences);
 
     // 3. 执行查询
     const queryInstance = query({
@@ -147,7 +130,7 @@ export async function processAgentTask(job: Job<AgentTaskData>) {
         systemPrompt: {
           type: "preset",
           preset: "claude_code",
-          append: systemPromptAppend
+          append: DEFAULT_PROMPT
         },
       }
     });
