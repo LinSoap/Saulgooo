@@ -18,12 +18,32 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { Bot, Wrench, FileText, CheckCircle2 } from "lucide-react";
 import { useForm } from "react-hook-form";
 
-export function CreateWorkspaceDialog() {
+interface CreateWorkspaceDialogProps {
+  children?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+}
+
+export function CreateWorkspaceDialog({
+  children,
+  open: controlledOpen,
+  onOpenChange: controlledOnOpenChange,
+}: CreateWorkspaceDialogProps) {
   const utils = api.useUtils();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [selectedPlugins, setSelectedPlugins] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
+
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (newOpen: boolean) => {
+    if (isControlled) {
+      controlledOnOpenChange?.(newOpen);
+    } else {
+      setInternalOpen(newOpen);
+    }
+  };
 
   const form = useForm({
     defaultValues: { name: "", description: "" },
@@ -95,10 +115,16 @@ export function CreateWorkspaceDialog() {
     });
   };
 
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      setSelectedPlugins([]);
+      form.reset();
+    }
+    setOpen(newOpen);
+  };
+
   const handleClose = () => {
-    setOpen(false);
-    setSelectedPlugins([]);
-    form.reset();
+    handleOpenChange(false);
   };
 
   // 分组插件
@@ -119,32 +145,34 @@ export function CreateWorkspaceDialog() {
 
   return (
     <>
-      <div
-        className="group hover:border-primary hover:bg-primary/5 flex h-48 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 transition-all"
-        onClick={() => setOpen(true)}
-      >
-        <div className="bg-primary/10 group-hover:bg-primary/20 rounded-full p-3 transition-colors">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="text-primary"
-          >
-            <path d="M12 5v14" />
-            <path d="M5 12h14" />
-          </svg>
+      {children ?? (
+        <div
+          className="group hover:border-primary hover:bg-primary/5 flex h-48 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 transition-all"
+          onClick={() => setOpen(true)}
+        >
+          <div className="bg-primary/10 group-hover:bg-primary/20 rounded-full p-3 transition-colors">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-primary"
+            >
+              <path d="M12 5v14" />
+              <path d="M5 12h14" />
+            </svg>
+          </div>
+          <h3 className="mt-3 font-semibold">创建工作空间</h3>
+          <p className="text-muted-foreground text-sm">新建一个教研空间</p>
         </div>
-        <h3 className="mt-3 font-semibold">创建工作空间</h3>
-        <p className="text-muted-foreground text-sm">新建一个教研空间</p>
-      </div>
+      )}
 
-      <Dialog open={open} onOpenChange={handleClose}>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-auto">
           <DialogHeader>
             <DialogTitle>创建工作空间</DialogTitle>
