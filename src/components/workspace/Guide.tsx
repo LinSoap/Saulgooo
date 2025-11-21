@@ -5,38 +5,12 @@ import { Input } from "~/components/ui/input";
 import { Label } from "~/components/ui/label";
 import { Button } from "~/components/ui/button";
 import { Textarea } from "~/components/ui/textarea";
-import { Checkbox } from "~/components/ui/checkbox";
-import { Sparkles, Plus, X } from "lucide-react";
+import { Sparkles } from "lucide-react";
+import { FileStructureSelector } from "./FileStructureSelector";
 import { cn } from "~/lib/utils";
 
-// 选项定义
-const OPTIONS = {
-  coreFiles: [
-    { value: "syllabus", label: "课程大纲.md - 整体教学规划 (Syllabus)" },
-    { value: "knowledge_graph", label: "知识图谱.md - 知识点层级与关系" },
-    {
-      value: "lesson_plan",
-      label: "教案.md - 教学设计文件（目标、重点、活动）",
-    },
-    {
-      value: "teacher_manual",
-      label: "教学手册.md - 教师操作手册（脚本、时间、检查点）",
-    },
-    {
-      value: "student_manual",
-      label: "学生手册.md - 学生指导手册（目标、步骤、提交物）",
-    },
-    { value: "courseware", label: "课件.md - 课件大纲/PPT结构" },
-    { value: "exercises", label: "习题.md - 练习和作业" },
-    { value: "assessment", label: "评估标准.md - 评价体系" },
-  ],
-  directoryStructure: [
-    { value: "chapter", label: "按章节组织 (01-章节名/02-章节名/)" },
-    { value: "module", label: "按模块组织 (module-1/module-2/)" },
-    { value: "lesson", label: "按课时组织 (lesson-1/lesson-2/)" },
-    { value: "resource", label: "按资源类型 (docs/exercises/resources/)" },
-    { value: "custom", label: "自定义结构" },
-  ],
+// 常量定义 - 提取到单独文件更佳
+export const GUIDE_OPTIONS = {
   aiRole: [
     {
       value: "academic",
@@ -92,8 +66,232 @@ const OPTIONS = {
   ],
 };
 
-// 简单的 RadioGroup 组件
-function RadioGroup({
+export const FILE_STRUCTURES = {
+  syllabus_chapter: {
+    name: "课程大纲 + 章节组织",
+    description: "包含完整课程大纲，按章节组织内容",
+    structure: [
+      "项目名称/",
+      "├── CLAUDE.md",
+      "├── 课程大纲.md",
+      "├── 知识图谱.md",
+      "├── 评估标准.md",
+      "",
+      "01-第一章-基础概念/",
+      "│   ├── 教案.md",
+      "│   ├── 教学手册.md",
+      "│   ├── 学生手册.md",
+      "│   ├── 课件.md",
+      "│   ├── 习题.md",
+      "",
+      "02-第二章-核心知识/",
+      "│   ├── 教案.md",
+      "│   ├── 教学手册.md",
+      "│   ├── 学生手册.md",
+      "│   ├── 课件.md",
+      "│   ├── 习题.md",
+      "",
+      "03-第三章-实践应用/",
+      "│   ├── 教案.md",
+      "│   ├── 教学手册.md",
+      "│   ├── 学生手册.md",
+      "│   ├── 课件.md",
+      "│   ├── 习题.md",
+    ],
+  },
+  course_module: {
+    name: "课程 + 模块组织",
+    description: "完整课程体系，按模块划分技能点",
+    structure: [
+      "项目名称/",
+      "├── CLAUDE.md",
+      "├── 课程大纲.md",
+      "├── 知识图谱.md",
+      "├── 评估标准.md",
+      "",
+      "module-01-基础模块/",
+      "│   ├── 教案.md",
+      "│   ├── 教学手册.md",
+      "│   ├── 学生手册.md",
+      "│   ├── 课件.md",
+      "│   ├── 习题.md",
+      "",
+      "module-02-进阶模块/",
+      "│   ├── 教案.md",
+      "│   ├── 教学手册.md",
+      "│   ├── 学生手册.md",
+      "│   ├── 课件.md",
+      "│   ├── 习题.md",
+      "",
+      "module-03-实战模块/",
+      "│   ├── 教案.md",
+      "│   ├── 教学手册.md",
+      "│   ├── 学生手册.md",
+      "│   ├── 课件.md",
+      "│   ├── 习题.md",
+    ],
+  },
+  lesson_based: {
+    name: "课时制教学",
+    description: "按课时详细安排，适合具体教学计划",
+    structure: [
+      "项目名称/",
+      "├── CLAUDE.md",
+      "├── 课程大纲.md",
+      "├── 知识图谱.md",
+      "├── 评估标准.md",
+      "",
+      "lesson-01/",
+      "│   ├── 教案.md",
+      "│   ├── 教学手册.md",
+      "│   ├── 学生手册.md",
+      "│   ├── 课件.md",
+      "│   ├── 习题.md",
+      "",
+      "lesson-02/",
+      "│   ├── 教案.md",
+      "│   ├── 教学手册.md",
+      "│   ├── 学生手册.md",
+      "│   ├── 课件.md",
+      "│   ├── 习题.md",
+      "",
+      "lesson-03/",
+      "│   ├── 教案.md",
+      "│   ├── 教学手册.md",
+      "│   ├── 学生手册.md",
+      "│   ├── 课件.md",
+      "│   ├── 习题.md",
+      "",
+      "lesson-04/",
+      "│   ├── 教案.md",
+      "│   ├── 教学手册.md",
+      "│   ├── 学生手册.md",
+      "│   ├── 课件.md",
+      "│   ├── 习题.md",
+    ],
+  },
+  resource_organized: {
+    name: "资源分类管理",
+    description: "按文档、练习、资源类型分类管理",
+    structure: [
+      "项目名称/",
+      "├── CLAUDE.md",
+      "",
+      "docs/",
+      "│   ├── 课程大纲.md",
+      "│   ├── 教学手册.md",
+      "│   ├── 学生手册.md",
+      "│   ├── 知识图谱.md",
+      "",
+      "exercises/",
+      "│   ├── 习题.md",
+      "",
+      "resources/",
+      "│   ├── 课件.md",
+      "│   ├── 评估标准.md",
+    ],
+  },
+  simple_manual: {
+    name: "简化手册模式",
+    description: "精简版本，主要包含核心教学文件",
+    structure: [
+      "项目名称/",
+      "├── CLAUDE.md",
+      "├── 课程大纲.md",
+      "├── 教学手册.md",
+      "├── 学生手册.md",
+      "├── 课件.md",
+    ],
+  },
+};
+
+// 统一的表单字段接口
+interface FormFieldProps {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  label: string;
+  required?: boolean;
+}
+
+// 基础输入字段组件
+function FormInput({
+  value,
+  onChange,
+  placeholder,
+  label,
+  required,
+}: FormFieldProps) {
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={label}>
+        {label}
+        {required && <span className="ml-1 text-red-500">*</span>}
+      </Label>
+      <Input
+        id={label}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="bg-white"
+      />
+    </div>
+  );
+}
+
+// 多选框组件
+function MultiSelectField({
+  label,
+  options,
+  selectedValues,
+  onChange,
+  selectAll,
+}: {
+  label: string;
+  options: { value: string; label: string }[];
+  selectedValues: string[];
+  onChange: (value: string, checked: boolean) => void;
+  selectAll?: () => void;
+}) {
+  const isAllSelected = selectedValues.length === options.length;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label>{label}</Label>
+        {selectAll && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={selectAll}
+            className="text-xs text-gray-500 hover:text-black"
+          >
+            {isAllSelected ? "取消全选" : "全选"}
+          </Button>
+        )}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {options.map((option) => (
+          <div key={option.value} className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id={option.value}
+              checked={selectedValues.includes(option.value)}
+              onChange={(e) => onChange(option.value, e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-black focus:ring-black"
+            />
+            <label htmlFor={option.value} className="text-sm font-medium">
+              {option.label}
+            </label>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// 单选组件 - 改进版
+function OptimizedRadioGroup({
   value,
   onValueChange,
   options,
@@ -133,138 +331,411 @@ function RadioGroup({
   );
 }
 
+// 表单数据类型定义
+interface GuideFormData {
+  projectName: string;
+  subject: string;
+  audience: string;
+  lessonDuration: string;
+  standardDuration: string;
+  teachingGoals: string[];
+  theoryPracticeRatio: number;
+  projectComplexity: string;
+  fileStruct: string;
+  aiRole: string;
+  aiRoleCustom: string;
+  interactionTiming: string[];
+  workflow: string;
+  specialInstructions: string;
+}
+
+// 表单区域组件
+function FormSection({
+  title,
+  description,
+  color,
+  children,
+}: {
+  title: string;
+  description: string;
+  color: "blue" | "green" | "purple" | "gray";
+  children: React.ReactNode;
+}) {
+  const colorClasses = {
+    blue: "border-l-blue-500",
+    green: "border-l-green-500",
+    purple: "border-l-purple-500",
+    gray: "border-l-gray-400",
+  };
+
+  return (
+    <section className="space-y-6">
+      <div className={cn("border-l-4 pl-4", colorClasses[color])}>
+        <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+        <p className="mt-1 text-sm text-gray-500">{description}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+// 卡片容器组件
+function Card({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="grid gap-4 rounded-xl border border-gray-200 bg-gray-50/50 p-6">
+      {children}
+    </div>
+  );
+}
+
+// 第一部分：基本信息
+function BasicInfoSection({
+  formData,
+  onChange,
+}: {
+  formData: GuideFormData;
+  onChange: (
+    field: keyof GuideFormData,
+    value: string | number | string[],
+  ) => void;
+}) {
+  return (
+    <FormSection
+      title="1. 空间基本信息"
+      description="定义课程的核心信息和教学目标"
+      color="blue"
+    >
+      <Card>
+        <h3 className="text-lg font-medium text-gray-900">基础信息</h3>
+        <div className="grid gap-4 md:grid-cols-2">
+          <FormInput
+            label="课程名称"
+            value={formData.projectName}
+            onChange={(value) => onChange("projectName", value)}
+            placeholder="例如：Python 数据分析基础"
+          />
+          <FormInput
+            label="学科"
+            value={formData.subject}
+            onChange={(value) => onChange("subject", value)}
+            placeholder="例如：计算机科学、K12数学、企业管理"
+          />
+        </div>
+        <FormInput
+          label="受众"
+          value={formData.audience}
+          onChange={(value) => onChange("audience", value)}
+          placeholder="例如：零基础大学生、5-8岁儿童、企业中高层管理者"
+        />
+      </Card>
+
+      <Card>
+        <h3 className="text-lg font-medium text-gray-900">教学设置</h3>
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="lessonDuration">单课时长（分钟）</Label>
+            <Input
+              id="lessonDuration"
+              type="number"
+              value={formData.lessonDuration}
+              onChange={(e) => onChange("lessonDuration", e.target.value)}
+              placeholder="例如：45"
+              className="bg-white"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>标准课时</Label>
+            <div className="flex flex-wrap gap-2">
+              {GUIDE_OPTIONS.standardDuration.map((opt) => (
+                <Button
+                  key={opt.value}
+                  type="button"
+                  variant={
+                    formData.standardDuration === opt.value
+                      ? "default"
+                      : "outline"
+                  }
+                  size="sm"
+                  onClick={() => {
+                    onChange("standardDuration", opt.value);
+                    if (opt.value !== "other") {
+                      onChange("lessonDuration", opt.value);
+                    }
+                  }}
+                  className={cn(
+                    formData.standardDuration === opt.value
+                      ? "bg-black text-white"
+                      : "bg-white",
+                  )}
+                >
+                  {opt.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <MultiSelectField
+          label="教学目标类型（可多选）"
+          options={GUIDE_OPTIONS.teachingGoals}
+          selectedValues={formData.teachingGoals}
+          onChange={(value, checked) => {
+            const current = formData.teachingGoals;
+            const updated = checked
+              ? [...current, value]
+              : current.filter((item: string) => item !== value);
+            onChange("teachingGoals", updated);
+          }}
+        />
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label>理论实践比例</Label>
+              <span className="text-sm font-medium text-gray-500">
+                理论 {formData.theoryPracticeRatio}% : 实践{" "}
+                {100 - formData.theoryPracticeRatio}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="5"
+              value={formData.theoryPracticeRatio}
+              onChange={(e) =>
+                onChange("theoryPracticeRatio", parseInt(e.target.value))
+              }
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200 accent-black"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label>项目复杂度</Label>
+            <div className="flex flex-wrap gap-2">
+              {GUIDE_OPTIONS.projectComplexity.map((opt) => (
+                <Button
+                  key={opt.value}
+                  type="button"
+                  variant={
+                    formData.projectComplexity === opt.value
+                      ? "default"
+                      : "outline"
+                  }
+                  size="sm"
+                  onClick={() => onChange("projectComplexity", opt.value)}
+                  className={cn(
+                    formData.projectComplexity === opt.value
+                      ? "bg-black text-white"
+                      : "bg-white",
+                  )}
+                >
+                  {opt.label}
+                </Button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </Card>
+    </FormSection>
+  );
+}
+
+// 第二部分：项目结构
+function ProjectStructureSection({
+  formData,
+  onChange,
+}: {
+  formData: GuideFormData;
+  onChange: (field: keyof GuideFormData, value: string) => void;
+}) {
+  return (
+    <FormSection
+      title="2. 项目结构"
+      description="选择合适的文件结构模板"
+      color="green"
+    >
+      <Card>
+        <FileStructureSelector
+          selectedStructure={formData.fileStruct}
+          projectName={formData.projectName}
+          onSelect={(type) => onChange("fileStruct", type)}
+        />
+      </Card>
+    </FormSection>
+  );
+}
+
+// 第三部分：AI偏好
+function AIPreferenceSection({
+  formData,
+  onChange,
+}: {
+  formData: GuideFormData;
+  onChange: (field: keyof GuideFormData, value: string | string[]) => void;
+}) {
+  return (
+    <FormSection
+      title="3. AI偏好"
+      description="定义AI助手的行为模式和交互方式"
+      color="purple"
+    >
+      <Card>
+        <h3 className="text-lg font-medium text-gray-900">语气和风格</h3>
+        <div className="space-y-3">
+          <Label className="text-base font-medium text-gray-700">
+            请选择AI的教学角色与语气风格
+          </Label>
+          <OptimizedRadioGroup
+            name="aiRole"
+            value={formData.aiRole}
+            onValueChange={(val) => onChange("aiRole", val)}
+            options={GUIDE_OPTIONS.aiRole}
+          />
+          {formData.aiRole === "custom" && (
+            <FormInput
+              label="aiRoleCustom"
+              value={formData.aiRoleCustom}
+              onChange={(value) => onChange("aiRoleCustom", value)}
+              placeholder="请输入自定义角色风格"
+            />
+          )}
+        </div>
+      </Card>
+
+      <Card>
+        <h3 className="text-lg font-medium text-gray-900">交互规则</h3>
+        <MultiSelectField
+          label="何时需要与用户交互（可多选）"
+          options={GUIDE_OPTIONS.interactionTiming}
+          selectedValues={formData.interactionTiming}
+          onChange={(value, checked) => {
+            const current = formData.interactionTiming;
+            const updated = checked
+              ? [...current, value]
+              : current.filter((item: string) => item !== value);
+            onChange("interactionTiming", updated);
+          }}
+          selectAll={() => {
+            const allValues = GUIDE_OPTIONS.interactionTiming.map(
+              (o) => o.value,
+            );
+            const isAllSelected = allValues.every((v) =>
+              formData.interactionTiming.includes(v),
+            );
+            onChange("interactionTiming", isAllSelected ? [] : allValues);
+          }}
+        />
+      </Card>
+
+      <Card>
+        <h3 className="text-lg font-medium text-gray-900">工作流偏好</h3>
+        <div className="space-y-3">
+          <Label className="text-base font-medium text-gray-700">
+            请选择内容生成的工作流模式
+          </Label>
+          <OptimizedRadioGroup
+            name="workflow"
+            value={formData.workflow}
+            onValueChange={(val) => onChange("workflow", val)}
+            options={GUIDE_OPTIONS.workflow}
+          />
+        </div>
+      </Card>
+    </FormSection>
+  );
+}
+
+// 第四部分：特殊指令
+function SpecialInstructionsSection({
+  formData,
+  onChange,
+}: {
+  formData: GuideFormData;
+  onChange: (field: keyof GuideFormData, value: string) => void;
+}) {
+  return (
+    <FormSection
+      title="4. 特殊指令（可选）"
+      description="添加任何特殊的约束和要求"
+      color="gray"
+    >
+      <Card>
+        <div className="space-y-2">
+          <Label htmlFor="specialInstructions">
+            请输入任何特殊的指令或约束
+          </Label>
+          <Textarea
+            id="specialInstructions"
+            value={formData.specialInstructions}
+            onChange={(e) => onChange("specialInstructions", e.target.value)}
+            placeholder="例如：\n- '所有数学公式必须使用LaTeX格式'\n- '每个案例必须来自实际企业'\n- '生成内容必须包含中文和英文对照'..."
+            className="min-h-[150px] bg-white"
+          />
+        </div>
+      </Card>
+    </FormSection>
+  );
+}
+
+// 主组件 - 大幅简化
 export function Guide() {
   const [formData, setFormData] = useState({
-    // Step 1: 基础信息
     projectName: "",
     subject: "",
     audience: "",
-    // Step 2: 核心文件
-    coreFiles: [] as string[],
-    coreFilesCustom: [] as string[],
-    newCustomFile: "",
-    // Step 3: 目录结构
-    directoryStructure: "",
-    directoryStructureCustom: "",
-    // Step 4: AI角色
-    aiRole: "",
-    aiRoleCustom: "",
-    // Step 5: 教学上下文
     lessonDuration: "",
     standardDuration: "",
     teachingGoals: [] as string[],
-    theoryPracticeRatio: 50, // 0-100, represents theory percentage
+    theoryPracticeRatio: 50,
     projectComplexity: "",
-    // Step 6: 交互规则
+    fileStruct: "",
+    aiRole: "",
+    aiRoleCustom: "",
     interactionTiming: [] as string[],
-    // Step 7: 工作流
     workflow: "",
-    // Step 8: 特殊指令
     specialInstructions: "",
   });
 
-  const handleInputChange = (field: string, value: string | number) => {
+  const handleFieldChange = (
+    field: keyof GuideFormData,
+    value: string | number | string[],
+  ) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleCheckboxChange = (
-    field: "coreFiles" | "teachingGoals" | "interactionTiming",
-    value: string,
-    checked: boolean,
-  ) => {
-    setFormData((prev) => {
-      const current = prev[field];
-      if (checked) {
-        return { ...prev, [field]: [...current, value] };
-      } else {
-        return { ...prev, [field]: current.filter((item) => item !== value) };
-      }
-    });
-  };
-
-  const handleSelectAll = (
-    field: "coreFiles" | "interactionTiming",
-    options: { value: string }[],
-  ) => {
-    setFormData((prev) => {
-      const allValues = options.map((o) => o.value);
-      const currentValues = prev[field];
-      const isAllSelected = allValues.every((v) => currentValues.includes(v));
-
-      if (isAllSelected) {
-        return { ...prev, [field]: [] };
-      } else {
-        return { ...prev, [field]: allValues };
-      }
-    });
-  };
-
-  const addCustomFile = () => {
-    if (formData.newCustomFile.trim()) {
-      setFormData((prev) => ({
-        ...prev,
-        coreFilesCustom: [...prev.coreFilesCustom, prev.newCustomFile.trim()],
-        newCustomFile: "",
-      }));
-    }
-  };
-
-  const removeCustomFile = (index: number) => {
-    setFormData((prev) => ({
-      ...prev,
-      coreFilesCustom: prev.coreFilesCustom.filter((_, i) => i !== index),
-    }));
-  };
-
-  const handleStandardDurationClick = (value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      standardDuration: value,
-      lessonDuration: value === "other" ? prev.lessonDuration : value,
-    }));
-  };
-
   const handleSubmit = () => {
-    // 构建 Prompt
-    const prompt = `请根据以下配置生成一份 CLAUDE.md 项目指导文件：
+    const selectedStructure =
+      FILE_STRUCTURES[formData.fileStruct as keyof typeof FILE_STRUCTURES];
+    const prompt = `请使用’create_claude_md‘subagent。请根据以下配置生成一份 CLAUDE.md 项目指导文件：
 
-# 1. 基础信息
+# 1. 空间基本信息
 - 课程/项目名称：${formData.projectName}
 - 学科领域：${formData.subject}
 - 目标受众：${formData.audience}
-
-# 2. 核心文件定义
-- 需要生成的文件：${formData.coreFiles.map((v) => OPTIONS.coreFiles.find((o) => o.value === v)?.label).join(", ")}
-${formData.coreFilesCustom.length > 0 ? `- 其他文件：${formData.coreFilesCustom.join(", ")}` : ""}
-
-# 3. 目录结构规则
-- 组织方式：${OPTIONS.directoryStructure.find((o) => o.value === formData.directoryStructure)?.label}
-${formData.directoryStructure === "custom" ? `- 自定义结构：${formData.directoryStructureCustom}` : ""}
-
-# 4. AI角色与语气
-- 角色风格：${OPTIONS.aiRole.find((o) => o.value === formData.aiRole)?.label}
-${formData.aiRole === "custom" ? `- 自定义风格：${formData.aiRoleCustom}` : ""}
-
-# 5. 教学上下文
-- 单课时长：${formData.lessonDuration}分钟 (标准：${OPTIONS.standardDuration.find((o) => o.value === formData.standardDuration)?.label})
-- 教学目标：${formData.teachingGoals.map((v) => OPTIONS.teachingGoals.find((o) => o.value === v)?.label).join(", ")}
+- 单课时长：${formData.lessonDuration}分钟 (标准：${GUIDE_OPTIONS.standardDuration.find((o) => o.value === formData.standardDuration)?.label})
+- 教学目标：${formData.teachingGoals.map((v) => GUIDE_OPTIONS.teachingGoals.find((o) => o.value === v)?.label).join(", ")}
 - 理论实践比例：理论 ${formData.theoryPracticeRatio}% : 实践 ${100 - formData.theoryPracticeRatio}%
-- 项目复杂度：${OPTIONS.projectComplexity.find((o) => o.value === formData.projectComplexity)?.label}
+- 项目复杂度：${GUIDE_OPTIONS.projectComplexity.find((o) => o.value === formData.projectComplexity)?.label}
 
-# 6. 交互规则
-- 交互时机：${formData.interactionTiming.map((v) => OPTIONS.interactionTiming.find((o) => o.value === v)?.label).join(", ")}
-- 交互方式：提供默认选项
-- 解释详细度：简洁说明
+# 2. 项目结构
+- 项目名称：${formData.projectName}
+- 文件结构：
+\`\`\`
+${formData.projectName}/
+${selectedStructure?.structure?.join("\n") || "项目目录结构"}
+\`\`\`
 
-# 7. 工作流偏好
-- 模式：${OPTIONS.workflow.find((o) => o.value === formData.workflow)?.label}
+# 3. AI偏好
+- 语气风格：${GUIDE_OPTIONS.aiRole.find((o) => o.value === formData.aiRole)?.label}
+${formData.aiRole === "custom" ? `- 自定义风格：${formData.aiRoleCustom}` : ""}
+- 交互时机：${formData.interactionTiming.map((v) => GUIDE_OPTIONS.interactionTiming.find((o) => o.value === v)?.label).join(", ")}
+- 工作流模式：${GUIDE_OPTIONS.workflow.find((o) => o.value === formData.workflow)?.label}
 
-# 8. 特殊指令
+# 4. 特殊指令
 ${formData.specialInstructions || "无"}
 
 请基于以上信息，生成一份完整的 CLAUDE.md 文件，包含具体的 Prompt 规则和文件模板。`;
 
-    // 触发自定义事件
     const event = new CustomEvent("saulgooo:insert-prompt", {
       detail: { prompt },
     });
@@ -287,453 +758,20 @@ ${formData.specialInstructions || "无"}
           </p>
         </div>
 
-        <div className="space-y-10">
-          {/* 第1步：基础信息 */}
-          <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">
-              第一步：基础信息
-            </h3>
-            <div className="grid gap-4 rounded-xl border border-gray-200 bg-gray-50/50 p-6">
-              <div className="space-y-2">
-                <Label htmlFor="projectName">课程/项目名称</Label>
-                <Input
-                  id="projectName"
-                  value={formData.projectName}
-                  onChange={(e) =>
-                    handleInputChange("projectName", e.target.value)
-                  }
-                  placeholder="例如：Python 数据分析基础"
-                  className="bg-white"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="subject">学科领域</Label>
-                <Input
-                  id="subject"
-                  value={formData.subject}
-                  onChange={(e) => handleInputChange("subject", e.target.value)}
-                  placeholder="例如：计算机科学、K12数学、企业管理"
-                  className="bg-white"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="audience">目标受众画像</Label>
-                <Input
-                  id="audience"
-                  value={formData.audience}
-                  onChange={(e) =>
-                    handleInputChange("audience", e.target.value)
-                  }
-                  placeholder="例如：零基础大学生、5-8岁儿童、企业中高层管理者"
-                  className="bg-white"
-                />
-              </div>
-            </div>
-          </section>
-
-          {/* 第2步：核心文件定义 */}
-          <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">
-              第二步：核心文件定义
-            </h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label className="text-base font-medium text-gray-700">
-                  请定义您需要的核心文件类型（可多选）
-                </Label>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() =>
-                    handleSelectAll("coreFiles", OPTIONS.coreFiles)
-                  }
-                  className="text-xs text-gray-500 hover:text-black"
-                >
-                  {formData.coreFiles.length === OPTIONS.coreFiles.length
-                    ? "取消全选"
-                    : "全选"}
-                </Button>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {OPTIONS.coreFiles.map((option) => (
-                  <div
-                    key={option.value}
-                    className={cn(
-                      "flex items-start space-x-3 rounded-xl border p-4 transition-all hover:bg-gray-50",
-                      formData.coreFiles.includes(option.value)
-                        ? "border-black bg-gray-50 ring-1 ring-black"
-                        : "border-gray-200 bg-white hover:border-gray-300",
-                    )}
-                  >
-                    <Checkbox
-                      id={`core-${option.value}`}
-                      checked={formData.coreFiles.includes(option.value)}
-                      onCheckedChange={(checked) =>
-                        handleCheckboxChange(
-                          "coreFiles",
-                          option.value,
-                          checked as boolean,
-                        )
-                      }
-                      className="mt-0.5 data-[state=checked]:border-black data-[state=checked]:bg-black"
-                    />
-                    <label
-                      htmlFor={`core-${option.value}`}
-                      className="w-full cursor-pointer pt-0.5 text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      {option.label}
-                    </label>
-                  </div>
-                ))}
-              </div>
-
-              {/* 其他文件列表 */}
-              <div className="mt-4 space-y-3 rounded-xl border border-gray-200 bg-gray-50/50 p-4">
-                <Label className="text-sm font-medium text-gray-700">
-                  其他文件（可选）
-                </Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={formData.newCustomFile}
-                    onChange={(e) =>
-                      handleInputChange("newCustomFile", e.target.value)
-                    }
-                    placeholder="输入文件名，例如：实验报告.md"
-                    className="bg-white"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        addCustomFile();
-                      }
-                    }}
-                  />
-                  <Button
-                    type="button"
-                    onClick={addCustomFile}
-                    variant="outline"
-                    className="shrink-0"
-                  >
-                    <Plus className="h-4 w-4" />
-                    添加
-                  </Button>
-                </div>
-                {formData.coreFilesCustom.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {formData.coreFilesCustom.map((file, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center gap-1 rounded-full bg-white px-3 py-1 text-sm shadow-sm ring-1 ring-gray-200"
-                      >
-                        <span>{file}</span>
-                        <button
-                          onClick={() => removeCustomFile(index)}
-                          className="ml-1 rounded-full p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </section>
-
-          {/* 第3步：目录结构规则 */}
-          <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">
-              第三步：目录结构规则
-            </h3>
-            <div className="space-y-3">
-              <Label className="text-base font-medium text-gray-700">
-                选择文件组织方式
-              </Label>
-              <RadioGroup
-                name="directoryStructure"
-                value={formData.directoryStructure}
-                onValueChange={(val) =>
-                  handleInputChange("directoryStructure", val)
-                }
-                options={OPTIONS.directoryStructure}
-              />
-              {formData.directoryStructure === "custom" && (
-                <div className="mt-2">
-                  <Input
-                    value={formData.directoryStructureCustom}
-                    onChange={(e) =>
-                      handleInputChange(
-                        "directoryStructureCustom",
-                        e.target.value,
-                      )
-                    }
-                    placeholder="请输入自定义目录结构"
-                    className="bg-white"
-                  />
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* 第4步：AI角色与语气 */}
-          <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">
-              第四步：AI角色与语气
-            </h3>
-            <div className="space-y-3">
-              <Label className="text-base font-medium text-gray-700">
-                请选择AI的教学角色与语气风格
-              </Label>
-              <RadioGroup
-                name="aiRole"
-                value={formData.aiRole}
-                onValueChange={(val) => handleInputChange("aiRole", val)}
-                options={OPTIONS.aiRole}
-              />
-              {formData.aiRole === "custom" && (
-                <div className="mt-2">
-                  <Input
-                    value={formData.aiRoleCustom}
-                    onChange={(e) =>
-                      handleInputChange("aiRoleCustom", e.target.value)
-                    }
-                    placeholder="请输入自定义角色风格"
-                    className="bg-white"
-                  />
-                </div>
-              )}
-            </div>
-          </section>
-
-          {/* 第5步：教学上下文 */}
-          <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">
-              第五步：教学上下文
-            </h3>
-            <div className="space-y-6 rounded-xl border border-gray-200 bg-gray-50/50 p-6">
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="lessonDuration">单课时长（分钟）</Label>
-                  <Input
-                    id="lessonDuration"
-                    type="number"
-                    value={formData.lessonDuration}
-                    onChange={(e) =>
-                      handleInputChange("lessonDuration", e.target.value)
-                    }
-                    placeholder="例如：45"
-                    className="bg-white"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>标准课时</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {OPTIONS.standardDuration.map((opt) => (
-                      <Button
-                        key={opt.value}
-                        type="button"
-                        variant={
-                          formData.standardDuration === opt.value
-                            ? "default"
-                            : "outline"
-                        }
-                        size="sm"
-                        onClick={() => handleStandardDurationClick(opt.value)}
-                        className={cn(
-                          formData.standardDuration === opt.value
-                            ? "bg-black text-white"
-                            : "bg-white",
-                        )}
-                      >
-                        {opt.label}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>教学目标类型（可多选）</Label>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {OPTIONS.teachingGoals.map((option) => (
-                    <div
-                      key={option.value}
-                      className="flex items-center space-x-2"
-                    >
-                      <Checkbox
-                        id={`goal-${option.value}`}
-                        checked={formData.teachingGoals.includes(option.value)}
-                        onCheckedChange={(checked) =>
-                          handleCheckboxChange(
-                            "teachingGoals",
-                            option.value,
-                            checked as boolean,
-                          )
-                        }
-                      />
-                      <label
-                        htmlFor={`goal-${option.value}`}
-                        className="text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        {option.label}
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="grid gap-6 md:grid-cols-2">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label>理论实践比例</Label>
-                    <span className="text-sm font-medium text-gray-500">
-                      理论 {formData.theoryPracticeRatio}% : 实践{" "}
-                      {100 - formData.theoryPracticeRatio}%
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="5"
-                    value={formData.theoryPracticeRatio}
-                    onChange={(e) =>
-                      handleInputChange(
-                        "theoryPracticeRatio",
-                        parseInt(e.target.value),
-                      )
-                    }
-                    className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-gray-200 accent-black"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>项目复杂度</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {OPTIONS.projectComplexity.map((opt) => (
-                      <Button
-                        key={opt.value}
-                        type="button"
-                        variant={
-                          formData.projectComplexity === opt.value
-                            ? "default"
-                            : "outline"
-                        }
-                        size="sm"
-                        onClick={() =>
-                          handleInputChange("projectComplexity", opt.value)
-                        }
-                        className={cn(
-                          formData.projectComplexity === opt.value
-                            ? "bg-black text-white"
-                            : "bg-white",
-                        )}
-                      >
-                        {opt.label}
-                      </Button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* 第6步：交互规则设置 */}
-          <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">
-              第六步：交互规则设置
-            </h3>
-            <div className="space-y-6 rounded-xl border border-gray-200 bg-gray-50/50 p-6">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>何时需要与用户交互（可多选）</Label>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      handleSelectAll(
-                        "interactionTiming",
-                        OPTIONS.interactionTiming,
-                      )
-                    }
-                    className="text-xs text-gray-500 hover:text-black"
-                  >
-                    {formData.interactionTiming.length ===
-                    OPTIONS.interactionTiming.length
-                      ? "取消全选"
-                      : "全选"}
-                  </Button>
-                </div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {OPTIONS.interactionTiming.map((option) => (
-                    <div
-                      key={option.value}
-                      className="flex items-center space-x-2"
-                    >
-                      <Checkbox
-                        id={`timing-${option.value}`}
-                        checked={formData.interactionTiming.includes(
-                          option.value,
-                        )}
-                        onCheckedChange={(checked) =>
-                          handleCheckboxChange(
-                            "interactionTiming",
-                            option.value,
-                            checked as boolean,
-                          )
-                        }
-                      />
-                      <label
-                        htmlFor={`timing-${option.value}`}
-                        className="text-sm leading-none font-medium peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        {option.label}
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* 第7步：工作流偏好 */}
-          <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">
-              第七步：工作流偏好
-            </h3>
-            <div className="space-y-3">
-              <Label className="text-base font-medium text-gray-700">
-                请选择内容生成的工作流模式
-              </Label>
-              <RadioGroup
-                name="workflow"
-                value={formData.workflow}
-                onValueChange={(val) => handleInputChange("workflow", val)}
-                options={OPTIONS.workflow}
-              />
-            </div>
-          </section>
-
-          {/* 第8步：特殊指令 */}
-          <section className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">
-              第八步：特殊指令（可选）
-            </h3>
-            <div className="rounded-xl border border-gray-200 bg-gray-50/50 p-6">
-              <div className="space-y-2">
-                <Label htmlFor="specialInstructions">
-                  请输入任何特殊的指令或约束
-                </Label>
-                <Textarea
-                  id="specialInstructions"
-                  value={formData.specialInstructions}
-                  onChange={(e) =>
-                    handleInputChange("specialInstructions", e.target.value)
-                  }
-                  placeholder="例如：&#10;- '所有数学公式必须使用LaTeX格式'&#10;- '每个案例必须来自实际企业'&#10;- '生成内容必须包含中文和英文对照'..."
-                  className="min-h-[150px] bg-white"
-                />
-              </div>
-            </div>
-          </section>
+        <div className="space-y-12">
+          <BasicInfoSection formData={formData} onChange={handleFieldChange} />
+          <ProjectStructureSection
+            formData={formData}
+            onChange={handleFieldChange}
+          />
+          <AIPreferenceSection
+            formData={formData}
+            onChange={handleFieldChange}
+          />
+          <SpecialInstructionsSection
+            formData={formData}
+            onChange={handleFieldChange}
+          />
         </div>
 
         <div className="sticky bottom-6 z-10 flex justify-end">

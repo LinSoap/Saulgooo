@@ -14,6 +14,7 @@ import type { AgentTaskData } from '~/types/queue';
 import type { Redis } from 'ioredis';
 import type { BashInput } from '~/types/tools';
 import { DEFAULT_PROMPT } from './prompt';
+import { CLAUDE_MD_CREATOR_SUBAGENT } from './subagents';
 
 // PrismaClient 单例
 let prismaInstance: PrismaClient | null = null;
@@ -118,6 +119,7 @@ export async function processAgentTask(job: Job<AgentTaskData>) {
       prompt: queryText,
       options: {
         maxTurns: 30,
+        agents: CLAUDE_MD_CREATOR_SUBAGENT,
         permissionMode: 'bypassPermissions',
         settingSources: ['project'],
         hooks: {

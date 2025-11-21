@@ -56,6 +56,27 @@
         "学生手册制作",
         "课程对齐"
       ]
+    },
+    {
+      "type": "agent",
+      "name": "CLAUDE.md Creator",
+      "description": "用于生成课程相关的CLAUDE.md项目指导文件的专用工具，根据Guide组件配置信息生成固定格式的项目文件",
+      "tags": [
+        "CLAUDE.md",
+        "项目配置",
+        "课程开发",
+        "文件生成",
+        "结构模板"
+      ],
+      "resource_path": "agents/create-claude-md.md",
+      "import_path": ".claude/agents/create-claude-md.md",
+      "features": [
+        "项目信息配置",
+        "目录结构生成",
+        "AI偏好设置",
+        "模板填充",
+        "格式验证"
+      ]
     }
   ],
   "skills": [
