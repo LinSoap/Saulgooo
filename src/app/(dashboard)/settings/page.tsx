@@ -14,6 +14,7 @@ import {
   Loader2,
   Lock,
 } from "lucide-react";
+import type { AIPreferences } from "~/lib/prompt";
 
 type SettingsTab = "profile" | "ai" | "security";
 
@@ -21,12 +22,6 @@ interface ProfileForm {
   name: string;
   institution: string;
   bio: string;
-}
-
-interface AIPreferencesForm {
-  style: string;
-  domain: string;
-  citationStyle: string;
 }
 
 export default function SettingsPage() {
@@ -90,7 +85,7 @@ export default function SettingsPage() {
     register: registerAI,
     handleSubmit: handleSubmitAI,
     reset: resetAI,
-  } = useForm<AIPreferencesForm>();
+  } = useForm<AIPreferences>();
 
   // 初始化表单数据
   useEffect(() => {
@@ -103,7 +98,7 @@ export default function SettingsPage() {
 
       if (profile.preferences) {
         try {
-          const prefs = JSON.parse(profile.preferences) as AIPreferencesForm;
+          const prefs = JSON.parse(profile.preferences) as AIPreferences;
           resetAI(prefs);
         } catch (e) {
           console.error("Failed to parse AI preferences", e);
@@ -117,7 +112,7 @@ export default function SettingsPage() {
     updateProfileMutation.mutate(data);
   };
 
-  const onAISubmit = (data: AIPreferencesForm) => {
+  const onAISubmit = (data: AIPreferences) => {
     updatePreferencesMutation.mutate(data);
   };
 
