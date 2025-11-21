@@ -11,7 +11,8 @@ import Image from "next/image";
 import { useFileWatcher } from "~/hooks/use-file-watcher";
 import { api } from "~/trpc/react";
 import { formatFileSize } from "~/lib/file";
-import { Sparkles, FileText, Bot, ArrowLeft } from "lucide-react";
+import { Guide } from "~/components/workspace/Guide";
+import { Sparkles, FileText, ArrowLeft, Bot } from "lucide-react";
 
 export default function FilePreview() {
   const params = useParams();
@@ -194,6 +195,10 @@ export default function FilePreview() {
             <div className="w-full max-w-3xl">
               <MarkdownEditor fileData={fileData} />
             </div>
+          </div>
+        ) : renderType === "guide" ? (
+          <div className="h-full w-full">
+            <Guide />
           </div>
         ) : renderType === "code" ? (
           // 代码文件使用CodePreview进行语法高亮

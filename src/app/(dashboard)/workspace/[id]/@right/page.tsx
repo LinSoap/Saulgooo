@@ -59,6 +59,21 @@ export default function AgentChatPage({ params }: AgentChatPageProps) {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
 
+  // 监听来自 Guide 组件的插入提示词事件
+  useEffect(() => {
+    const handleInsertPrompt = (e: Event) => {
+      const customEvent = e as CustomEvent<{ prompt: string }>;
+      if (customEvent.detail?.prompt) {
+        setInputMessage(customEvent.detail.prompt);
+      }
+    };
+
+    window.addEventListener("saulgooo:insert-prompt", handleInsertPrompt);
+    return () => {
+      window.removeEventListener("saulgooo:insert-prompt", handleInsertPrompt);
+    };
+  }, []);
+
   // 从URL读取id（数据库主键）
   const currentId = searchParams?.get("id");
 

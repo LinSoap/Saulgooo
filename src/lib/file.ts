@@ -16,6 +16,7 @@ export type FileRenderType =
     | 'video'     // 视频文件，使用video标签
     | 'audio'     // 音频文件，使用audio标签
     | 'pdf'       // PDF文件，使用iframe
+    | 'guide'     // 特殊引导文件CLAUDE.md，显示引导内容
     | 'unknown';  // 不支持预览的文件类型
 
 /**
@@ -69,7 +70,11 @@ export function getFileRenderType(mimeType: string, fileName: string, fileSize?:
 
     // Markdown 文件使用 text 类型（使用 MarkdownEditor）
     if (fileExt === 'md' || fileExt === 'markdown') {
+        if (fileName === 'CLAUDE.md' && fileSize !== undefined && fileSize === 0) {
+            return "guide";
+        }
         return 'text';
+
     }
 
     // HTML 文件
