@@ -18,37 +18,37 @@ export function MessageRenderer({ message }: { message: SDKMessage }) {
         );
       } else if (Array.isArray(message.message.content)) {
         const contentArray = message.message.content;
-        const toolResults = contentArray.filter(
-          (item) => item.type === "tool_result",
-        );
+        const elements: React.ReactNode[] = [];
 
-        // 过滤掉 content 为空的工具结果
-        const validToolResults = toolResults.filter(
-          (item) =>
-            typeof item.content === "string" && item.content.trim() !== "",
-        );
+        contentArray.forEach((msg, index) => {
+          if (msg.type === "text") {
+            elements.push(
+              <div
+                key={index}
+                className="prose prose-sm dark:prose-invert max-w-none"
+              >
+                <MarkdownPreview content={msg.text ?? ""} />
+              </div>,
+            );
+          }
+          if (
+            msg.type === "tool_result" &&
+            msg.content &&
+            typeof msg.content === "string"
+          ) {
+            elements.push(
+              <ToolCallItem
+                key={index}
+                name="工具结果"
+                params={``}
+                content={<ToolCard title="🔧 工具结果" content={msg.content} />}
+                isExpandable={true}
+              />,
+            );
+          }
+        });
 
-        // 如果没有有效的工具结果，则不渲染
-        if (validToolResults.length === 0) {
-          return null;
-        }
-        const content = validToolResults
-          .map((item) => {
-            if (typeof item.content === "string") {
-              return item.content;
-            }
-            return JSON.stringify(item.content, null, 2);
-          })
-          .join("\n\n");
-
-        return (
-          <ToolCallItem
-            name="工具结果"
-            params={` (${validToolResults.length})`}
-            content={<ToolCard title="🔧 工具结果" content={content} />}
-            isExpandable={true}
-          />
-        );
+        return <>{elements}</>;
       }
     }
     if (

@@ -2,6 +2,7 @@ import type { AgentDefinition } from "@anthropic-ai/claude-agent-sdk";
 
 export const CLAUDE_MD_CREATOR_SUBAGENT: Record<string, AgentDefinition> = {
     "create_claude_md": {
+        tools: ['Bash', 'Read', 'Grep'],
         description: "用于生成CLAUDE.md项目指导文件的子代理",
         prompt: `# CLAUDE.md Creator 指令
 
@@ -23,24 +24,20 @@ export const CLAUDE_MD_CREATOR_SUBAGENT: Record<string, AgentDefinition> = {
 
 ## 项目基本信息
 
-- **课程/项目名称**：[projectName 值]
-- **学科领域**：[subject 值]  
-- **目标受众**：[audience 值]
-- **项目复杂度**：[projectComplexity 对应标签]
-- **单课时长**：[lessonDuration]分钟（标准：[standardDuration 对应标签]）
-- **教学目标**：[teachingGoals 对应标签，用逗号分隔]
-- **理论实践比例**：理论 [theoryPracticeRatio]% : 实践 [100-theoryPracticeRatio]%
+- **课程/项目名称**：
+- **学科领域**：
+- **目标受众**：
+- **项目复杂度**：
+- **单课时长**：
+- **教学目标**：
+- **理论实践比例**：理论 % : 实践 %
 
 ## 项目结构
 
-- **项目名称**：[projectName]
-- **文件结构模板**：[fileStruct 对应名称]
-- **结构描述**：[fileStruct 对应描述]
+- **项目名称**：
+- **文件结构模板**：
+- **结构描述**：
 - **目录结构**：
-\`\`\`
-[projectName]/
-[fileStruct 对应结构，替换"项目名称"为实际项目名]
-\`\`\`
 
 ## AI偏好
 
@@ -62,6 +59,19 @@ export const CLAUDE_MD_CREATOR_SUBAGENT: Record<string, AgentDefinition> = {
    3.  文件路径使用正确的项目名称
    4.  格式符合固定模板结构
    5.  没有出现文件乱码
+3. 你处在一个受限环境中，无法直接使用任何bash指令，只能使用srt命令与外界交互。
+Usage: srt [options] <command...>  // 使用方式：srt [选项] <命令...>
+  
+在受限沙箱环境中运行命令（网络和文件系统受限）
+  
+参数：
+    command                要在沙箱中运行的命令
+  
+可选项：
+    -V, --version          输出版本号
+    -d, --debug            启用调试日志
+    -s, --settings <path>  指定配置文件路径（默认：~/.srt-settings.json）
+    -h, --help             显示帮助信息
 
 ## 角色设定细则
 
@@ -85,25 +95,20 @@ export const CLAUDE_MD_CREATOR_SUBAGENT: Record<string, AgentDefinition> = {
 
 **自定义风格 (custom)**
 - 特点：根据用户自定义要求
-- 语言风格：[使用 aiRoleCustom 的具体内容]
 
 ### 工作流模式说明
 
 **迭代式 (iterative)**
 - 特点：先生成大纲，用户确认后再逐个生成正文（推荐）
-- 适用场景：需要精细控制和用户参与的项目
 
 **直出式 (direct)**
 - 特点：根据主题直接生成完整内容（速度快）
-- 适用场景：快速原型和初稿生成
 
 **纠错/润色式 (correction)**
 - 特点：用户提供草稿，AI进行优化
-- 适用场景：已有内容的改进和优化
 
 **引导式 (guided)**
 - 特点：AI通过不断提问来引导用户完成内容创作
-- 适用场景：需要深度思考和创意挖掘的项目
 
 ## 生成验证
 
@@ -151,13 +156,6 @@ Python数据分析基础/
 │   ├── 习题.md
 
 02-第二章-核心知识/
-│   ├── 教案.md
-│   ├── 教学手册.md
-│   ├── 学生手册.md
-│   ├── 课件.md
-│   ├── 习题.md
-
-03-第三章-实践应用/
 │   ├── 教案.md
 │   ├── 教学手册.md
 │   ├── 学生手册.md
